@@ -8,9 +8,151 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())        @map("id")
+  email         String   @unique                    @map("email")
+  passwordHash  String                              @map("password_hash")
+  name          String?                             @map("name")
+  createdAt     DateTime @default(now())            @map("created_at")
+  updatedAt     DateTime @updatedAt                 @map("updated_at")
+  roles     UserRole[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String          @id @default(cuid())   @map("id")
+  name        String          @unique                @map("name")
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id    String           @id @default(cuid())       @map("id")
+  name  String           @unique                    @map("name")
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String @map("user_id")
+  roleId String @map("role_id")
+  user   User @relation(fields: [userId], references: [id])
+  role   Role @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// Domain models
+model Credential {
+  id         Int      @id @default(autoincrement()) @map("id")
+  name       String                               @map("name")
+  type       String                               @map("type")
+  data       Json                                 @map("data")
+  createdAt  DateTime @default(now())             @map("created_at")
+  services   Service[]
+
+  @@map("credentials")
+}
+
+model Server {
+  id         Int      @id @default(autoincrement()) @map("id")
+  name       String                               @map("name")
+  publicIp   String                               @map("public_ip")
+  privateIp  String                               @map("private_ip")
+  sshPort    Int                                  @map("ssh_port")
+  username   String                               @map("username")
+  password   String?                              @map("password")
+  createdAt  DateTime @default(now())             @map("created_at")
+  services   Service[]
+
+  @@map("servers")
+}
+
+model Service {
+  id            Int         @id @default(autoincrement()) @map("id")
+  name          String                                   @map("name")
+  port          Int                                      @map("port")
+  createdAt     DateTime    @default(now())              @map("created_at")
+  serverId      Int                                      @map("server_id")
+  server        Server      @relation(fields: [serverId], references: [id])
+  credentialId  Int?                                     @map("credential_id")
+  credential    Credential? @relation(fields: [credentialId], references: [id])
+  tags          ServiceTag[]
+  releaseNotes  ReleaseNote[]
+
+  @@map("services")
+}
+
+enum GroupItemType {
+  server
+  service
+}
+
+model Group {
+  id        Int         @id @default(autoincrement()) @map("id")
+  name      String      @unique                       @map("name")
+  createdAt DateTime    @default(now())               @map("created_at")
+  items     GroupItem[]
+
+  @@map("groups")
+}
+
+model GroupItem {
+  id        Int           @id @default(autoincrement()) @map("id")
+  groupId   Int                                       @map("group_id")
+  group     Group         @relation(fields: [groupId], references: [id])
+  itemType  GroupItemType                             @map("item_type")
+  itemId    Int                                       @map("item_id")
+
+  @@map("group_items")
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement()) @map("id")
+  name      String    @unique                      @map("name")
+  createdAt DateTime  @default(now())              @map("created_at")
+  services  ServiceTag[]
+
+  @@map("tags")
+}
+
+model ServiceTag {
+  serviceId Int @map("service_id")
+  tagId     Int @map("tag_id")
+  service   Service @relation(fields: [serviceId], references: [id])
+  tag       Tag     @relation(fields: [tagId], references: [id])
+
+  @@id([serviceId, tagId])
+  @@map("service_tags")
+}
+
+enum ReleaseStatus {
+  pending
+  deployed
+}
+
+model ReleaseNote {
+  id         Int            @id @default(autoincrement()) @map("id")
+  serviceId  Int                                         @map("service_id")
+  service    Service        @relation(fields: [serviceId], references: [id])
+  note       String                                      @map("note")
+  status     ReleaseStatus  @default(pending)            @map("status")
+  createdAt  DateTime       @default(now())              @map("created_at")
+  updatedAt  DateTime       @updatedAt                   @map("updated_at")
+
+  @@map("release_notes")
 }

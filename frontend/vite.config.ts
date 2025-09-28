@@ -11,6 +11,10 @@ export default defineConfig({
         target: process.env.BACKEND_URL || `http://localhost:3044`,
         changeOrigin: true,
       },
+      '/auth': {
+        target: process.env.BACKEND_URL || `http://localhost:3044`,
+        changeOrigin: true,
+      },
     },
   },
   preview: {

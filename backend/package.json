@@ -7,26 +7,29 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "test": "vitest run",
+    "test": "vitest run --dir test",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --name init --schema prisma/schema.prisma",
     "db:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
     "db:seed": "prisma db seed --schema prisma/schema.prisma"
   },
   "dependencies": {
-    "@prisma/client": "^5.19.1",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "@prisma/client": "6.16.2",
+    "bcryptjs": "3.0.2",
+    "cors": "2.8.5",
+    "dotenv": "17.2.2",
+    "express": "5.1.0",
+    "jsonwebtoken": "9.0.2"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/node": "^22.5.4",
-    "prisma": "^5.19.1",
-    "tsx": "^4.17.0",
-    "typescript": "^5.6.2",
-    "vitest": "^2.1.1"
+    "@types/cors": "2.8.19",
+    "@types/express": "5.0.3",
+    "@types/jsonwebtoken": "9.0.10",
+    "@types/node": "24.5.2",
+    "prisma": "6.16.2",
+    "tsx": "4.20.6",
+    "typescript": "5.9.2",
+    "vitest": "3.2.4"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
