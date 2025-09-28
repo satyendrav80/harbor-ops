@@ -21,25 +21,25 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       NODE_ENV: production
-      PORT: ${BACKEND_PORT:-4000}
+      PORT: ${BACKEND_PORT:-3044}
       DATABASE_URL: postgresql://harbor:harbor@postgres:5432/harbor?schema=public
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "${BACKEND_PORT:-4000}:${BACKEND_PORT:-4000}"
+      - "${BACKEND_PORT:-3044}:${BACKEND_PORT:-3044}"
 
   frontend:
     build:
       context: .
       dockerfile: frontend/Dockerfile
     environment:
-      VITE_BACKEND_URL: http://backend:${BACKEND_PORT:-4000}
-      FRONTEND_PORT: ${FRONTEND_PORT:-5173}
+      BACKEND_URL: http://backend:${BACKEND_PORT:-3044}
+      PORT: ${FRONTEND_PORT:-3045}
     depends_on:
       - backend
     ports:
-      - "${FRONTEND_PORT:-5173}:${FRONTEND_PORT:-5173}"
+      - "${FRONTEND_PORT:-3045}:${FRONTEND_PORT:-3045}"
 
 volumes:
   pgdata:

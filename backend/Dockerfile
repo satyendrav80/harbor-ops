@@ -12,9 +12,9 @@ COPY . .
 
 # Build backend and generate prisma client
 RUN npm run build -w backend && \
-    npx prisma generate --schema prisma/schema.prisma
+    npx prisma generate --schema backend/prisma/schema.prisma
 
 ENV NODE_ENV=production
-ENV PORT=4000
-EXPOSE 4000
+ENV PORT=3044
+EXPOSE 3044
 CMD ["node", "backend/dist/index.js"]

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 function App() {
   const [status, setStatus] = useState<string>('Checking...');
-  const baseUrl = import.meta.env.VITE_BACKEND_URL || '';
+  const baseUrl = import.meta.env.BACKEND_URL || '';
   useEffect(() => {
     fetch(`${baseUrl}/health`)
       .then(async (res) => {

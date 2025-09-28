@@ -27,8 +27,8 @@ npm i -w frontend
 ```bash
 npm run dev
 ```
-- Backend: http://localhost:4000
-- Frontend: http://localhost:5173
+- Backend: http://localhost:3044
+- Frontend: http://localhost:3045
 
 ## Database (Prisma + PostgreSQL)
 
@@ -56,8 +56,8 @@ docker-compose up --build
 
 Services:
 - Postgres: 5432
-- Backend: 4000 (GET /health → { ok: true })
-- Frontend: 5173 (displays "Backend OK" when backend healthy)
+- Backend: 3044 (GET /health → { ok: true })
+- Frontend: 3045 (displays "Backend OK" when backend healthy)
 
 ## Project Structure
 ```
@@ -76,6 +76,6 @@ Services:
 ```
 
 ## Acceptance Criteria Quick Check
-- `docker-compose up --build` should start Postgres (5432), backend (4000), frontend (5173).
-- `GET http://localhost:4000/health` returns `{ ok: true }`.
-- Frontend at `http://localhost:5173` displays `Backend OK` when backend is reachable.
+- `docker-compose up --build` should start Postgres (5432), backend (3044), frontend (3045).
+- `GET http://localhost:3044/health` returns `{ ok: true }`.
+- Frontend at `http://localhost:3045` displays `Backend OK` when backend is reachable.

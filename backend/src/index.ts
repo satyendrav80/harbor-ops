@@ -10,7 +10,7 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ ok: true });
 });
 
-const port = Number(process.env.PORT) || 4000;
+const port = Number(process.env.PORT) || 3044;
 app.listen(port, () => {
   console.log(`Backend listening on http://localhost:${port}`);
 });
