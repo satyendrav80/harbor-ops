@@ -1,6 +1,6 @@
 /* Purpose: Authentication login screen */
 import { FormEvent, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { useAuth } from '../../state/AuthContext';
@@ -9,6 +9,7 @@ import AuthLayout from '../../components/layout/AuthLayout';
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('admin@example.com');
   const [password, setPassword] = useState('Admin123!');
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +20,8 @@ export default function LoginPage() {
     setError(null); setLoading(true);
     try {
       await login(email, password);
-      navigate('/profile');
+      const redirectTo = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/';
+      navigate(redirectTo, { replace: true });
     } catch (err: any) {
       setError(err?.message || 'Login failed');
     } finally {
