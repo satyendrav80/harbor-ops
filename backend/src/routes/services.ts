@@ -7,9 +7,21 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get('/', async (_req, res) => {
-  const items = await prisma.service.findMany();
-  res.json(items);
+router.get('/', async (req, res) => {
+  const include = (req.query.include as string | undefined) ?? '';
+  const includeRelations = include.split(',').includes('relations');
+  const services = await prisma.service.findMany({
+    include: includeRelations
+      ? {
+          server: true,
+          credential: true,
+          tags: { include: { tag: true } },
+          releaseNotes: true,
+        }
+      : undefined,
+    orderBy: { createdAt: 'desc' },
+  });
+  res.json(services);
 });
 
 router.post('/', async (req, res) => {
