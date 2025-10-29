@@ -37,7 +37,7 @@ export default function LoginPage() {
         <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         {error && <div className="text-red-400 text-sm" role="alert">{error}</div>}
-        <Button type="submit" disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}</Button>
+        <div className="flex w-full"><Button type="submit" disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}</Button></div>
       </form>
     </AuthLayout>
   );
