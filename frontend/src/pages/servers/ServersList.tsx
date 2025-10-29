@@ -1,12 +1,9 @@
+/* Purpose: Servers list fetching /servers with simple table */
 import { useMemo, useState } from 'react';
 import useFetch from '../../hooks/useFetch';
 import api from '../../lib/api';
-import Table from '../../components/common/Table';
 import Button from '../../components/common/Button';
 import EmptyState from '../../components/common/EmptyState';
-import Modal from '../../components/common/Modal';
-import ServerForm from './ServerForm';
-import ServerRow from './ServerRow';
 
 export type Server = {
   id: number;
@@ -26,62 +23,66 @@ async function fetchServers(): Promise<Server[]> {
 export default function ServersList() {
   const { data, loading, error, refetch } = useFetch<Server[]>(fetchServers);
   const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
-
-  const servers = data || [];
-  const filtered = useMemo(() => servers.filter((s) => s.name.toLowerCase().includes(query.toLowerCase())), [servers, query]);
-
-  // Simple client-side pagination
-  const pageSize = 25;
-  const [page, setPage] = useState(0);
-  const pageCount = Math.ceil(filtered.length / pageSize);
-  const pageItems = filtered.slice(page * pageSize, page * pageSize + pageSize);
+  const filtered = useMemo(() => {
+    const list = data ?? [];
+    return list.filter((srv) => srv.name.toLowerCase().includes(query.toLowerCase()));
+  }, [data, query]);
 
   return (
-    <div className="p-4">
-      <div className="flex items-center justify-between mb-3">
-        <input
-          placeholder="Search servers..."
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setPage(0); }}
-          className="rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 w-64"
-          aria-label="Search servers"
-        />
-        <Button onClick={() => setOpen(true)}>Create Server</Button>
+    <div className="card p-6 space-y-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-white">Servers</h1>
+          <p className="text-sm text-slate-400">Provisioned compute targets connected to Harbor-Ops agents.</p>
+        </div>
+        <div className="flex w-full gap-2 md:w-auto">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search"
+            className="flex-1 input md:w-56"
+            aria-label="Search servers"
+          />
+          <Button onClick={refetch} variant="secondary">Refresh</Button>
+          <Button>Create server</Button>
+        </div>
       </div>
 
-      {loading && <div className="text-slate-400">Loading...</div>}
+      {loading && <div className="text-slate-400">Loading servers…</div>}
       {error && <div className="text-red-400">{error}</div>}
 
       {!loading && filtered.length === 0 && (
-        <EmptyState title="No servers found" action={<Button onClick={() => setOpen(true)}>Create your first server</Button>} />
+        <EmptyState title="No servers found" action={<Button onClick={() => setQuery('')}>Clear filters</Button>} />
       )}
 
       {!loading && filtered.length > 0 && (
-        <Table
-          columns={[
-            { key: 'name', header: 'Name', sortable: true, render: (s: any) => <ServerRow server={s} onChanged={refetch} /> },
-            { key: 'publicIp', header: 'Public IP', sortable: true },
-            { key: 'privateIp', header: 'Private IP', sortable: true },
-            { key: 'sshPort', header: 'SSH', sortable: true },
-            { key: 'username', header: 'User', sortable: true },
-            { key: 'createdAt', header: 'Created', sortable: true },
-          ]}
-          rows={pageItems}
-        />
-      )}
-
-      {pageCount > 1 && (
-        <div className="flex items-center justify-end gap-2 mt-3 text-sm">
-          <Button variant="secondary" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>Prev</Button>
-          <div className="text-slate-400">Page {page + 1} / {pageCount}</div>
-          <Button variant="secondary" onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={page + 1 >= pageCount}>Next</Button>
+        <div className="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Public IP</th>
+                <th>Private IP</th>
+                <th>SSH Port</th>
+                <th>User</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((srv) => (
+                <tr key={srv.id}>
+                  <td className="font-medium text-white">{srv.name}</td>
+                  <td>{srv.publicIp || '—'}</td>
+                  <td>{srv.privateIp || '—'}</td>
+                  <td>{srv.sshPort}</td>
+                  <td>{srv.username}</td>
+                  <td>{new Date(srv.createdAt).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
-
-      <Modal open={open} onClose={() => setOpen(false)} title="Create Server">
-        <ServerForm open={open} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); refetch(); }} />
-      </Modal>
     </div>
   );
 }

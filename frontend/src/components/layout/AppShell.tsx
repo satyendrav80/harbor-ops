@@ -1,13 +1,14 @@
-import Sidebar from './Sidebar';
+/* Purpose: Shared layout with header + sidebar */
 import Header from './Header';
+import Sidebar from './Sidebar';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen grid grid-rows-[auto_1fr]" style={{ background: 'var(--color-bg)' }}>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),transparent_55%)]" style={{ backgroundColor: 'var(--bg)' }}>
       <Header />
-      <div className="grid grid-cols-[auto_1fr]">
+      <div className="flex">
         <Sidebar />
-        <main className="p-4">{children}</main>
+        <main className="flex-1 p-6 space-y-6">{children}</main>
       </div>
     </div>
   );

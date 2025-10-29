@@ -1,5 +1,6 @@
+/* Purpose: Shared auth form for login/signup */
 import { useState } from 'react';
-import InputField from './InputField';
+import Input from '../common/Input';
 import Button from '../common/Button';
 
 export type AuthFormMode = 'login' | 'signup';
@@ -32,19 +33,13 @@ export default function AuthForm({ mode, onSubmit }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-3">
-      {mode === 'signup' && (
-        <InputField label="Name" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
-      )}
-      <InputField label="Email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <InputField label="Password" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-      {mode === 'signup' && (
-        <InputField label="Confirm Password" type="password" placeholder="Confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
-      )}
-      {error && <div className="text-red-400 text-sm">{error}</div>}
-      <Button type="submit" disabled={loading}>
-        {mode === 'login' ? 'Sign in' : 'Create account'}
-      </Button>
+    <form onSubmit={handleSubmit} className="grid gap-4">
+      {mode === 'signup' && <Input label="Full name" value={name} onChange={(e) => setName(e.target.value)} required />}
+      <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+      <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+      {mode === 'signup' && <Input label="Confirm password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />}
+      {error && <div className="text-red-400 text-sm" role="alert">{error}</div>}
+      <Button type="submit" disabled={loading}>{mode === 'login' ? 'Sign in' : 'Create account'}</Button>
     </form>
   );
 }
