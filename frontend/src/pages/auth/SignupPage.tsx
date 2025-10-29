@@ -3,6 +3,7 @@ import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import AuthLayout from '../../components/layout/AuthLayout';
 
 export default function SignupPage() {
   const navigate = useNavigate();
@@ -34,22 +35,19 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <h1>Create an account</h1>
-        <p className="text-sm text-slate-400 mb-4">Access deployment automation, credential management, and release tracking.</p>
-        <form onSubmit={onSubmit}>
-          <Input label="Full name" value={name} onChange={(e) => setName(e.target.value)} required />
-          <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          <Input label="Confirm password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
-          {error && <div className="text-red-400 text-sm" role="alert">{error}</div>}
-          <Button type="submit" disabled={loading}>{loading ? 'Creating…' : 'Create account'}</Button>
-        </form>
-        <div className="mt-4 text-sm text-slate-400">
-          Already registered? <Link to="/login">Sign in</Link>
-        </div>
-      </div>
-    </div>
+    <AuthLayout
+      title="Create an account"
+      description="Deploy with confidence. Track environments, credentials, and redeployments in minutes."
+      footer={<span>Already have an account? <Link to="/login">Sign in</Link></span>}
+    >
+      <form onSubmit={onSubmit}>
+        <Input label="Full name" value={name} onChange={(e) => setName(e.target.value)} required />
+        <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <Input label="Confirm password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+        {error && <div className="text-red-400 text-sm" role="alert">{error}</div>}
+        <Button type="submit" disabled={loading}>{loading ? 'Creating…' : 'Create account'}</Button>
+      </form>
+    </AuthLayout>
   );
 }

@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { useAuth } from '../../state/AuthContext';
+import AuthLayout from '../../components/layout/AuthLayout';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -27,20 +28,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <h1>Sign in to Harbor-Ops</h1>
-        <p className="text-sm text-slate-400 mb-4">Monitor servers, deployments, and credentials from one secure console.</p>
-        <form onSubmit={onSubmit}>
-          <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          {error && <div className="text-red-400 text-sm" role="alert">{error}</div>}
-          <Button type="submit" disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}</Button>
-        </form>
-        <div className="mt-4 text-sm text-slate-400">
-          No account? <Link to="/signup">Create one</Link>
-        </div>
-      </div>
-    </div>
+    <AuthLayout
+      title="Sign in to Harbor-Ops"
+      description="Monitor servers, deployments, and credentials from one secure console."
+      footer={<span>No account? <Link to="/signup">Create one</Link></span>}
+    >
+      <form onSubmit={onSubmit}>
+        <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        {error && <div className="text-red-400 text-sm" role="alert">{error}</div>}
+        <Button type="submit" disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}</Button>
+      </form>
+    </AuthLayout>
   );
 }

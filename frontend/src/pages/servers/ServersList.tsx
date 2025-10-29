@@ -4,6 +4,7 @@ import useFetch from '../../hooks/useFetch';
 import api from '../../lib/api';
 import Button from '../../components/common/Button';
 import EmptyState from '../../components/common/EmptyState';
+import PageHeader from '../../components/common/PageHeader';
 
 export type Server = {
   id: number;
@@ -29,24 +30,24 @@ export default function ServersList() {
   }, [data, query]);
 
   return (
-    <div className="card p-6 space-y-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-white">Servers</h1>
-          <p className="text-sm text-slate-400">Provisioned compute targets connected to Harbor-Ops agents.</p>
-        </div>
-        <div className="flex w-full gap-2 md:w-auto">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search"
-            className="flex-1 input md:w-56"
-            aria-label="Search servers"
-          />
-          <Button onClick={refetch} variant="secondary">Refresh</Button>
-          <Button>Create server</Button>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <PageHeader
+        title="Servers"
+        description="Provisioned compute targets connected to Harbor-Ops agents."
+        action={
+          <div className="flex gap-2">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search"
+              className="input md:w-56"
+              aria-label="Search servers"
+            />
+            <Button variant="secondary" onClick={refetch}>Refresh</Button>
+            <Button>Create server</Button>
+          </div>
+        }
+      />
 
       {loading && <div className="text-slate-400">Loading servers…</div>}
       {error && <div className="text-red-400">{error}</div>}
