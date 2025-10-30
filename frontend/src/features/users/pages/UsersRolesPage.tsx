@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '../../auth/context/AuthContext';
 import { useUsers } from '../hooks/useUsers';
 import { useRoles } from '../hooks/useRoles';
 import { usePermissions } from '../hooks/usePermissions';
@@ -37,6 +38,7 @@ function useDebounce<T>(value: T, delay: number = 500): T {
  * UsersRolesPage component for managing users and their roles
  */
 export function UsersRolesPage() {
+  const { hasPermission } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'permissions'>('users');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
@@ -294,7 +296,8 @@ export function UsersRolesPage() {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Users</h2>
             <button
               onClick={handleCreateUser}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              disabled={!hasPermission('users:create')}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />
               Create User
@@ -370,7 +373,8 @@ export function UsersRolesPage() {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Roles</h2>
             <button
               onClick={handleCreateRole}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              disabled={!hasPermission('roles:create')}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />
               Create Role
@@ -542,6 +546,7 @@ function UserRow({
   selectedUser, 
   setSelectedUser 
 }: UserRowProps) {
+  const { hasPermission } = useAuth();
   const userRoles = user.roles.map((ur) => ur.role.id);
   const availableRoles = roles.filter((role) => !userRoles.includes(role.id));
   const isExpanded = selectedUser === user.id;
@@ -607,7 +612,7 @@ function UserRow({
                   {ur.role.name}
                   <button
                     onClick={() => onRemoveRole(user.id, ur.role.id)}
-                    disabled={assigningRole === `${user.id}-${ur.role.id}`}
+                    disabled={assigningRole === `${user.id}-${ur.role.id}` || !hasPermission('roles:manage')}
                     className="hover:text-red-500 focus:outline-none disabled:opacity-50"
                     aria-label={`Remove ${ur.role.name} role`}
                   >
@@ -622,7 +627,8 @@ function UserRow({
           <div className="flex items-center gap-2">
             <button
               onClick={() => onEditUser(user)}
-              className="text-sm text-primary hover:text-primary/80 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 rounded px-2 py-1"
+              disabled={!hasPermission('users:update')}
+              className="text-sm text-primary hover:text-primary/80 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Edit user"
             >
               <Edit className="w-4 h-4" />
@@ -652,7 +658,7 @@ function UserRow({
             {user.status === 'approved' && (
               <button
                 onClick={() => onBlock(user.id)}
-                disabled={blockingUser}
+                disabled={blockingUser || !hasPermission('users:update')}
                 className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium focus:outline-none focus:ring-2 focus:ring-red-500/50 rounded px-2 py-1 disabled:opacity-50"
                 aria-label="Block user"
                 title="Block user"
@@ -663,7 +669,7 @@ function UserRow({
             {user.status === 'blocked' && (
               <button
                 onClick={() => onUnblock(user.id)}
-                disabled={unblockingUser}
+                disabled={unblockingUser || !hasPermission('users:update')}
                 className="text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 font-medium focus:outline-none focus:ring-2 focus:ring-green-500/50 rounded px-2 py-1 disabled:opacity-50"
                 aria-label="Unblock user"
                 title="Unblock user"
@@ -673,7 +679,8 @@ function UserRow({
             )}
             <button
               onClick={() => setSelectedUser(isExpanded ? null : user.id)}
-              className="text-sm text-primary hover:text-primary/80 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 rounded px-2 py-1"
+              disabled={!hasPermission('roles:manage')}
+              className="text-sm text-primary hover:text-primary/80 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isExpanded ? 'Hide' : 'Assign Role'}
             </button>

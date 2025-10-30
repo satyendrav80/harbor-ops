@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requirePermission } from '../middleware/auth';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -199,7 +199,7 @@ router.get('/permission-config', async (_req, res) => {
 });
 
 // Assign role to user
-router.post('/users/:userId/roles/:roleId', async (req, res) => {
+router.post('/users/:userId/roles/:roleId', requirePermission('roles:manage'), async (req, res) => {
   const { userId, roleId } = req.params;
   try {
     await prisma.userRole.create({
@@ -237,7 +237,7 @@ router.post('/users/:userId/roles/:roleId', async (req, res) => {
 });
 
 // Remove role from user
-router.delete('/users/:userId/roles/:roleId', async (req, res) => {
+router.delete('/users/:userId/roles/:roleId', requirePermission('roles:manage'), async (req, res) => {
   const { userId, roleId } = req.params;
   try {
     // Prevent removing admin role if it would leave no approved admins
@@ -256,6 +256,11 @@ router.delete('/users/:userId/roles/:roleId', async (req, res) => {
         return res.status(400).json({ error: 'At least one approved admin must remain' });
       }
     }
+    // Prevent removing the default regular role from any user
+    const regularRole = await prisma.role.findUnique({ where: { name: 'regular' } });
+    if (regularRole && regularRole.id === roleId) {
+      return res.status(400).json({ error: 'Default role cannot be removed from user' });
+    }
     await prisma.userRole.delete({
       where: {
         userId_roleId: {
@@ -271,7 +276,7 @@ router.delete('/users/:userId/roles/:roleId', async (req, res) => {
 });
 
 // Create a new role
-router.post('/roles', async (req, res) => {
+router.post('/roles', requirePermission('roles:create'), async (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Role name is required' });
   if (name === 'admin' || name === 'regular') return res.status(400).json({ error: 'Default roles cannot be created or modified' });
@@ -301,7 +306,7 @@ router.post('/roles', async (req, res) => {
 });
 
 // Assign permission to role
-router.post('/roles/:roleId/permissions/:permissionId', async (req, res) => {
+router.post('/roles/:roleId/permissions/:permissionId', requirePermission('roles:manage'), async (req, res) => {
   const { roleId, permissionId } = req.params;
   try {
     let role = await prisma.role.findUnique({ where: { id: roleId } });
@@ -338,7 +343,7 @@ router.post('/roles/:roleId/permissions/:permissionId', async (req, res) => {
 });
 
 // Remove permission from role
-router.delete('/roles/:roleId/permissions/:permissionId', async (req, res) => {
+router.delete('/roles/:roleId/permissions/:permissionId', requirePermission('roles:manage'), async (req, res) => {
   const { roleId, permissionId } = req.params;
   try {
     const role = await prisma.role.findUnique({ where: { id: roleId } });
@@ -359,7 +364,7 @@ router.delete('/roles/:roleId/permissions/:permissionId', async (req, res) => {
 });
 
 // Create a new user
-router.post('/users', async (req, res) => {
+router.post('/users', requirePermission('users:create'), async (req, res) => {
   const { email, password, name, username } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
   
@@ -424,7 +429,7 @@ router.post('/users', async (req, res) => {
 });
 
 // Update a user
-router.put('/users/:id', async (req, res) => {
+router.put('/users/:id', requirePermission('users:update'), async (req, res) => {
   const { id } = req.params;
   const { email, name, username, password } = req.body;
   
@@ -487,7 +492,7 @@ router.put('/users/:id', async (req, res) => {
 });
 
 // Delete a user
-router.delete('/users/:id', async (req, res) => {
+router.delete('/users/:id', requirePermission('users:delete'), async (req, res) => {
   const { id } = req.params;
   try {
     // Prevent deleting last approved admin
@@ -520,7 +525,7 @@ router.delete('/users/:id', async (req, res) => {
 });
 
 // Update a role
-router.put('/roles/:id', async (req, res) => {
+router.put('/roles/:id', requirePermission('roles:update'), async (req, res) => {
   const { id } = req.params;
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Role name is required' });
@@ -575,7 +580,7 @@ router.put('/roles/:id', async (req, res) => {
 });
 
 // Delete a role
-router.delete('/roles/:id', async (req, res) => {
+router.delete('/roles/:id', requirePermission('roles:delete'), async (req, res) => {
   const { id } = req.params;
   const existingRole = await prisma.role.findUnique({ where: { id } });
   if (existingRole && (existingRole.name === 'admin' || existingRole.name === 'regular')) return res.status(400).json({ error: 'Default roles cannot be deleted' });
@@ -593,7 +598,7 @@ router.delete('/roles/:id', async (req, res) => {
 });
 
 // Create a new permission
-router.post('/permissions', async (req, res) => {
+router.post('/permissions', requirePermission('permissions:create'), async (req, res) => {
   const { name, resource, action, description } = req.body;
   if (!name) return res.status(400).json({ error: 'Permission name is required' });
   if (!resource) return res.status(400).json({ error: 'Resource is required' });
@@ -622,7 +627,7 @@ router.post('/permissions', async (req, res) => {
 });
 
 // Update a permission
-router.put('/permissions/:id', async (req, res) => {
+router.put('/permissions/:id', requirePermission('permissions:update'), async (req, res) => {
   const { id } = req.params;
   const { name, resource, action, description } = req.body;
   if (!name) return res.status(400).json({ error: 'Permission name is required' });
@@ -678,7 +683,7 @@ router.put('/permissions/:id', async (req, res) => {
 });
 
 // Delete a permission
-router.delete('/permissions/:id', async (req, res) => {
+router.delete('/permissions/:id', requirePermission('permissions:delete'), async (req, res) => {
   const { id } = req.params;
   try {
     const perm = await prisma.permission.findUnique({ where: { id } });
@@ -698,7 +703,7 @@ router.delete('/permissions/:id', async (req, res) => {
 });
 
 // Approve a user
-router.post('/users/:id/approve', async (req, res) => {
+router.post('/users/:id/approve', requirePermission('users:update'), async (req, res) => {
   const { id } = req.params;
   try {
     const user = await prisma.user.update({
@@ -734,7 +739,7 @@ router.post('/users/:id/approve', async (req, res) => {
 });
 
 // Block a user
-router.post('/users/:id/block', async (req, res) => {
+router.post('/users/:id/block', requirePermission('users:update'), async (req, res) => {
   const { id } = req.params;
   try {
     // Prevent blocking the last approved admin
@@ -789,7 +794,7 @@ router.post('/users/:id/block', async (req, res) => {
 });
 
 // Unblock a user (approve)
-router.post('/users/:id/unblock', async (req, res) => {
+router.post('/users/:id/unblock', requirePermission('users:update'), async (req, res) => {
   const { id } = req.params;
   try {
     const user = await prisma.user.update({
@@ -825,7 +830,7 @@ router.post('/users/:id/unblock', async (req, res) => {
 });
 
 // Reject a user (delete)
-router.delete('/users/:id/reject', async (req, res) => {
+router.delete('/users/:id/reject', requirePermission('users:delete'), async (req, res) => {
   const { id } = req.params;
   try {
     // Delete user roles first (cascade)

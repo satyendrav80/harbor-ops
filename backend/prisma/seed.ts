@@ -52,6 +52,11 @@ async function main() {
     update: {},
     create: { userId: admin.id, roleId: adminRole.id },
   });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: admin.id, roleId: regularRole.id } },
+    update: {},
+    create: { userId: admin.id, roleId: regularRole.id },
+  });
 }
 
 main().finally(async () => prisma.$disconnect());

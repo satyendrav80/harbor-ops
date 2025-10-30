@@ -8,12 +8,12 @@ export function useAssignRoleToUser() {
   return useMutation({
     mutationFn: ({ userId, roleId }: { userId: string; roleId: string }) =>
       assignRoleToUser(userId, roleId),
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['roles'] });
       queryClient.invalidateQueries({ queryKey: ['me'] }); // Refresh user permissions
       // If assigning role to current user, refresh permissions immediately
-      if (user?.id === userId) {
+      if (user?.id === variables.userId) {
         await refreshPermissions();
       }
     },
@@ -26,12 +26,12 @@ export function useRemoveRoleFromUser() {
   return useMutation({
     mutationFn: ({ userId, roleId }: { userId: string; roleId: string }) =>
       removeRoleFromUser(userId, roleId),
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['roles'] });
       queryClient.invalidateQueries({ queryKey: ['me'] }); // Refresh user permissions
       // If removing role from current user, refresh permissions immediately
-      if (user?.id === userId) {
+      if (user?.id === variables.userId) {
         await refreshPermissions();
       }
     },

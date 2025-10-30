@@ -21,7 +21,10 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
         window.dispatchEvent(new CustomEvent('api-error', { detail: { message: errorMessage, status: res.status } }));
       }
     } catch {}
-    if (res.status === 401 || res.status === 403) {
+    if (res.status === 401 || (res.status === 403 && (
+      errorMessage?.toLowerCase().includes('blocked') ||
+      errorMessage?.toLowerCase().includes('pending approval')
+    ))) {
       try {
         localStorage.removeItem('token');
         localStorage.removeItem('user');

@@ -109,6 +109,11 @@ router.post('/login', async (req, res) => {
   
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+  // Enforce at least one role assigned to login
+  const roleCount = await prisma.userRole.count({ where: { userId: user.id } });
+  if (roleCount === 0) {
+    return res.status(403).json({ error: 'Your account has no roles assigned. Please contact an administrator.' });
+  }
   const token = signToken({ sub: user.id, email: user.email });
   return res.json({ token });
 });

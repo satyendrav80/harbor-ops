@@ -39,17 +39,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!token) return;
     try {
       const me = await getMe();
-      if (me.permissions) {
-        setUser((prevUser) => {
-          if (!prevUser) return prevUser;
-          const updatedUser = {
-            ...prevUser,
-            permissions: me.permissions,
-          };
-          localStorage.setItem('user', JSON.stringify(updatedUser));
-          return updatedUser;
-        });
+      // If user is blocked/pending or has no permissions, force logout
+      if (me.status && me.status !== 'approved') {
+        logout();
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+        return;
       }
+      if (!me.permissions || me.permissions.length === 0) {
+        logout();
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+        return;
+      }
+      setUser((prevUser) => {
+        const base = prevUser || { id: me.id, name: me.name || me.email, email: me.email };
+        const updatedUser = { ...base, permissions: me.permissions } as typeof base & { permissions: string[] };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        return updatedUser as any;
+      });
     } catch (error) {
       // Silent error - permissions refresh failed
     }
