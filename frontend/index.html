@@ -12,10 +12,18 @@
     <script>
       (function () {
         try {
-          // Always follow system preference; clear any saved theme
-          localStorage.removeItem('theme');
-          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          document.documentElement.classList.toggle('dark', prefersDark);
+          // Check for saved theme preference first
+          const savedTheme = localStorage.getItem('theme');
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          
+          if (savedTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else if (savedTheme === 'light') {
+            document.documentElement.classList.remove('dark');
+          } else {
+            // Use system preference if no saved theme
+            document.documentElement.classList.toggle('dark', prefersDark);
+          }
         } catch {}
       })();
     </script>

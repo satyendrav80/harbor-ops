@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, Link } from 'react-router-dom';
 import { useLogin } from '../hooks/useLogin';
 import { useAuth } from '../context/AuthContext';
+import { ThemeToggle } from '../../../components/ui/ThemeToggle';
 
 const schema = z.object({
   email: z.string().min(1, 'Email is required'),
@@ -32,7 +33,10 @@ export function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col items-center justify-center p-4 bg-[#F8F9FA] text-[#212529] dark:bg-[#1A1D21] dark:text-[#E9ECEF]">
+    <div className="relative flex min-h-screen w-full flex-col items-center justify-center p-4 bg-[#F8F9FA] dark:bg-background-dark text-[#212529] dark:text-[#E9ECEF]">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-4xl overflow-hidden rounded-xl shadow-lg md:grid md:grid-cols-2">
         {/* Left brand panel */}
         <div className="relative hidden items-center justify-center bg-[#4A90E2]/10 dark:bg-[#4A90E2]/20 p-8 md:flex flex-col">
@@ -50,7 +54,7 @@ export function LoginPage() {
         </div>
 
         {/* Right: form */}
-        <div className="flex flex-col justify-center bg-[#F8F9FA] dark:bg-[#1A1D21] p-8 sm:p-12">
+        <div className="flex flex-col justify-center bg-[#F8F9FA] dark:bg-background-dark p-8 sm:p-12">
           <div className="w-full max-w-md">
             <div className="text-center md:hidden mb-8">
               <div className="mb-4 flex justify-center text-[#4A90E2]">
@@ -59,15 +63,15 @@ export function LoginPage() {
               <h2 className="text-2xl font-bold text-[#212529] dark:text-white">HarborOps</h2>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Sign In</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#212529] dark:text-white">Sign In</h1>
             <p className="mt-2 text-base text-[#495057] dark:text-[#E9ECEF]/70">Welcome back! Please enter your credentials.</p>
 
             <form className="mt-8 space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
               <div>
                 <label className="flex flex-col">
-                  <span className="text-sm font-medium leading-normal pb-2">Username or Email</span>
+                  <span className="text-sm font-medium leading-normal pb-2 text-[#212529] dark:text-[#E9ECEF]">Username or Email</span>
                   <input
-                    className="form-input flex w-full rounded-lg border border-[#DEE2E6] dark:border-[#495057] bg-white dark:bg-[#101922] h-12 px-4 text-base placeholder:text-[#6c757d] dark:placeholder:text-[#adb5bd]"
+                    className="form-input flex w-full rounded-lg border border-[#DEE2E6] dark:border-[#495057] bg-white dark:bg-[#1C252E] h-12 px-4 text-base text-[#212529] dark:text-[#E9ECEF] placeholder:text-[#6c757d] dark:placeholder:text-[#adb5bd]"
                     placeholder="e.g. user@example.com"
                     type="email"
                     autoComplete="username"
@@ -75,16 +79,16 @@ export function LoginPage() {
                   />
                 </label>
                 {form.formState.errors.email && (
-                  <p className="mt-1 text-sm text-red-600">{form.formState.errors.email.message}</p>
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.email.message}</p>
                 )}
               </div>
 
               <div>
                 <label className="flex flex-col">
-                  <span className="text-sm font-medium leading-normal pb-2">Password</span>
+                  <span className="text-sm font-medium leading-normal pb-2 text-[#212529] dark:text-[#E9ECEF]">Password</span>
                   <div className="relative flex w-full items-stretch">
                     <input
-                      className="form-input flex w-full rounded-lg border border-[#DEE2E6] dark:border-[#495057] bg-white dark:bg-[#101922] h-12 px-4 pr-12 text-base placeholder:text-[#6c757d] dark:placeholder:text-[#adb5bd]"
+                      className="form-input flex w-full rounded-lg border border-[#DEE2E6] dark:border-[#495057] bg-white dark:bg-[#1C252E] h-12 px-4 pr-12 text-base text-[#212529] dark:text-[#E9ECEF] placeholder:text-[#6c757d] dark:placeholder:text-[#adb5bd]"
                       placeholder="Enter your password"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
@@ -93,7 +97,7 @@ export function LoginPage() {
                     <button
                       type="button"
                       aria-label="Toggle password visibility"
-                      className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-[#495057] dark:text-[#adb5bd] hover:text-[#4A90E2]"
+                      className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-[#495057] dark:text-[#adb5bd] hover:text-[#4A90E2] dark:hover:text-[#60A5FA]"
                       onClick={() => setShowPassword((s) => !s)}
                     >
                       {showPassword ? 'Hide' : 'Show'}
@@ -101,19 +105,19 @@ export function LoginPage() {
                   </div>
                 </label>
                 {form.formState.errors.password && (
-                  <p className="mt-1 text-sm text-red-600">{form.formState.errors.password.message}</p>
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.password.message}</p>
                 )}
               </div>
 
               <div className="flex items-center justify-end">
-                <Link to="/forgot" className="text-sm font-medium text-[#4A90E2] hover:underline">
+                <Link to="/forgot" className="text-sm font-medium text-[#4A90E2] hover:underline dark:text-[#60A5FA]">
                   Forgot Password?
                 </Link>
               </div>
 
               <div>
                 <button
-                  className="flex w-full items-center justify-center rounded-lg bg-[#4A90E2] h-12 px-6 text-base font-semibold text-white shadow-sm hover:bg-[#4A90E2]/90 disabled:opacity-50"
+                  className="flex w-full items-center justify-center rounded-lg bg-[#4A90E2] dark:bg-primary h-12 px-6 text-base font-semibold text-white shadow-sm hover:bg-[#4A90E2]/90 dark:hover:bg-primary/90 disabled:opacity-50"
                   type="submit"
                   disabled={isPending}
                 >
@@ -125,7 +129,7 @@ export function LoginPage() {
             <div className="mt-6 text-center">
               <p className="text-sm text-[#495057] dark:text-[#E9ECEF]/70">
                 Don't have an account?{' '}
-                <Link to="/signup" className="font-medium text-[#4A90E2] hover:underline">Create Account</Link>
+                <Link to="/signup" className="font-medium text-[#4A90E2] dark:text-[#60A5FA] hover:underline">Create Account</Link>
               </p>
             </div>
 
@@ -136,5 +140,3 @@ export function LoginPage() {
     </div>
   );
 }
-
-
