@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../features/auth/context/AuthContext';
 import { ThemeToggle } from '../ui/ThemeToggle';
-import { LayoutDashboard, Server, Cloud, Lock, Tag, FileText, FolderTree, User, Menu, X, LogOut } from 'lucide-react';
+import { LayoutDashboard, Server, Cloud, Lock, Tag, FileText, FolderTree, User, Menu, X, LogOut, Shield } from 'lucide-react';
 
 type AppLayoutProps = {
   children: React.ReactNode;
@@ -16,6 +16,7 @@ const navigation = [
   { name: 'Tags', path: '/tags', icon: Tag },
   { name: 'Release Notes', path: '/release-notes', icon: FileText },
   { name: 'Groups', path: '/groups', icon: FolderTree },
+  { name: 'Users & Roles', path: '/users', icon: Shield },
   { name: 'Profile', path: '/profile', icon: User },
 ];
 

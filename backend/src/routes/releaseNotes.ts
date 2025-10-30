@@ -9,11 +9,39 @@ router.use(requireAuth);
 
 // GET /release-notes?status=pending
 router.get('/', async (req, res) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
+  const search = (req.query.search as string) || '';
   const { status } = req.query as { status?: string };
+  const offset = (page - 1) * limit;
+
   const where: any = {};
   if (status === 'pending') where.status = ReleaseStatus.pending;
-  const items = await prisma.releaseNote.findMany({ where, orderBy: { createdAt: 'desc' } });
-  res.json(items);
+
+  // Build search conditions
+  if (search) {
+    where.note = { contains: search, mode: 'insensitive' };
+  }
+
+  const [items, total] = await Promise.all([
+    prisma.releaseNote.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
+    }),
+    prisma.releaseNote.count({ where }),
+  ]);
+
+  res.json({
+    data: items,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
 });
 
 // POST /services/:id/release-notes

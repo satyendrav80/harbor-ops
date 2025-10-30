@@ -4,6 +4,7 @@ import { SignupPage } from './features/auth/pages/SignupPage';
 import { ForgotPasswordPage } from './features/auth/pages/ForgotPasswordPage';
 import { DashboardPage } from './features/dashboard/pages/DashboardPage';
 import { ProfilePage } from './features/profile/pages/ProfilePage';
+import { UsersRolesPage } from './features/users/pages/UsersRolesPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth } from './components/common/RequireAuth';
 
@@ -29,6 +30,16 @@ export default function App() {
           <RequireAuth>
             <AppLayout>
               <ProfilePage />
+            </AppLayout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/users"
+        element={
+          <RequireAuth>
+            <AppLayout>
+              <UsersRolesPage />
             </AppLayout>
           </RequireAuth>
         }

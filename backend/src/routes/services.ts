@@ -8,20 +8,47 @@ const router = Router();
 router.use(requireAuth);
 
 router.get('/', async (req, res) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
+  const search = (req.query.search as string) || '';
   const include = (req.query.include as string | undefined) ?? '';
+  const offset = (page - 1) * limit;
   const includeRelations = include.split(',').includes('relations');
-  const services = await prisma.service.findMany({
-    include: includeRelations
-      ? {
-          server: true,
-          credential: true,
-          tags: { include: { tag: true } },
-          releaseNotes: true,
-        }
-      : undefined,
-    orderBy: { createdAt: 'desc' },
+
+  // Build search conditions
+  const searchConditions: any = search
+    ? {
+        name: { contains: search, mode: 'insensitive' },
+      }
+    : {};
+
+  const [services, total] = await Promise.all([
+    prisma.service.findMany({
+      where: searchConditions,
+      include: includeRelations
+        ? {
+            server: true,
+            credential: true,
+            tags: { include: { tag: true } },
+            releaseNotes: true,
+          }
+        : undefined,
+      orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
+    }),
+    prisma.service.count({ where: searchConditions }),
+  ]);
+
+  res.json({
+    data: services,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
   });
-  res.json(services);
 });
 
 router.post('/', async (req, res) => {

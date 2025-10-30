@@ -7,9 +7,39 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get('/', async (_req, res) => {
-  const items = await prisma.group.findMany({ include: { items: true } });
-  res.json(items);
+router.get('/', async (req, res) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
+  const search = (req.query.search as string) || '';
+  const offset = (page - 1) * limit;
+
+  // Build search conditions
+  const searchConditions: any = search
+    ? {
+        name: { contains: search, mode: 'insensitive' },
+      }
+    : {};
+
+  const [items, total] = await Promise.all([
+    prisma.group.findMany({
+      where: searchConditions,
+      include: { items: true },
+      orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
+    }),
+    prisma.group.count({ where: searchConditions }),
+  ]);
+
+  res.json({
+    data: items,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
 });
 
 router.post('/', async (req, res) => {

@@ -12,9 +12,41 @@ function mask(cred: any) {
 }
 
 router.get('/', async (req: any, res) => {
-  const items = await prisma.credential.findMany();
-  const hasPerm = (await requireHasPermission(req.user?.id, 'view_cred'));
-  res.json(hasPerm ? items : items.map(mask));
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
+  const search = (req.query.search as string) || '';
+  const offset = (page - 1) * limit;
+
+  // Build search conditions
+  const searchConditions: any = search
+    ? {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { type: { contains: search, mode: 'insensitive' } },
+        ],
+      }
+    : {};
+
+  const [items, total] = await Promise.all([
+    prisma.credential.findMany({
+      where: searchConditions,
+      orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
+    }),
+    prisma.credential.count({ where: searchConditions }),
+  ]);
+
+  const hasPerm = await requireHasPermission(req.user?.id, 'view_cred');
+  res.json({
+    data: hasPerm ? items : items.map(mask),
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
 });
 
 router.post('/', requirePermission('edit_server'), async (req, res) => {
