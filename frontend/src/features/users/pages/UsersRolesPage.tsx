@@ -436,6 +436,12 @@ export function UsersRolesPage() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{permission.name}</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {permission.resource}:{permission.action}
+                        </p>
+                        {permission.description && (
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{permission.description}</p>
+                        )}
                       </div>
                       <button
                         onClick={() => handleEditPermission(permission)}

@@ -170,9 +170,11 @@ router.get('/roles', async (req, res) => {
 // Get all permissions
 router.get('/permissions', async (_req, res) => {
   const permissions = await prisma.permission.findMany({
-    orderBy: {
-      name: 'asc',
-    },
+    orderBy: [
+      { resource: 'asc' },
+      { action: 'asc' },
+    ],
+    select: { id: true, name: true, resource: true, action: true, description: true },
   });
   res.json(permissions);
 });
@@ -519,16 +521,23 @@ router.delete('/roles/:id', async (req, res) => {
 
 // Create a new permission
 router.post('/permissions', async (req, res) => {
-  const { name } = req.body;
+  const { name, resource, action, description } = req.body;
   if (!name) return res.status(400).json({ error: 'Permission name is required' });
+  if (!resource) return res.status(400).json({ error: 'Resource is required' });
+  if (!action) return res.status(400).json({ error: 'Action is required' });
   try {
     const permission = await prisma.permission.create({
-      data: { name },
+      data: { name, resource, action, description: description || null },
     });
     res.status(201).json(permission);
   } catch (error: any) {
     if (error.code === 'P2002') {
-      return res.status(409).json({ error: 'Permission already exists' });
+      if (error.meta?.target?.includes('name')) {
+        return res.status(409).json({ error: 'Permission name already exists' });
+      }
+      if (error.meta?.target?.includes('resource') && error.meta?.target?.includes('action')) {
+        return res.status(409).json({ error: 'Permission with this resource and action already exists' });
+      }
     }
     return res.status(400).json({ error: 'Failed to create permission' });
   }
@@ -537,8 +546,10 @@ router.post('/permissions', async (req, res) => {
 // Update a permission
 router.put('/permissions/:id', async (req, res) => {
   const { id } = req.params;
-  const { name } = req.body;
+  const { name, resource, action, description } = req.body;
   if (!name) return res.status(400).json({ error: 'Permission name is required' });
+  if (!resource) return res.status(400).json({ error: 'Resource is required' });
+  if (!action) return res.status(400).json({ error: 'Action is required' });
   
   // Check if permission exists
   const existingPermission = await prisma.permission.findUnique({ where: { id } });
@@ -550,15 +561,34 @@ router.put('/permissions/:id', async (req, res) => {
     if (nameExists) return res.status(409).json({ error: 'Permission name already exists' });
   }
   
+  // Check if resource:action combination is being changed and if it's already taken
+  if (resource !== existingPermission.resource || action !== existingPermission.action) {
+    const comboExists = await prisma.permission.findFirst({ 
+      where: { 
+        resource,
+        action,
+        id: { not: id },
+      },
+    });
+    if (comboExists) {
+      return res.status(409).json({ error: 'Permission with this resource and action already exists' });
+    }
+  }
+  
   try {
     const permission = await prisma.permission.update({
       where: { id },
-      data: { name },
+      data: { name, resource, action, description: description || null },
     });
     res.json(permission);
   } catch (error: any) {
     if (error.code === 'P2002') {
-      return res.status(409).json({ error: 'Permission name already exists' });
+      if (error.meta?.target?.includes('name')) {
+        return res.status(409).json({ error: 'Permission name already exists' });
+      }
+      if (error.meta?.target?.includes('resource') && error.meta?.target?.includes('action')) {
+        return res.status(409).json({ error: 'Permission with this resource and action already exists' });
+      }
     }
     return res.status(400).json({ error: 'Failed to update permission' });
   }

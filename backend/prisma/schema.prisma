@@ -31,10 +31,14 @@ model Role {
 }
 
 model Permission {
-  id    String           @id @default(cuid())       @map("id")
-  name  String           @unique                    @map("name")
-  roles RolePermission[]
-
+  id       String           @id @default(cuid())       @map("id")
+  name     String           @unique                    @map("name")
+  resource String                                      @map("resource")
+  action   String                                      @map("action")
+  description String?                                  @map("description")
+  roles    RolePermission[]
+  
+  @@unique([resource, action])
   @@map("permissions")
 }
 

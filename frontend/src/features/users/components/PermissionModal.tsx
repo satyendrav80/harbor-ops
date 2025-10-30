@@ -7,8 +7,33 @@ import { useCreatePermission, useUpdatePermission, useDeletePermission } from '.
 import { Trash2 } from 'lucide-react';
 import type { Permission } from '../../../services/users';
 
+const RESOURCES = [
+  { value: 'users', label: 'Users' },
+  { value: 'roles', label: 'Roles' },
+  { value: 'permissions', label: 'Permissions' },
+  { value: 'credentials', label: 'Credentials' },
+  { value: 'servers', label: 'Servers' },
+  { value: 'services', label: 'Services' },
+  { value: 'groups', label: 'Groups' },
+  { value: 'tags', label: 'Tags' },
+  { value: 'release-notes', label: 'Release Notes' },
+  { value: 'dashboard', label: 'Dashboard' },
+  { value: 'profile', label: 'Profile' },
+] as const;
+
+const ACTIONS = [
+  { value: 'view', label: 'View' },
+  { value: 'create', label: 'Create' },
+  { value: 'update', label: 'Update/Edit' },
+  { value: 'delete', label: 'Delete' },
+  { value: 'manage', label: 'Manage (Full Control)' },
+] as const;
+
 const permissionSchema = z.object({
   name: z.string().min(1, 'Permission name is required').max(100, 'Permission name must be less than 100 characters'),
+  resource: z.string().min(1, 'Resource is required'),
+  action: z.string().min(1, 'Action is required'),
+  description: z.string().max(500, 'Description must be less than 500 characters').optional(),
 });
 
 type PermissionFormValues = z.infer<typeof permissionSchema>;
@@ -26,22 +51,52 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
   const updatePermission = useUpdatePermission();
   const deletePermission = useDeletePermission();
 
-  const [error, setError] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
   const form = useForm<PermissionFormValues>({
     resolver: zodResolver(permissionSchema),
     defaultValues: {
       name: permission?.name || '',
+      resource: permission?.resource || '',
+      action: permission?.action || '',
+      description: permission?.description || '',
     },
   });
+
+  const [error, setError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Auto-generate permission name from resource:action
+  useEffect(() => {
+    const subscription = form.watch((value, { name: changedField }) => {
+      if (changedField === 'resource' || changedField === 'action') {
+        const resource = value.resource || '';
+        const action = value.action || '';
+        const currentName = value.name || '';
+        
+        // Only auto-generate if name is empty or matches the pattern
+        if (resource && action && (!currentName || currentName === `${resource}:${action}` || currentName.match(/^[^:]+:[^:]+$/))) {
+          form.setValue('name', `${resource}:${action}`, { shouldValidate: true });
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   // Reset form when permission changes
   useEffect(() => {
     if (permission) {
-      form.reset({ name: permission.name });
+      form.reset({ 
+        name: permission.name,
+        resource: permission.resource,
+        action: permission.action,
+        description: permission.description || '',
+      });
     } else {
-      form.reset({ name: '' });
+      form.reset({ 
+        name: '', 
+        resource: '', 
+        action: '', 
+        description: '' 
+      });
     }
   }, [permission, form]);
 
@@ -49,9 +104,20 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
     setError(null);
     try {
       if (isEditing) {
-        await updatePermission.mutateAsync({ id: permission!.id, name: values.name });
+        await updatePermission.mutateAsync({ 
+          id: permission!.id, 
+          name: values.name,
+          resource: values.resource,
+          action: values.action,
+          description: values.description,
+        });
       } else {
-        await createPermission.mutateAsync(values.name);
+        await createPermission.mutateAsync({
+          name: values.name,
+          resource: values.resource,
+          action: values.action,
+          description: values.description,
+        });
       }
       form.reset();
       onClose();
@@ -76,6 +142,48 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Permission' : 'Create Permission'}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        {/* Resource */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Resource <span className="text-red-500">*</span>
+          </label>
+          <select
+            {...form.register('resource')}
+            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+          >
+            <option value="">Select a resource</option>
+            {RESOURCES.map((resource) => (
+              <option key={resource.value} value={resource.value}>
+                {resource.label}
+              </option>
+            ))}
+          </select>
+          {form.formState.errors.resource && (
+            <p className="mt-1 text-sm text-red-500">{form.formState.errors.resource.message}</p>
+          )}
+        </div>
+
+        {/* Action */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Action <span className="text-red-500">*</span>
+          </label>
+          <select
+            {...form.register('action')}
+            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+          >
+            <option value="">Select an action</option>
+            {ACTIONS.map((action) => (
+              <option key={action.value} value={action.value}>
+                {action.label}
+              </option>
+            ))}
+          </select>
+          {form.formState.errors.action && (
+            <p className="mt-1 text-sm text-red-500">{form.formState.errors.action.message}</p>
+          )}
+        </div>
+
         {/* Permission Name */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -85,10 +193,29 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
             type="text"
             {...form.register('name')}
             className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            placeholder="e.g., view_cred, edit_server"
+            placeholder="e.g., users.view, credentials.create"
           />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            This will be auto-generated as "{form.watch('resource') || 'resource'}:{form.watch('action') || 'action'}" if left empty
+          </p>
           {form.formState.errors.name && (
             <p className="mt-1 text-sm text-red-500">{form.formState.errors.name.message}</p>
+          )}
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Description
+          </label>
+          <textarea
+            {...form.register('description')}
+            rows={3}
+            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            placeholder="Optional description of what this permission allows"
+          />
+          {form.formState.errors.description && (
+            <p className="mt-1 text-sm text-red-500">{form.formState.errors.description.message}</p>
           )}
         </div>
 

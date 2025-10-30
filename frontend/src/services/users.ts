@@ -38,6 +38,9 @@ export type RoleWithPermissions = {
 export type Permission = {
   id: string;
   name: string;
+  resource: string;
+  action: string;
+  description?: string | null;
 };
 
 export type PaginatedResponse<T> = {
@@ -189,20 +192,20 @@ export async function deleteRole(id: string): Promise<void> {
 /**
  * Create a new permission
  */
-export async function createPermission(name: string): Promise<Permission> {
+export async function createPermission(data: { name: string; resource: string; action: string; description?: string }): Promise<Permission> {
   return apiFetch<Permission>('/permissions', {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(data),
   });
 }
 
 /**
  * Update a permission
  */
-export async function updatePermission(id: string, name: string): Promise<Permission> {
+export async function updatePermission(id: string, data: { name: string; resource: string; action: string; description?: string }): Promise<Permission> {
   return apiFetch<Permission>(`/permissions/${id}`, {
     method: 'PUT',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(data),
   });
 }
 

@@ -7,6 +7,7 @@ export function useCreatePermission() {
     mutationFn: createPermission,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['permissions'] });
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
     },
   });
 }
@@ -14,9 +15,11 @@ export function useCreatePermission() {
 export function useUpdatePermission() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) => updatePermission(id, name),
+    mutationFn: ({ id, ...data }: { id: string; name: string; resource: string; action: string; description?: string }) => 
+      updatePermission(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['permissions'] });
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
     },
   });
 }
