@@ -179,6 +179,25 @@ router.get('/permissions', async (_req, res) => {
   res.json(permissions);
 });
 
+// Permission config (resources and actions) - for frontend to drive UI
+router.get('/permission-config', async (_req, res) => {
+  const resources = [
+    'users',
+    'roles',
+    'permissions',
+    'credentials',
+    'servers',
+    'services',
+    'groups',
+    'tags',
+    'release-notes',
+    'dashboard',
+    'profile',
+  ];
+  const actions = ['view', 'create', 'update', 'delete', 'manage'];
+  res.json({ resources, actions });
+});
+
 // Assign role to user
 router.post('/users/:userId/roles/:roleId', async (req, res) => {
   const { userId, roleId } = req.params;
@@ -221,6 +240,22 @@ router.post('/users/:userId/roles/:roleId', async (req, res) => {
 router.delete('/users/:userId/roles/:roleId', async (req, res) => {
   const { userId, roleId } = req.params;
   try {
+    // Prevent removing admin role if it would leave no approved admins
+    const adminRole = await prisma.role.findUnique({ where: { name: 'admin' } });
+    if (adminRole && adminRole.id === roleId) {
+      const remaining = await prisma.userRole.count({
+        where: {
+          roleId: adminRole.id,
+          user: {
+            status: 'approved',
+            id: { not: userId },
+          } as any,
+        },
+      });
+      if (remaining <= 0) {
+        return res.status(400).json({ error: 'At least one approved admin must remain' });
+      }
+    }
     await prisma.userRole.delete({
       where: {
         userId_roleId: {
@@ -455,6 +490,25 @@ router.put('/users/:id', async (req, res) => {
 router.delete('/users/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    // Prevent deleting last approved admin
+    const adminRole = await prisma.role.findUnique({ where: { name: 'admin' } });
+    if (adminRole) {
+      const isAdmin = await prisma.userRole.findUnique({ where: { userId_roleId: { userId: id, roleId: adminRole.id } } });
+      if (isAdmin) {
+        const remaining = await prisma.userRole.count({
+          where: {
+            roleId: adminRole.id,
+            user: {
+              status: 'approved',
+              id: { not: id },
+            } as any,
+          },
+        });
+        if (remaining <= 0) {
+          return res.status(400).json({ error: 'At least one approved admin must remain' });
+        }
+      }
+    }
     // Delete user roles first (cascade)
     await prisma.userRole.deleteMany({ where: { userId: id } });
     // Delete user
@@ -683,6 +737,25 @@ router.post('/users/:id/approve', async (req, res) => {
 router.post('/users/:id/block', async (req, res) => {
   const { id } = req.params;
   try {
+    // Prevent blocking the last approved admin
+    const adminRole = await prisma.role.findUnique({ where: { name: 'admin' } });
+    if (adminRole) {
+      const isAdmin = await prisma.userRole.findUnique({ where: { userId_roleId: { userId: id, roleId: adminRole.id } } });
+      if (isAdmin) {
+        const remaining = await prisma.userRole.count({
+          where: {
+            roleId: adminRole.id,
+            user: {
+              status: 'approved',
+              id: { not: id },
+            } as any,
+          },
+        });
+        if (remaining <= 0) {
+          return res.status(400).json({ error: 'At least one approved admin must remain' });
+        }
+      }
+    }
     const user = await prisma.user.update({
       where: { id },
       data: { status: 'blocked' },

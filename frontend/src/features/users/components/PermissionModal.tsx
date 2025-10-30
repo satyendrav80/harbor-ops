@@ -4,30 +4,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal } from '../../../components/common/Modal';
 import { useCreatePermission, useUpdatePermission, useDeletePermission } from '../hooks/usePermissionMutations';
+import { getPermissionConfig } from '../../../services/users';
 import { Trash2 } from 'lucide-react';
 import type { Permission } from '../../../services/users';
 
-const RESOURCES = [
-  { value: 'users', label: 'Users' },
-  { value: 'roles', label: 'Roles' },
-  { value: 'permissions', label: 'Permissions' },
-  { value: 'credentials', label: 'Credentials' },
-  { value: 'servers', label: 'Servers' },
-  { value: 'services', label: 'Services' },
-  { value: 'groups', label: 'Groups' },
-  { value: 'tags', label: 'Tags' },
-  { value: 'release-notes', label: 'Release Notes' },
-  { value: 'dashboard', label: 'Dashboard' },
-  { value: 'profile', label: 'Profile' },
-] as const;
-
-const ACTIONS = [
-  { value: 'view', label: 'View' },
-  { value: 'create', label: 'Create' },
-  { value: 'update', label: 'Update/Edit' },
-  { value: 'delete', label: 'Delete' },
-  { value: 'manage', label: 'Manage (Full Control)' },
-] as const;
+function toOptions(values: string[]) {
+  return values.map((v) => ({ value: v, label: v.charAt(0).toUpperCase() + v.slice(1).replace('-', ' ') }));
+}
 
 const permissionSchema = z.object({
   name: z.string().min(1, 'Permission name is required').max(100, 'Permission name must be less than 100 characters'),
@@ -48,6 +31,18 @@ type PermissionModalProps = {
 export function PermissionModal({ isOpen, onClose, permission, onDelete }: PermissionModalProps) {
   const isEditing = !!permission;
   const isSystem = !!permission?.system;
+  const [resources, setResources] = useState<Array<{ value: string; label: string }>>([]);
+  const [actions, setActions] = useState<Array<{ value: string; label: string }>>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const cfg = await getPermissionConfig();
+        setResources(toOptions(cfg.resources));
+        setActions(toOptions(cfg.actions));
+      } catch {}
+    })();
+  }, []);
   const createPermission = useCreatePermission();
   const updatePermission = useUpdatePermission();
   const deletePermission = useDeletePermission();
@@ -154,7 +149,7 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
             className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             <option value="">Select a resource</option>
-            {RESOURCES.map((resource) => (
+            {resources.map((resource) => (
               <option key={resource.value} value={resource.value}>
                 {resource.label}
               </option>
@@ -176,7 +171,7 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
             className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             <option value="">Select an action</option>
-            {ACTIONS.map((action) => (
+            {actions.map((action) => (
               <option key={action.value} value={action.value}>
                 {action.label}
               </option>

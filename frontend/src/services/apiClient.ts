@@ -16,15 +16,23 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const data = json ? await res.json() : await res.text();
   if (!res.ok) {
     const errorMessage = json && data?.error ? data.error : (json && data?.message ? data.message : 'Request failed');
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('api-error', { detail: { message: errorMessage, status: res.status } }));
+      }
+    } catch {}
     if (res.status === 401 || res.status === 403) {
       try {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       } catch {}
       if (typeof window !== 'undefined') {
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 0);
+        // Only redirect if not already on login page so error messages are visible on login
+        if (window.location.pathname !== '/login') {
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 0);
+        }
       }
     }
     throw { message: errorMessage, status: res.status } as ApiError;

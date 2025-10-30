@@ -4,42 +4,49 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  // Roles
-  const [adminRole, viewerRole] = await Promise.all([
-    prisma.role.upsert({ where: { name: 'admin' }, update: {}, create: { name: 'admin' } }),
-    prisma.role.upsert({ where: { name: 'viewer' }, update: {}, create: { name: 'viewer' } }),
-  ]);
+  // Default roles (system)
+  const adminRole = await prisma.role.upsert({ where: { name: 'admin' }, update: { system: true }, create: { name: 'admin', system: true } });
+  const regularRole = await prisma.role.upsert({ where: { name: 'regular' }, update: { system: true }, create: { name: 'regular', system: true } });
 
-  // Permissions
-  const [viewCred, editServer] = await Promise.all([
-    prisma.permission.upsert({ where: { name: 'view_cred' }, update: {}, create: { name: 'view_cred' } }),
-    prisma.permission.upsert({ where: { name: 'edit_server' }, update: {}, create: { name: 'edit_server' } }),
-  ]);
+  // Seed standard permissions as system and grant all to admin
+  const RESOURCES = ['users','roles','permissions','credentials','servers','services','groups','tags','release-notes','dashboard','profile'];
+  const ACTIONS = ['view','create','update','delete','manage'];
+  for (const resource of RESOURCES) {
+    for (const action of ACTIONS) {
+      const name = `${resource}:${action}`;
+      const perm = await prisma.permission.upsert({
+        where: { resource_action: { resource, action } },
+        update: { system: true },
+        create: { name, resource, action, description: `${action} ${resource}`, system: true },
+      });
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: adminRole.id, permissionId: perm.id } },
+        update: {},
+        create: { roleId: adminRole.id, permissionId: perm.id },
+      });
+    }
+  }
 
-  // Map admin to all permissions
-  await Promise.all([
-    prisma.rolePermission.upsert({
-      where: { roleId_permissionId: { roleId: adminRole.id, permissionId: viewCred.id } },
+  // Ensure regular has only profile:update
+  const profileUpdate = await prisma.permission.findUnique({ where: { resource_action: { resource: 'profile', action: 'update' } } });
+  if (profileUpdate) {
+    await prisma.rolePermission.deleteMany({ where: { roleId: regularRole.id } });
+    await prisma.rolePermission.upsert({
+      where: { roleId_permissionId: { roleId: regularRole.id, permissionId: profileUpdate.id } },
       update: {},
-      create: { roleId: adminRole.id, permissionId: viewCred.id },
-    }),
-    prisma.rolePermission.upsert({
-      where: { roleId_permissionId: { roleId: adminRole.id, permissionId: editServer.id } },
-      update: {},
-      create: { roleId: adminRole.id, permissionId: editServer.id },
-    }),
-  ]);
+      create: { roleId: regularRole.id, permissionId: profileUpdate.id },
+    });
+  }
 
-  // Admin user
-  const adminEmail = 'admin@example.com';
-  const passwordHash = await bcrypt.hash('Admin@123', 10);
+  // Admin user (approved)
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@example.com';
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'Admin@123';
+  const passwordHash = await bcrypt.hash(adminPassword, 10);
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
-    update: { passwordHash, name: 'Admin', username: 'admin' },
-    create: { email: adminEmail, passwordHash, name: 'Admin', username: 'admin' },
+    update: { passwordHash, name: 'Admin', username: 'admin', status: 'approved' },
+    create: { email: adminEmail, passwordHash, name: 'Admin', username: 'admin', status: 'approved' },
   });
-
-  // Assign admin role to admin user
   await prisma.userRole.upsert({
     where: { userId_roleId: { userId: admin.id, roleId: adminRole.id } },
     update: {},

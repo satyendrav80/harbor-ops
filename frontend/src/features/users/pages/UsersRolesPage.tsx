@@ -104,10 +104,14 @@ export function UsersRolesPage() {
     fetchNextPage: fetchNextRolesPage,
   });
 
+  const [roleAssignError, setRoleAssignError] = useState<string | null>(null);
   const handleAssignRole = async (userId: string, roleId: string) => {
     setAssigningRole(`${userId}-${roleId}`);
     try {
       await assignRole.mutateAsync({ userId, roleId });
+      setRoleAssignError(null);
+    } catch (err: any) {
+      setRoleAssignError(err?.message || 'Failed to assign role');
     } finally {
       setAssigningRole(null);
     }
@@ -117,6 +121,9 @@ export function UsersRolesPage() {
     setAssigningRole(`${userId}-${roleId}`);
     try {
       await removeRole.mutateAsync({ userId, roleId });
+      setRoleAssignError(null);
+    } catch (err: any) {
+      setRoleAssignError(err?.message || 'Failed to remove role');
     } finally {
       setAssigningRole(null);
     }
@@ -186,19 +193,20 @@ export function UsersRolesPage() {
     }
   };
 
+  // removed inline error banners; errors will appear in global toast
   const handleAssignPermission = async (roleId: string, permissionId: string) => {
     try {
       await assignPermission.mutateAsync({ roleId, permissionId });
-    } catch (error) {
-      // Error handling is done by React Query
+    } catch (error: any) {
+      // Errors surface globally
     }
   };
 
   const handleRemovePermission = async (roleId: string, permissionId: string) => {
     try {
       await removePermission.mutateAsync({ roleId, permissionId });
-    } catch (error) {
-      // Error handling is done by React Query
+    } catch (error: any) {
+      // Errors surface globally
     }
   };
 
@@ -377,7 +385,7 @@ export function UsersRolesPage() {
               <EmptyState icon={Shield} title="No roles found" description="No roles match your search criteria." />
             </div>
           ) : (
-            <div className="p-6 space-y-4">
+          <div className="p-6 space-y-4">
               {roles.map((role) => (
                 <RoleCard 
                   key={role.id} 
@@ -426,36 +434,43 @@ export function UsersRolesPage() {
               <EmptyState icon={Key} title="No permissions found" description="Create your first permission to get started." />
             </div>
           ) : (
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {permissions.map((permission) => (
-                  <div
-                    key={permission.id}
-                    className="border border-gray-200 dark:border-gray-700/50 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-[#151B24] transition-colors"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{permission.name}</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          {permission.resource}:{permission.action}
-                        </p>
-                        {permission.description && (
-                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{permission.description}</p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => handleEditPermission(permission)}
-                        disabled={permission.system}
-                        className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label="Edit permission"
-                        title={permission.system ? 'System permission cannot be modified' : 'Edit permission'}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                    </div>
+            <div className="p-6 space-y-6">
+              {Object.entries(
+                permissions.reduce<Record<string, typeof permissions>>((acc, perm) => {
+                  if (!acc[perm.resource]) acc[perm.resource] = [] as any;
+                  acc[perm.resource].push(perm);
+                  return acc;
+                }, {})
+              ).map(([resource, perms]) => (
+                <div key={resource} className="border border-gray-200 dark:border-gray-700/50 rounded-lg">
+                  <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#151B24]">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{resource}</h3>
                   </div>
-                ))}
-              </div>
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {perms.map((permission) => (
+                      <div key={permission.id} className="border border-gray-200 dark:border-gray-700/50 rounded p-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">{permission.action}</p>
+                            {permission.description && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{permission.description}</p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleEditPermission(permission)}
+                            disabled={permission.system}
+                            className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-label="Edit permission"
+                            title={permission.system ? 'System permission cannot be modified' : 'Edit permission'}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -720,6 +735,7 @@ function RoleCard({
 }: RoleCardProps) {
   const rolePermissionIds = role.permissions.map((rp) => rp.permission.id);
   const availablePermissions = permissions.filter((p) => !rolePermissionIds.includes(p.id));
+  const isSystemRole = (role as any).system === true;
 
   return (
     <div className="border border-gray-200 dark:border-gray-700/50 rounded-lg p-4">
@@ -733,14 +749,18 @@ function RoleCard({
         <div className="flex items-center gap-2">
           <button
             onClick={onToggleExpand}
-            className="text-sm text-primary hover:text-primary/80 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 rounded px-2 py-1"
+            disabled={isSystemRole}
+            className="text-sm text-primary hover:text-primary/80 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={isSystemRole ? 'System role cannot be modified' : 'Manage permissions'}
           >
             {isExpanded ? 'Hide' : 'Manage Permissions'}
           </button>
           <button
             onClick={() => onEdit(role)}
-            className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
+            disabled={isSystemRole}
+            className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1 disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Edit role"
+            title={isSystemRole ? 'System role cannot be modified' : 'Edit role'}
           >
             <Edit className="w-4 h-4" />
           </button>
@@ -752,28 +772,45 @@ function RoleCard({
           {role.permissions.length === 0 ? (
             <p className="text-xs text-gray-400 dark:text-gray-500">No permissions assigned</p>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {role.permissions.map((rp) => (
-                <span
-                  key={rp.permission.id}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
-                >
-                  <Check className="w-3 h-3" />
-                  {rp.permission.name}
-                  <button
-                    onClick={() => onRemovePermission(role.id, rp.permission.id)}
-                    disabled={removingPermission}
-                    className="hover:text-red-500 focus:outline-none disabled:opacity-50"
-                    aria-label={`Remove ${rp.permission.name} permission`}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
+            <div className="space-y-2">
+              {Object.entries(
+                role.permissions.reduce<Record<string, typeof role.permissions>>((acc, rp) => {
+                  const res = (rp.permission as any).resource || 'general';
+                  if (!acc[res]) acc[res] = [] as any;
+                  acc[res].push(rp);
+                  return acc;
+                }, {})
+              ).map(([resource, rps]) => (
+                <div key={resource} className="border border-gray-200 dark:border-gray-700/50 rounded">
+                  <div className="px-2 py-1 bg-gray-50 dark:bg-[#151B24] text-xs font-semibold text-gray-700 dark:text-gray-300">
+                    {resource}
+                  </div>
+                  <div className="p-2 flex flex-wrap gap-2">
+                    {rps.map((rp: any) => (
+                      <span
+                        key={rp.permission.id}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                      >
+                        <Check className="w-3 h-3" />
+                        {rp.permission.action || rp.permission.name}
+                        <button
+                          onClick={() => onRemovePermission(role.id, rp.permission.id)}
+                          disabled={removingPermission || isSystemRole}
+                          className="hover:text-red-500 focus:outline-none disabled:opacity-50"
+                          aria-label={`Remove ${rp.permission.name} permission`}
+                          title={isSystemRole ? 'System role cannot be modified' : 'Remove permission'}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
         </div>
-        {isExpanded && (
+        {isExpanded && !isSystemRole && (
           <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Available Permissions:</p>
             {availablePermissions.length === 0 ? (

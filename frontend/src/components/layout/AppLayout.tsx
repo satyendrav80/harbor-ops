@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../features/auth/context/AuthContext';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { LayoutDashboard, Server, Cloud, Lock, Tag, FileText, FolderTree, User, Menu, X, LogOut, Shield } from 'lucide-react';
+import { GlobalApiError } from '../common/GlobalApiError';
 
 type AppLayoutProps = {
   children: React.ReactNode;
@@ -105,7 +106,10 @@ export function AppLayout({ children }: AppLayoutProps) {
         </header>
 
         {/* Page Content - Scrollable */}
-        <div className="flex-1 overflow-y-auto p-4 lg:p-8">{children}</div>
+        <div className="flex-1 overflow-y-auto p-4 lg:p-8">
+          <GlobalApiError />
+          {children}
+        </div>
       </main>
 
       {/* Overlay for mobile */}

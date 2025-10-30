@@ -19,10 +19,15 @@ export type UserWithRoles = {
 export type RoleWithPermissions = {
   id: string;
   name: string;
+  system?: boolean;
   permissions: Array<{
     permission: {
       id: string;
       name: string;
+      resource?: string;
+      action?: string;
+      description?: string | null;
+      system?: boolean;
     };
   }>;
   users: Array<{
@@ -43,6 +48,8 @@ export type Permission = {
   description?: string | null;
   system?: boolean;
 };
+
+export type PermissionConfig = { resources: string[]; actions: string[] };
 
 export type PaginatedResponse<T> = {
   data: T[];
@@ -217,6 +224,10 @@ export async function deletePermission(id: string): Promise<void> {
   return apiFetch<void>(`/permissions/${id}`, {
     method: 'DELETE',
   });
+}
+
+export async function getPermissionConfig(): Promise<PermissionConfig> {
+  return apiFetch<PermissionConfig>('/permission-config');
 }
 
 /**
