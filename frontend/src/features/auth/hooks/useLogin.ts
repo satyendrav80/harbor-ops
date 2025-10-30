@@ -12,7 +12,6 @@ export function useLogin() {
         localStorage.setItem('token', data.token);
         const me = await getMe();
         save(data.token, { id: me.id, name: me.email, email: me.email });
-        try { window.alert('Logged in successfully'); } catch {}
       } catch {
         try { window.alert('Login succeeded, but failed to fetch profile'); } catch {}
       }
