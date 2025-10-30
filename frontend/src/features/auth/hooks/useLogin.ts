@@ -13,11 +13,8 @@ export function useLogin() {
         const me = await getMe();
         save(data.token, { id: me.id, name: me.email, email: me.email });
       } catch {
-        try { window.alert('Login succeeded, but failed to fetch profile'); } catch {}
+        // Silent error - will be handled by the calling component
       }
-    },
-    onError: () => {
-      try { window.alert('Login failed. Check your credentials.'); } catch {}
     },
   });
 }

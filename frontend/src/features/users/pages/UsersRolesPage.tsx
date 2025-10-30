@@ -3,13 +3,14 @@ import { useUsers } from '../hooks/useUsers';
 import { useRoles } from '../hooks/useRoles';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAssignRoleToUser, useRemoveRoleFromUser } from '../hooks/useUserRoles';
+import { useApproveUser, useBlockUser, useUnblockUser, useRejectUser } from '../hooks/useUserStatusMutations';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { UserModal } from '../components/UserModal';
 import { RoleModal } from '../components/RoleModal';
 import { PermissionModal } from '../components/PermissionModal';
-import { Users, Shield, Search, Plus, X, Check, AlertCircle, Edit, Key } from 'lucide-react';
+import { Users, Shield, Search, Plus, X, Check, AlertCircle, Edit, Key, Ban, CheckCircle, XCircle } from 'lucide-react';
 import type { UserWithRoles, RoleWithPermissions, Permission } from '../../../services/users';
 
 /**
@@ -71,6 +72,10 @@ export function UsersRolesPage() {
   const { data: permissions } = usePermissions();
   const assignRole = useAssignRoleToUser();
   const removeRole = useRemoveRoleFromUser();
+  const approveUser = useApproveUser();
+  const blockUser = useBlockUser();
+  const unblockUser = useUnblockUser();
+  const rejectUser = useRejectUser();
 
   // Flatten paginated data
   const users = useMemo(() => {
@@ -141,6 +146,40 @@ export function UsersRolesPage() {
   const handleEditPermission = (permission: Permission) => {
     setSelectedPermissionForEdit(permission);
     setPermissionModalOpen(true);
+  };
+
+  const handleApproveUser = async (userId: string) => {
+    try {
+      await approveUser.mutateAsync(userId);
+    } catch (error) {
+      // Error handling is done by React Query
+    }
+  };
+
+  const handleBlockUser = async (userId: string) => {
+    try {
+      await blockUser.mutateAsync(userId);
+    } catch (error) {
+      // Error handling is done by React Query
+    }
+  };
+
+  const handleUnblockUser = async (userId: string) => {
+    try {
+      await unblockUser.mutateAsync(userId);
+    } catch (error) {
+      // Error handling is done by React Query
+    }
+  };
+
+  const handleRejectUser = async (userId: string) => {
+    if (window.confirm('Are you sure you want to reject this user? This will permanently delete their account.')) {
+      try {
+        await rejectUser.mutateAsync(userId);
+      } catch (error) {
+        // Error handling is done by React Query
+      }
+    }
   };
 
   return (
@@ -255,6 +294,7 @@ export function UsersRolesPage() {
                 <thead className="bg-gray-50 dark:bg-[#151B24] border-b border-gray-200 dark:border-gray-700/50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Roles</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -268,6 +308,14 @@ export function UsersRolesPage() {
                       onAssignRole={handleAssignRole}
                       onRemoveRole={handleRemoveRole}
                       onEditUser={handleEditUser}
+                      onApprove={handleApproveUser}
+                      onBlock={handleBlockUser}
+                      onUnblock={handleUnblockUser}
+                      onReject={handleRejectUser}
+                      approvingUser={approveUser.isPending}
+                      blockingUser={blockUser.isPending}
+                      unblockingUser={unblockUser.isPending}
+                      rejectingUser={rejectUser.isPending}
                       assigningRole={assigningRole}
                       selectedUser={selectedUser}
                       setSelectedUser={setSelectedUser}
@@ -409,15 +457,68 @@ type UserRowProps = {
   onAssignRole: (userId: string, roleId: string) => Promise<void>;
   onRemoveRole: (userId: string, roleId: string) => Promise<void>;
   onEditUser: (user: UserWithRoles) => void;
+  onApprove: (userId: string) => Promise<void>;
+  onBlock: (userId: string) => Promise<void>;
+  onUnblock: (userId: string) => Promise<void>;
+  onReject: (userId: string) => Promise<void>;
+  approvingUser: boolean;
+  blockingUser: boolean;
+  unblockingUser: boolean;
+  rejectingUser: boolean;
   assigningRole: string | null;
   selectedUser: string | null;
   setSelectedUser: (userId: string | null) => void;
 };
 
-function UserRow({ user, roles, onAssignRole, onRemoveRole, onEditUser, assigningRole, selectedUser, setSelectedUser }: UserRowProps) {
+function UserRow({ 
+  user, 
+  roles, 
+  onAssignRole, 
+  onRemoveRole, 
+  onEditUser, 
+  onApprove,
+  onBlock,
+  onUnblock,
+  onReject,
+  approvingUser,
+  blockingUser,
+  unblockingUser,
+  rejectingUser,
+  assigningRole, 
+  selectedUser, 
+  setSelectedUser 
+}: UserRowProps) {
   const userRoles = user.roles.map((ur) => ur.role.id);
   const availableRoles = roles.filter((role) => !userRoles.includes(role.id));
   const isExpanded = selectedUser === user.id;
+
+  const getStatusBadge = () => {
+    switch (user.status) {
+      case 'pending':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
+            <AlertCircle className="w-3 h-3" />
+            Pending
+          </span>
+        );
+      case 'approved':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+            <CheckCircle className="w-3 h-3" />
+            Approved
+          </span>
+        );
+      case 'blocked':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
+            <Ban className="w-3 h-3" />
+            Blocked
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <>
@@ -435,6 +536,9 @@ function UserRow({ user, roles, onAssignRole, onRemoveRole, onEditUser, assignin
               )}
             </div>
           </div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          {getStatusBadge()}
         </td>
         <td className="px-6 py-4">
           <div className="flex flex-wrap gap-2">
@@ -469,6 +573,50 @@ function UserRow({ user, roles, onAssignRole, onRemoveRole, onEditUser, assignin
             >
               <Edit className="w-4 h-4" />
             </button>
+            {user.status === 'pending' && (
+              <>
+                <button
+                  onClick={() => onApprove(user.id)}
+                  disabled={approvingUser}
+                  className="text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 font-medium focus:outline-none focus:ring-2 focus:ring-green-500/50 rounded px-2 py-1 disabled:opacity-50"
+                  aria-label="Approve user"
+                  title="Approve user"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => onReject(user.id)}
+                  disabled={rejectingUser}
+                  className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium focus:outline-none focus:ring-2 focus:ring-red-500/50 rounded px-2 py-1 disabled:opacity-50"
+                  aria-label="Reject user"
+                  title="Reject user"
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            {user.status === 'approved' && (
+              <button
+                onClick={() => onBlock(user.id)}
+                disabled={blockingUser}
+                className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium focus:outline-none focus:ring-2 focus:ring-red-500/50 rounded px-2 py-1 disabled:opacity-50"
+                aria-label="Block user"
+                title="Block user"
+              >
+                <Ban className="w-4 h-4" />
+              </button>
+            )}
+            {user.status === 'blocked' && (
+              <button
+                onClick={() => onUnblock(user.id)}
+                disabled={unblockingUser}
+                className="text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 font-medium focus:outline-none focus:ring-2 focus:ring-green-500/50 rounded px-2 py-1 disabled:opacity-50"
+                aria-label="Unblock user"
+                title="Unblock user"
+              >
+                <CheckCircle className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={() => setSelectedUser(isExpanded ? null : user.id)}
               className="text-sm text-primary hover:text-primary/80 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 rounded px-2 py-1"
@@ -480,7 +628,7 @@ function UserRow({ user, roles, onAssignRole, onRemoveRole, onEditUser, assignin
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={3} className="px-6 py-4 bg-gray-50 dark:bg-[#151B24]">
+          <td colSpan={4} className="px-6 py-4 bg-gray-50 dark:bg-[#151B24]">
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Assign Role:</p>
               {availableRoles.length === 0 ? (

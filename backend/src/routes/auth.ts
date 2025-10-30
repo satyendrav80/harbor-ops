@@ -25,14 +25,46 @@ function authMiddleware(req: any, res: any, next: any) {
   }
 }
 
+async function requireApprovedUser(req: any, res: any, next: any) {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const secret = process.env.JWT_SECRET || 'dev_secret';
+    const payload = jwt.verify(token, secret) as any;
+    req.user = payload;
+    
+    const userId = req.user?.sub as string;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.status === 'blocked') {
+      return res.status(403).json({ error: 'Your account has been blocked. Please contact an administrator.' });
+    }
+    if (user.status === 'pending') {
+      return res.status(403).json({ error: 'Your account is pending approval. Please wait for an administrator to approve your account.' });
+    }
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
 router.post('/register', async (req, res) => {
   const { email, password, name } = req.body;
   if (!email || !password || !name) return res.status(400).json({ error: 'Missing fields' });
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return res.status(409).json({ error: 'Email already registered' });
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = await prisma.user.create({ data: { email, passwordHash, name } });
-  return res.status(201).json({ id: user.id, name: user.name, email: user.email });
+  const user = await prisma.user.create({ 
+    data: { email, passwordHash, name, status: 'pending' } 
+  });
+  return res.status(201).json({ 
+    id: user.id, 
+    name: user.name, 
+    email: user.email, 
+    status: user.status,
+    message: 'Account created successfully. Please wait for admin approval before logging in.' 
+  });
 });
 
 router.post('/login', async (req, res) => {
@@ -57,6 +89,15 @@ router.post('/login', async (req, res) => {
   }
   
   if (!user || !user.passwordHash) return res.status(401).json({ error: 'Invalid credentials' });
+  
+  // Check user status
+  if (user.status === 'blocked') {
+    return res.status(403).json({ error: 'Your account has been blocked. Please contact an administrator.' });
+  }
+  if (user.status === 'pending') {
+    return res.status(403).json({ error: 'Your account is pending approval. Please wait for an administrator to approve your account.' });
+  }
+  
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const token = signToken({ sub: user.id, email: user.email });
@@ -67,13 +108,13 @@ router.get('/me', authMiddleware, async (req: any, res) => {
   const userId = req.user?.sub as string;
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, username: true, name: true, createdAt: true, updatedAt: true },
+    select: { id: true, email: true, username: true, name: true, status: true, createdAt: true, updatedAt: true },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
   return res.json(user);
 });
 
-router.patch('/profile', authMiddleware, async (req: any, res) => {
+router.patch('/profile', requireApprovedUser, async (req: any, res) => {
   const userId = req.user?.sub as string;
   const { name, email, username } = req.body;
 
@@ -147,7 +188,7 @@ router.patch('/profile', authMiddleware, async (req: any, res) => {
   }
 });
 
-router.post('/change-password', authMiddleware, async (req: any, res) => {
+router.post('/change-password', requireApprovedUser, async (req: any, res) => {
   const userId = req.user?.sub as string;
   const { currentPassword, newPassword } = req.body;
 

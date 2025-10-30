@@ -8,13 +8,14 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())        @map("id")
-  email         String   @unique                    @map("email")
-  username      String?  @unique                    @map("username")
-  passwordHash  String                              @map("password_hash")
-  name          String?                             @map("name")
-  createdAt     DateTime @default(now())            @map("created_at")
-  updatedAt     DateTime @updatedAt                 @map("updated_at")
+  id            String     @id @default(cuid())        @map("id")
+  email         String     @unique                    @map("email")
+  username      String?    @unique                    @map("username")
+  passwordHash  String                                 @map("password_hash")
+  name          String?                                @map("name")
+  status        UserStatus @default(pending)           @map("status")
+  createdAt     DateTime   @default(now())            @map("created_at")
+  updatedAt     DateTime   @updatedAt                 @map("updated_at")
   roles     UserRole[]
 
   @@map("users")
@@ -144,6 +145,12 @@ model ServiceTag {
 enum ReleaseStatus {
   pending
   deployed
+}
+
+enum UserStatus {
+  pending
+  approved
+  blocked
 }
 
 model ReleaseNote {

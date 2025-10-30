@@ -5,6 +5,7 @@ export type UserWithRoles = {
   email: string;
   username: string | null;
   name: string | null;
+  status: 'pending' | 'approved' | 'blocked';
   createdAt: string;
   updatedAt: string;
   roles: Array<{
@@ -210,6 +211,42 @@ export async function updatePermission(id: string, name: string): Promise<Permis
  */
 export async function deletePermission(id: string): Promise<void> {
   return apiFetch<void>(`/permissions/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Approve a user
+ */
+export async function approveUser(id: string): Promise<UserWithRoles> {
+  return apiFetch<UserWithRoles>(`/users/${id}/approve`, {
+    method: 'POST',
+  });
+}
+
+/**
+ * Block a user
+ */
+export async function blockUser(id: string): Promise<UserWithRoles> {
+  return apiFetch<UserWithRoles>(`/users/${id}/block`, {
+    method: 'POST',
+  });
+}
+
+/**
+ * Unblock a user
+ */
+export async function unblockUser(id: string): Promise<UserWithRoles> {
+  return apiFetch<UserWithRoles>(`/users/${id}/unblock`, {
+    method: 'POST',
+  });
+}
+
+/**
+ * Reject a user (delete pending user)
+ */
+export async function rejectUser(id: string): Promise<void> {
+  return apiFetch<void>(`/users/${id}/reject`, {
     method: 'DELETE',
   });
 }

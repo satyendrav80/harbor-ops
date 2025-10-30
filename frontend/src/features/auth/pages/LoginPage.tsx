@@ -18,6 +18,7 @@ export function LoginPage() {
   const { token } = useAuth();
   const { mutate, isPending } = useLogin();
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -29,7 +30,13 @@ export function LoginPage() {
   }, [token, navigate]);
 
   const onSubmit = (values: FormValues) => {
-    mutate(values, { onSuccess: () => navigate('/dashboard', { replace: true }) });
+    setError(null);
+    mutate(values, { 
+      onSuccess: () => navigate('/dashboard', { replace: true }),
+      onError: (err: any) => {
+        setError(err?.message || 'Login failed. Please check your credentials.');
+      },
+    });
   };
 
   return (
@@ -114,6 +121,12 @@ export function LoginPage() {
                   Forgot Password?
                 </Link>
               </div>
+
+              {error && (
+                <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
+                  <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+                </div>
+              )}
 
               <div>
                 <button

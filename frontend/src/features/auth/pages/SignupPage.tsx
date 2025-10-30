@@ -21,15 +21,23 @@ export function SignupPage() {
   const navigate = useNavigate();
   const { mutate, isPending } = useRegister();
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { name: '', email: '', password: '', confirm: '' } });
 
   const onSubmit = (values: FormValues) => {
     setError(null);
+    setSuccess(false);
     mutate(
       { name: values.name, email: values.email, password: values.password },
       {
-        onSuccess: () => navigate('/login', { replace: true }),
-        onError: () => setError('Failed to create account. Try a different email.'),
+        onSuccess: (data) => {
+          setSuccess(true);
+          form.reset();
+          // Don't navigate immediately, show success message first
+        },
+        onError: (err: any) => {
+          setError(err?.message || 'Failed to create account. Try a different email.');
+        },
       }
     );
   };
@@ -98,9 +106,24 @@ export function SignupPage() {
 
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-          <button className="flex w-full items-center justify-center rounded-lg bg-[#4A90E2] dark:bg-primary h-12 px-6 text-base font-semibold text-white shadow-sm hover:bg-[#4A90E2]/90 dark:hover:bg-primary/90 disabled:opacity-50" type="submit" disabled={isPending}>
-            {isPending ? 'Creating…' : 'Create Account'}
-          </button>
+          {success && (
+            <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4">
+              <p className="text-sm text-green-800 dark:text-green-200">
+                Account created successfully! Your account is pending approval. An administrator will review your request and approve it shortly. You will be able to log in once your account is approved.
+              </p>
+              <div className="mt-4">
+                <Link to="/login" className="text-sm font-medium text-green-800 dark:text-green-200 hover:underline">
+                  Go to login page →
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {!success && (
+            <button className="flex w-full items-center justify-center rounded-lg bg-[#4A90E2] dark:bg-primary h-12 px-6 text-base font-semibold text-white shadow-sm hover:bg-[#4A90E2]/90 dark:hover:bg-primary/90 disabled:opacity-50" type="submit" disabled={isPending}>
+              {isPending ? 'Creating…' : 'Create Account'}
+            </button>
+          )}
         </form>
 
         <div className="mt-6 text-center">

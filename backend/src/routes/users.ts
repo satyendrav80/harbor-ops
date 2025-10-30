@@ -34,6 +34,7 @@ router.get('/users', async (req, res) => {
         email: true,
         username: true,
         name: true,
+        status: true,
         createdAt: true,
         updatedAt: true,
         roles: {
@@ -338,12 +339,14 @@ router.post('/users', async (req, res) => {
         passwordHash,
         name: name || null,
         username: finalUsername,
+        status: 'approved', // Admin-created users are automatically approved
       },
       select: {
         id: true,
         email: true,
         username: true,
         name: true,
+        status: true,
         createdAt: true,
         updatedAt: true,
         roles: {
@@ -406,6 +409,7 @@ router.put('/users/:id', async (req, res) => {
         email: true,
         username: true,
         name: true,
+        status: true,
         createdAt: true,
         updatedAt: true,
         roles: {
@@ -574,5 +578,129 @@ router.delete('/permissions/:id', async (req, res) => {
   }
 });
 
-export default router;
+// Approve a user
+router.post('/users/:id/approve', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await prisma.user.update({
+      where: { id },
+      data: { status: 'approved' },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        name: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        roles: {
+          include: {
+            role: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    res.json(user);
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    return res.status(400).json({ error: 'Failed to approve user' });
+  }
+});
 
+// Block a user
+router.post('/users/:id/block', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await prisma.user.update({
+      where: { id },
+      data: { status: 'blocked' },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        name: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        roles: {
+          include: {
+            role: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    res.json(user);
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    return res.status(400).json({ error: 'Failed to block user' });
+  }
+});
+
+// Unblock a user (approve)
+router.post('/users/:id/unblock', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await prisma.user.update({
+      where: { id },
+      data: { status: 'approved' },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        name: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        roles: {
+          include: {
+            role: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    res.json(user);
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    return res.status(400).json({ error: 'Failed to unblock user' });
+  }
+});
+
+// Reject a user (delete)
+router.delete('/users/:id/reject', async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Delete user roles first (cascade)
+    await prisma.userRole.deleteMany({ where: { userId: id } });
+    // Delete user
+    await prisma.user.delete({ where: { id } });
+    res.status(204).end();
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    return res.status(400).json({ error: 'Failed to reject user' });
+  }
+});
+
+export default router;
