@@ -1,7 +1,9 @@
+import { env } from '../constants/env';
+
 export type ApiError = { message: string; status?: number };
 
 function baseUrl() {
-  return import.meta.env.VITE_API_URL ?? '';
+  return env.app_backend_url || '';
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {

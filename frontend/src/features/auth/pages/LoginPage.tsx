@@ -7,7 +7,7 @@ import { useLogin } from '../hooks/useLogin';
 import { useAuth } from '../context/AuthContext';
 
 const schema = z.object({
-  usernameOrEmail: z.string().min(1, 'Username or email is required'),
+  email: z.string().min(1, 'Email is required'),
   password: z.string().min(1, 'Password is required'),
 });
 type FormValues = z.infer<typeof schema>;
@@ -20,7 +20,7 @@ export function LoginPage() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { usernameOrEmail: '', password: '' },
+    defaultValues: { email: '', password: '' },
   });
 
   useEffect(() => {
@@ -71,11 +71,11 @@ export function LoginPage() {
                     placeholder="e.g. user@example.com"
                     type="email"
                     autoComplete="username"
-                    {...form.register('usernameOrEmail')}
+                    {...form.register('email')}
                   />
                 </label>
-                {form.formState.errors.usernameOrEmail && (
-                  <p className="mt-1 text-sm text-red-600">{form.formState.errors.usernameOrEmail.message}</p>
+                {form.formState.errors.email && (
+                  <p className="mt-1 text-sm text-red-600">{form.formState.errors.email.message}</p>
                 )}
               </div>
 
@@ -106,7 +106,7 @@ export function LoginPage() {
               </div>
 
               <div className="flex items-center justify-end">
-                <Link to="#" className="text-sm font-medium text-[#4A90E2] hover:underline">
+                <Link to="/forgot" className="text-sm font-medium text-[#4A90E2] hover:underline">
                   Forgot Password?
                 </Link>
               </div>
