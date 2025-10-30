@@ -61,7 +61,7 @@ router.patch('/profile', authMiddleware, async (req: any, res) => {
   const { name, email, username } = req.body;
 
   // Validate input
-  if (!name && !email && !username) {
+  if (!name && !email && username === undefined) {
     return res.status(400).json({ error: 'At least one field (name, email, or username) is required' });
   }
 
@@ -73,18 +73,29 @@ router.patch('/profile', authMiddleware, async (req: any, res) => {
     }
   }
 
+  // Get current user to use email as default username
+  const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+  if (!currentUser) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
   // Check if username is being changed and if it's already taken
+  let finalUsername: string | null = null;
   if (username !== undefined) {
-    if (username) {
+    if (username && username.trim() !== '') {
       // Username must be alphanumeric with underscores and hyphens, 3-30 characters
       const usernameRegex = /^[a-zA-Z0-9_-]{3,30}$/;
-      if (!usernameRegex.test(username)) {
+      if (!usernameRegex.test(username.trim())) {
         return res.status(400).json({ error: 'Username must be 3-30 characters and contain only letters, numbers, underscores, and hyphens' });
       }
-      const existingUser = await prisma.user.findUnique({ where: { username } });
+      const existingUser = await prisma.user.findUnique({ where: { username: username.trim() } });
       if (existingUser && existingUser.id !== userId) {
         return res.status(409).json({ error: 'Username already taken' });
       }
+      finalUsername = username.trim();
+    } else {
+      // If empty, use email as default username
+      finalUsername = email || currentUser.email;
     }
   }
 
@@ -92,7 +103,7 @@ router.patch('/profile', authMiddleware, async (req: any, res) => {
   const updateData: { name?: string | null; email?: string; username?: string | null } = {};
   if (name !== undefined) updateData.name = name || null;
   if (email !== undefined) updateData.email = email;
-  if (username !== undefined) updateData.username = username || null;
+  if (username !== undefined) updateData.username = finalUsername;
 
   try {
     const user = await prisma.user.update({
