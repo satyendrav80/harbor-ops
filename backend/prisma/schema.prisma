@@ -10,6 +10,7 @@ datasource db {
 model User {
   id            String   @id @default(cuid())        @map("id")
   email         String   @unique                    @map("email")
+  username      String?  @unique                    @map("username")
   passwordHash  String                              @map("password_hash")
   name          String?                             @map("name")
   createdAt     DateTime @default(now())            @map("created_at")
