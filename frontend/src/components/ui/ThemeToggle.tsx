@@ -2,7 +2,7 @@ import { useTheme } from '../../components/common/ThemeProvider';
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
-  const next = theme === 'dark' ? 'light' : 'dark';
+  const next = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
   return (
     <button
       aria-label="Toggle theme"

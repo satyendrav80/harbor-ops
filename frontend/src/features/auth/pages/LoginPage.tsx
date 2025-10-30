@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, Link } from 'react-router-dom';
-import { ThemeToggle } from '../../../components/ui/ThemeToggle';
 import { useLogin } from '../hooks/useLogin';
 import { useAuth } from '../context/AuthContext';
 
@@ -34,7 +33,6 @@ export function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen w-full flex-col items-center justify-center p-4 bg-[#F8F9FA] text-[#212529] dark:bg-[#1A1D21] dark:text-[#E9ECEF]">
-      <ThemeToggle />
       <div className="w-full max-w-4xl overflow-hidden rounded-xl shadow-lg md:grid md:grid-cols-2">
         {/* Left brand panel */}
         <div className="relative hidden items-center justify-center bg-[#4A90E2]/10 dark:bg-[#4A90E2]/20 p-8 md:flex flex-col">

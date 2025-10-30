@@ -15,10 +15,15 @@ function applyTheme(theme: Theme) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => (localStorage.getItem(THEME_KEY) as Theme) || 'system');
+  const [theme, setThemeState] = useState<Theme>('system');
   useEffect(() => {
     applyTheme(theme);
-    localStorage.setItem(THEME_KEY, theme);
+    if (theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = () => applyTheme('system');
+      mq.addEventListener?.('change', handler);
+      return () => mq.removeEventListener?.('change', handler);
+    }
   }, [theme]);
   const value = useMemo(() => ({ theme, setTheme: setThemeState }), [theme]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
