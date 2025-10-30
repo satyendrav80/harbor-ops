@@ -2,7 +2,14 @@ import { apiFetch } from './apiClient';
 
 export type LoginInput = { usernameOrEmail: string; password: string };
 export type LoginResponse = { token: string };
-export type MeResponse = { id: string; email: string; status?: 'pending' | 'approved' | 'blocked' };
+export type MeResponse = { 
+  id: string; 
+  email: string; 
+  username?: string | null;
+  name?: string | null;
+  status?: 'pending' | 'approved' | 'blocked';
+  permissions?: string[];
+};
 export type RegisterInput = { name: string; email: string; password: string };
 export type RegisterResponse = { id: string; email: string; status: 'pending' | 'approved' | 'blocked'; message?: string };
 

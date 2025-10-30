@@ -11,7 +11,12 @@ export function useLogin() {
       try {
         localStorage.setItem('token', data.token);
         const me = await getMe();
-        save(data.token, { id: me.id, name: me.email, email: me.email });
+        save(data.token, { 
+          id: me.id, 
+          name: me.name || me.email, 
+          email: me.email,
+          permissions: me.permissions || [],
+        });
       } catch {
         // Silent error - will be handled by the calling component
       }

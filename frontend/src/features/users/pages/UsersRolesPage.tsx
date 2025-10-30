@@ -4,6 +4,7 @@ import { useRoles } from '../hooks/useRoles';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAssignRoleToUser, useRemoveRoleFromUser } from '../hooks/useUserRoles';
 import { useApproveUser, useBlockUser, useUnblockUser, useRejectUser } from '../hooks/useUserStatusMutations';
+import { useAssignPermissionToRole, useRemovePermissionFromRole } from '../hooks/useRolePermissions';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
@@ -40,6 +41,7 @@ export function UsersRolesPage() {
   const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'permissions'>('users');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [assigningRole, setAssigningRole] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
 
   // Modal states
   const [userModalOpen, setUserModalOpen] = useState(false);
@@ -76,6 +78,8 @@ export function UsersRolesPage() {
   const blockUser = useBlockUser();
   const unblockUser = useUnblockUser();
   const rejectUser = useRejectUser();
+  const assignPermission = useAssignPermissionToRole();
+  const removePermission = useRemovePermissionFromRole();
 
   // Flatten paginated data
   const users = useMemo(() => {
@@ -179,6 +183,22 @@ export function UsersRolesPage() {
       } catch (error) {
         // Error handling is done by React Query
       }
+    }
+  };
+
+  const handleAssignPermission = async (roleId: string, permissionId: string) => {
+    try {
+      await assignPermission.mutateAsync({ roleId, permissionId });
+    } catch (error) {
+      // Error handling is done by React Query
+    }
+  };
+
+  const handleRemovePermission = async (roleId: string, permissionId: string) => {
+    try {
+      await removePermission.mutateAsync({ roleId, permissionId });
+    } catch (error) {
+      // Error handling is done by React Query
     }
   };
 
@@ -359,7 +379,18 @@ export function UsersRolesPage() {
           ) : (
             <div className="p-6 space-y-4">
               {roles.map((role) => (
-                <RoleCard key={role.id} role={role} onEdit={handleEditRole} />
+                <RoleCard 
+                  key={role.id} 
+                  role={role} 
+                  onEdit={handleEditRole}
+                  permissions={permissions || []}
+                  onAssignPermission={handleAssignPermission}
+                  onRemovePermission={handleRemovePermission}
+                  isExpanded={selectedRole === role.id}
+                  onToggleExpand={() => setSelectedRole(selectedRole === role.id ? null : role.id)}
+                  assigningPermission={assignPermission.isPending}
+                  removingPermission={removePermission.isPending}
+                />
               ))}
               {/* Infinite scroll trigger */}
               <div ref={rolesObserverTarget} className="h-4" />
@@ -658,25 +689,54 @@ function UserRow({
 
 type RoleCardProps = {
   role: RoleWithPermissions;
+  permissions: Permission[];
+  onEdit: (role: RoleWithPermissions) => void;
+  onAssignPermission: (roleId: string, permissionId: string) => Promise<void>;
+  onRemovePermission: (roleId: string, permissionId: string) => Promise<void>;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  assigningPermission: boolean;
+  removingPermission: boolean;
 };
 
-function RoleCard({ role, onEdit }: RoleCardProps & { onEdit: (role: RoleWithPermissions) => void }) {
+function RoleCard({ 
+  role, 
+  onEdit, 
+  permissions, 
+  onAssignPermission, 
+  onRemovePermission,
+  isExpanded,
+  onToggleExpand,
+  assigningPermission,
+  removingPermission,
+}: RoleCardProps) {
+  const rolePermissionIds = role.permissions.map((rp) => rp.permission.id);
+  const availablePermissions = permissions.filter((p) => !rolePermissionIds.includes(p.id));
+
   return (
     <div className="border border-gray-200 dark:border-gray-700/50 rounded-lg p-4">
       <div className="flex items-start justify-between mb-3">
-        <div>
+        <div className="flex-1">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">{role.name}</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {role.users.length} user{role.users.length !== 1 ? 's' : ''} assigned
+            {role.users.length} user{role.users.length !== 1 ? 's' : ''} assigned · {role.permissions.length} permission{role.permissions.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <button
-          onClick={() => onEdit(role)}
-          className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
-          aria-label="Edit role"
-        >
-          <Edit className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onToggleExpand}
+            className="text-sm text-primary hover:text-primary/80 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 rounded px-2 py-1"
+          >
+            {isExpanded ? 'Hide' : 'Manage Permissions'}
+          </button>
+          <button
+            onClick={() => onEdit(role)}
+            className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
+            aria-label="Edit role"
+          >
+            <Edit className="w-4 h-4" />
+          </button>
+        </div>
       </div>
       <div className="space-y-2">
         <div>
@@ -692,11 +752,41 @@ function RoleCard({ role, onEdit }: RoleCardProps & { onEdit: (role: RoleWithPer
                 >
                   <Check className="w-3 h-3" />
                   {rp.permission.name}
+                  <button
+                    onClick={() => onRemovePermission(role.id, rp.permission.id)}
+                    disabled={removingPermission}
+                    className="hover:text-red-500 focus:outline-none disabled:opacity-50"
+                    aria-label={`Remove ${rp.permission.name} permission`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 </span>
               ))}
             </div>
           )}
         </div>
+        {isExpanded && (
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Available Permissions:</p>
+            {availablePermissions.length === 0 ? (
+              <p className="text-xs text-gray-400 dark:text-gray-500">All permissions are already assigned</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {availablePermissions.map((permission) => (
+                  <button
+                    key={permission.id}
+                    onClick={() => onAssignPermission(role.id, permission.id)}
+                    disabled={assigningPermission}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md bg-white dark:bg-[#1C252E] border border-gray-300 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#151B24] focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {permission.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {role.users.length > 0 && (
           <div>
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Assigned to:</p>

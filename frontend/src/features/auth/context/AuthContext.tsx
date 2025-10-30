@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState, useEffect } from 'react';
+import { getMe } from '../../../services/auth';
 
 type AuthUser = { id: string | number; name: string; email: string; permissions?: string[] };
 
@@ -8,6 +9,7 @@ type AuthContextValue = {
   login: (token: string, user: AuthUser) => void;
   logout: () => void;
   hasPermission: (perm: string) => boolean;
+  refreshPermissions: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -33,9 +35,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('user');
   }, []);
 
+  const refreshPermissions = useCallback(async () => {
+    if (!token) return;
+    try {
+      const me = await getMe();
+      if (me.permissions) {
+        setUser((prevUser) => {
+          if (!prevUser) return prevUser;
+          const updatedUser = {
+            ...prevUser,
+            permissions: me.permissions,
+          };
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+          return updatedUser;
+        });
+      }
+    } catch (error) {
+      // Silent error - permissions refresh failed
+    }
+  }, [token]);
+
   const hasPermission = useCallback((p: string) => !!user?.permissions?.includes(p), [user]);
 
-  const value = useMemo(() => ({ user, token, login: doLogin, logout, hasPermission }), [user, token, doLogin, logout, hasPermission]);
+  // Refresh permissions when token changes (on mount or after login)
+  useEffect(() => {
+    if (token && user) {
+      refreshPermissions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]); // Only run when token changes
+
+  const value = useMemo(
+    () => ({ user, token, login: doLogin, logout, hasPermission, refreshPermissions }),
+    [user, token, doLogin, logout, hasPermission, refreshPermissions]
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

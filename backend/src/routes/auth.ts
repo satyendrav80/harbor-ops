@@ -108,10 +108,49 @@ router.get('/me', authMiddleware, async (req: any, res) => {
   const userId = req.user?.sub as string;
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, username: true, name: true, status: true, createdAt: true, updatedAt: true },
+    select: { 
+      id: true, 
+      email: true, 
+      username: true, 
+      name: true, 
+      status: true, 
+      createdAt: true, 
+      updatedAt: true,
+      roles: {
+        include: {
+          role: {
+            include: {
+              permissions: {
+                include: {
+                  permission: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
-  return res.json(user);
+  
+  // Extract all unique permissions from user's roles
+  const permissions = Array.from(
+    new Set(
+      user.roles.flatMap((ur) =>
+        ur.role.permissions.map((rp) => rp.permission.name)
+      )
+    )
+  );
+  
+  return res.json({
+    ...user,
+    permissions,
+  });
 });
 
 router.patch('/profile', requireApprovedUser, async (req: any, res) => {
