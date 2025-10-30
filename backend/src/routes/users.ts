@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import bcrypt from 'bcryptjs';
+import { PERMISSION_RESOURCES, PERMISSION_ACTIONS, isSystemPermission } from '../constants/permissions';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -181,21 +182,7 @@ router.get('/permissions', async (_req, res) => {
 
 // Permission config (resources and actions) - for frontend to drive UI
 router.get('/permission-config', async (_req, res) => {
-  const resources = [
-    'users',
-    'roles',
-    'permissions',
-    'credentials',
-    'servers',
-    'services',
-    'groups',
-    'tags',
-    'release-notes',
-    'dashboard',
-    'profile',
-  ];
-  const actions = ['view', 'create', 'update', 'delete', 'manage'];
-  res.json({ resources, actions });
+  res.json({ resources: PERMISSION_RESOURCES as string[], actions: PERMISSION_ACTIONS as string[] });
 });
 
 // Assign role to user
@@ -638,9 +625,7 @@ router.put('/permissions/:id', requirePermission('permissions:update'), async (r
   const existingPermission = await prisma.permission.findUnique({ where: { id } });
   if (!existingPermission) return res.status(404).json({ error: 'Permission not found' });
   // Block updates to system permissions (standard resource:action set)
-  const SYSTEM_RESOURCES = ['users','roles','permissions','credentials','servers','services','groups','tags','release-notes','dashboard','profile'];
-  const SYSTEM_ACTIONS = ['view','create','update','delete','manage'];
-  const isSystem = SYSTEM_RESOURCES.includes(existingPermission.resource) && SYSTEM_ACTIONS.includes(existingPermission.action);
+  const isSystem = isSystemPermission(existingPermission.resource, existingPermission.action);
   if (isSystem) return res.status(400).json({ error: 'System permissions cannot be modified' });
   
   // Check if name is being changed and if it's already taken
@@ -688,9 +673,7 @@ router.delete('/permissions/:id', requirePermission('permissions:delete'), async
   try {
     const perm = await prisma.permission.findUnique({ where: { id } });
     if (!perm) return res.status(404).json({ error: 'Permission not found' });
-    const SYSTEM_RESOURCES = ['users','roles','permissions','credentials','servers','services','groups','tags','release-notes','dashboard','profile'];
-    const SYSTEM_ACTIONS = ['view','create','update','delete','manage'];
-    const isSystem = SYSTEM_RESOURCES.includes(perm.resource) && SYSTEM_ACTIONS.includes(perm.action);
+    const isSystem = isSystemPermission(perm.resource, perm.action);
     if (isSystem) return res.status(400).json({ error: 'System permissions cannot be deleted' });
     // Delete role permissions first (cascade)
     await prisma.rolePermission.deleteMany({ where: { permissionId: id } });

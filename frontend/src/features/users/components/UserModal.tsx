@@ -9,7 +9,8 @@ import type { UserWithRoles } from '../../../services/users';
 
 const userSchema = z.object({
   email: z.string().email('Invalid email address').min(1, 'Email is required'),
-  password: z.string().min(8, 'Password must be at least 8 characters').optional(),
+  // Allow empty string on edit; creation is enforced at submit time
+  password: z.union([z.string().min(8, 'Password must be at least 8 characters'), z.literal('')]).optional(),
   name: z.string().optional(),
   username: z
     .string()
@@ -87,14 +88,19 @@ export function UserModal({ isOpen, onClose, user, onDelete }: UserModalProps) {
         if (values.username !== undefined) {
           updateData.username = values.username.trim() || values.email;
         }
-        if (values.password) {
+        if (values.password && values.password.length >= 8) {
           updateData.password = values.password;
         }
         await updateUser.mutateAsync({ id: user!.id, data: updateData });
       } else {
+        // Enforce password requirement on creation
+        if (!values.password || values.password.length < 8) {
+          setError('Password must be at least 8 characters');
+          return;
+        }
         await createUser.mutateAsync({
           email: values.email,
-          password: values.password || '',
+          password: values.password,
           name: values.name,
           username: values.username,
         });

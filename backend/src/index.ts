@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import authRouter from './routes/auth';
 import { PrismaClient } from '@prisma/client';
+import { PERMISSION_RESOURCES, PERMISSION_ACTIONS } from './constants/permissions';
 import serversRouter from './routes/servers';
 import servicesRouter from './routes/services';
 import credentialsRouter from './routes/credentials';
@@ -35,20 +36,6 @@ const port = Number(process.env.PORT) || 3044;
 // Initialize default roles/permissions on boot
 async function initializeDefaults() {
   const prisma = new PrismaClient();
-  const RESOURCES = [
-    'users',
-    'roles',
-    'permissions',
-    'credentials',
-    'servers',
-    'services',
-    'groups',
-    'tags',
-    'release-notes',
-    'dashboard',
-    'profile',
-  ];
-  const ACTIONS = ['view', 'create', 'update', 'delete', 'manage'];
   // Ensure default roles exist
   const adminRole = await prisma.role.upsert({
     where: { name: 'admin' },
@@ -62,8 +49,8 @@ async function initializeDefaults() {
   });
 
   // Ensure all standard permissions exist
-  for (const resource of RESOURCES) {
-    for (const action of ACTIONS) {
+  for (const resource of PERMISSION_RESOURCES) {
+    for (const action of PERMISSION_ACTIONS) {
       const name = `${resource}:${action}`;
       await prisma.permission.upsert({
         where: { resource_action: { resource, action } },
