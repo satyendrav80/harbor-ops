@@ -36,9 +36,26 @@ router.post('/register', async (req, res) => {
 });
 
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body as { email: string; password: string };
-  if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
-  const user = await prisma.user.findUnique({ where: { email } });
+  const { usernameOrEmail, password } = req.body as { usernameOrEmail: string; password: string };
+  if (!usernameOrEmail || !password) return res.status(400).json({ error: 'Missing fields' });
+  
+  // Check if input is email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isEmail = emailRegex.test(usernameOrEmail);
+  
+  let user;
+  if (isEmail) {
+    // Try to find by email
+    user = await prisma.user.findUnique({ where: { email: usernameOrEmail } });
+  } else {
+    // Try to find by username
+    user = await prisma.user.findUnique({ where: { username: usernameOrEmail } });
+    // If not found by username, try email as fallback
+    if (!user) {
+      user = await prisma.user.findUnique({ where: { email: usernameOrEmail } });
+    }
+  }
+  
   if (!user || !user.passwordHash) return res.status(401).json({ error: 'Invalid credentials' });
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
@@ -83,19 +100,32 @@ router.patch('/profile', authMiddleware, async (req: any, res) => {
   let finalUsername: string | null = null;
   if (username !== undefined) {
     if (username && username.trim() !== '') {
-      // Username must be alphanumeric with underscores and hyphens, 3-30 characters
-      const usernameRegex = /^[a-zA-Z0-9_-]{3,30}$/;
-      if (!usernameRegex.test(username.trim())) {
-        return res.status(400).json({ error: 'Username must be 3-30 characters and contain only letters, numbers, underscores, and hyphens' });
+      const trimmedUsername = username.trim();
+      
+      // Check if it's a valid email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const isEmail = emailRegex.test(trimmedUsername);
+      
+      if (isEmail) {
+        // If username is an email, use it directly
+        finalUsername = trimmedUsername;
+      } else {
+        // If not email, validate as username format (alphanumeric with underscores and hyphens, 3-30 characters)
+        const usernameRegex = /^[a-zA-Z0-9_-]{3,30}$/;
+        if (!usernameRegex.test(trimmedUsername)) {
+          return res.status(400).json({ error: 'Username must be a valid email address or 3-30 characters with only letters, numbers, underscores, and hyphens' });
+        }
+        finalUsername = trimmedUsername;
       }
-      const existingUser = await prisma.user.findUnique({ where: { username: username.trim() } });
+      
+      // Check if username is already taken
+      const existingUser = await prisma.user.findUnique({ where: { username: finalUsername } });
       if (existingUser && existingUser.id !== userId) {
         return res.status(409).json({ error: 'Username already taken' });
       }
-      finalUsername = username.trim();
     } else {
       // If empty, use email as default username
-      finalUsername = email || currentUser.email;
+      finalUsername = currentUser.username || email || currentUser.email;
     }
   }
 

@@ -15,7 +15,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const json = res.headers.get('content-type')?.includes('application/json');
   const data = json ? await res.json() : await res.text();
   if (!res.ok) {
-    throw { message: json && data?.message ? data.message : 'Request failed', status: res.status } as ApiError;
+    const errorMessage = json && data?.error ? data.error : (json && data?.message ? data.message : 'Request failed');
+    throw { message: errorMessage, status: res.status } as ApiError;
   }
   return data as T;
 }

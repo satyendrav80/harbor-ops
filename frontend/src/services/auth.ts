@@ -1,6 +1,6 @@
 import { apiFetch } from './apiClient';
 
-export type LoginInput = { email: string; password: string };
+export type LoginInput = { usernameOrEmail: string; password: string };
 export type LoginResponse = { token: string };
 export type MeResponse = { id: string; email: string };
 export type RegisterInput = { name: string; email: string; password: string };

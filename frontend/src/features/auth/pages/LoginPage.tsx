@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from '../../../components/ui/ThemeToggle';
 
 const schema = z.object({
-  email: z.string().min(1, 'Email is required'),
+  usernameOrEmail: z.string().min(1, 'Username or email is required'),
   password: z.string().min(1, 'Password is required'),
 });
 type FormValues = z.infer<typeof schema>;
@@ -21,7 +21,7 @@ export function LoginPage() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { usernameOrEmail: '', password: '' },
   });
 
   useEffect(() => {
@@ -72,14 +72,14 @@ export function LoginPage() {
                   <span className="text-sm font-medium leading-normal pb-2 text-[#212529] dark:text-[#E9ECEF]">Username or Email</span>
                   <input
                     className="form-input flex w-full rounded-lg border border-[#DEE2E6] dark:border-[#495057] bg-white dark:bg-[#1C252E] h-12 px-4 text-base text-[#212529] dark:text-[#E9ECEF] placeholder:text-[#6c757d] dark:placeholder:text-[#adb5bd]"
-                    placeholder="e.g. user@example.com"
-                    type="email"
+                    placeholder="username or email@example.com"
+                    type="text"
                     autoComplete="username"
-                    {...form.register('email')}
+                    {...form.register('usernameOrEmail')}
                   />
                 </label>
-                {form.formState.errors.email && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.email.message}</p>
+                {form.formState.errors.usernameOrEmail && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.usernameOrEmail.message}</p>
                 )}
               </div>
 
