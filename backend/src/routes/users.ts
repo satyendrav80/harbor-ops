@@ -174,7 +174,7 @@ router.get('/permissions', async (_req, res) => {
       { resource: 'asc' },
       { action: 'asc' },
     ],
-    select: { id: true, name: true, resource: true, action: true, description: true },
+    select: { id: true, name: true, resource: true, action: true, description: true, system: true },
   });
   res.json(permissions);
 });
@@ -239,6 +239,7 @@ router.delete('/users/:userId/roles/:roleId', async (req, res) => {
 router.post('/roles', async (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Role name is required' });
+  if (name === 'admin' || name === 'regular') return res.status(400).json({ error: 'Default roles cannot be created or modified' });
   try {
     const role = await prisma.role.create({
       data: { name },
@@ -268,13 +269,16 @@ router.post('/roles', async (req, res) => {
 router.post('/roles/:roleId/permissions/:permissionId', async (req, res) => {
   const { roleId, permissionId } = req.params;
   try {
+    let role = await prisma.role.findUnique({ where: { id: roleId } });
+    if (!role) return res.status(404).json({ error: 'Role not found' });
+    if (role.name === 'admin' || role.name === 'regular') return res.status(400).json({ error: 'Default role permissions cannot be modified' });
     await prisma.rolePermission.create({
       data: {
         roleId,
         permissionId,
       },
     });
-    const role = await prisma.role.findUnique({
+    role = await prisma.role.findUnique({
       where: { id: roleId },
       include: {
         permissions: {
@@ -302,6 +306,9 @@ router.post('/roles/:roleId/permissions/:permissionId', async (req, res) => {
 router.delete('/roles/:roleId/permissions/:permissionId', async (req, res) => {
   const { roleId, permissionId } = req.params;
   try {
+    const role = await prisma.role.findUnique({ where: { id: roleId } });
+    if (!role) return res.status(404).json({ error: 'Role not found' });
+    if (role.name === 'admin' || role.name === 'regular') return res.status(400).json({ error: 'Default role permissions cannot be modified' });
     await prisma.rolePermission.delete({
       where: {
         roleId_permissionId: {
@@ -363,6 +370,15 @@ router.post('/users', async (req, res) => {
         },
       },
     });
+    // Assign default role "regular" to newly created user
+    const regularRole = await prisma.role.findUnique({ where: { name: 'regular' } });
+    if (regularRole) {
+      await prisma.userRole.upsert({
+        where: { userId_roleId: { userId: user.id, roleId: regularRole.id } },
+        update: {},
+        create: { userId: user.id, roleId: regularRole.id },
+      });
+    }
     res.status(201).json(user);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -458,6 +474,7 @@ router.put('/roles/:id', async (req, res) => {
   // Check if role exists
   const existingRole = await prisma.role.findUnique({ where: { id } });
   if (!existingRole) return res.status(404).json({ error: 'Role not found' });
+  if (existingRole.name === 'admin' || existingRole.name === 'regular') return res.status(400).json({ error: 'Default roles cannot be modified' });
   
   // Check if name is being changed and if it's already taken
   if (name !== existingRole.name) {
@@ -506,6 +523,8 @@ router.put('/roles/:id', async (req, res) => {
 // Delete a role
 router.delete('/roles/:id', async (req, res) => {
   const { id } = req.params;
+  const existingRole = await prisma.role.findUnique({ where: { id } });
+  if (existingRole && (existingRole.name === 'admin' || existingRole.name === 'regular')) return res.status(400).json({ error: 'Default roles cannot be deleted' });
   try {
     // Delete role permissions first (cascade)
     await prisma.rolePermission.deleteMany({ where: { roleId: id } });
@@ -525,6 +544,11 @@ router.post('/permissions', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'Permission name is required' });
   if (!resource) return res.status(400).json({ error: 'Resource is required' });
   if (!action) return res.status(400).json({ error: 'Action is required' });
+  // Prevent creating permissions that collide with system-managed standard perms with different name
+  if (name !== `${resource}:${action}`) {
+    const existingSystem = await prisma.permission.findUnique({ where: { resource_action: { resource, action } } });
+    if (existingSystem) return res.status(409).json({ error: 'A system permission for this resource and action already exists' });
+  }
   try {
     const permission = await prisma.permission.create({
       data: { name, resource, action, description: description || null },
@@ -554,6 +578,11 @@ router.put('/permissions/:id', async (req, res) => {
   // Check if permission exists
   const existingPermission = await prisma.permission.findUnique({ where: { id } });
   if (!existingPermission) return res.status(404).json({ error: 'Permission not found' });
+  // Block updates to system permissions (standard resource:action set)
+  const SYSTEM_RESOURCES = ['users','roles','permissions','credentials','servers','services','groups','tags','release-notes','dashboard','profile'];
+  const SYSTEM_ACTIONS = ['view','create','update','delete','manage'];
+  const isSystem = SYSTEM_RESOURCES.includes(existingPermission.resource) && SYSTEM_ACTIONS.includes(existingPermission.action);
+  if (isSystem) return res.status(400).json({ error: 'System permissions cannot be modified' });
   
   // Check if name is being changed and if it's already taken
   if (name !== existingPermission.name) {
@@ -598,6 +627,12 @@ router.put('/permissions/:id', async (req, res) => {
 router.delete('/permissions/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    const perm = await prisma.permission.findUnique({ where: { id } });
+    if (!perm) return res.status(404).json({ error: 'Permission not found' });
+    const SYSTEM_RESOURCES = ['users','roles','permissions','credentials','servers','services','groups','tags','release-notes','dashboard','profile'];
+    const SYSTEM_ACTIONS = ['view','create','update','delete','manage'];
+    const isSystem = SYSTEM_RESOURCES.includes(perm.resource) && SYSTEM_ACTIONS.includes(perm.action);
+    if (isSystem) return res.status(400).json({ error: 'System permissions cannot be deleted' });
     // Delete role permissions first (cascade)
     await prisma.rolePermission.deleteMany({ where: { permissionId: id } });
     // Delete permission

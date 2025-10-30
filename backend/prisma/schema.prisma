@@ -24,6 +24,7 @@ model User {
 model Role {
   id          String          @id @default(cuid())   @map("id")
   name        String          @unique                @map("name")
+  system      Boolean         @default(false)        @map("system")
   users       UserRole[]
   permissions RolePermission[]
 
@@ -36,6 +37,7 @@ model Permission {
   resource String                                      @map("resource")
   action   String                                      @map("action")
   description String?                                  @map("description")
+  system   Boolean          @default(false)            @map("system")
   roles    RolePermission[]
   
   @@unique([resource, action])

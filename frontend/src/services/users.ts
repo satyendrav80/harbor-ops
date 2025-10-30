@@ -41,6 +41,7 @@ export type Permission = {
   resource: string;
   action: string;
   description?: string | null;
+  system?: boolean;
 };
 
 export type PaginatedResponse<T> = {

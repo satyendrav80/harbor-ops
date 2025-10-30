@@ -55,7 +55,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [token]);
 
-  const hasPermission = useCallback((p: string) => !!user?.permissions?.includes(p), [user]);
+  const hasPermission = useCallback((p: string) => {
+    if (!user?.permissions) return false;
+    if (user.permissions.includes('*')) return true;
+    return user.permissions.includes(p);
+  }, [user]);
 
   // Refresh permissions when token changes (on mount or after login)
   useEffect(() => {

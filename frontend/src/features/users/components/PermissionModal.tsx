@@ -47,6 +47,7 @@ type PermissionModalProps = {
 
 export function PermissionModal({ isOpen, onClose, permission, onDelete }: PermissionModalProps) {
   const isEditing = !!permission;
+  const isSystem = !!permission?.system;
   const createPermission = useCreatePermission();
   const updatePermission = useUpdatePermission();
   const deletePermission = useDeletePermission();
@@ -148,6 +149,7 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
             Resource <span className="text-red-500">*</span>
           </label>
           <select
+            disabled={isSystem}
             {...form.register('resource')}
             className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
@@ -169,6 +171,7 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
             Action <span className="text-red-500">*</span>
           </label>
           <select
+            disabled={isSystem}
             {...form.register('action')}
             className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
@@ -191,9 +194,10 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
           </label>
           <input
             type="text"
+            disabled={isSystem}
             {...form.register('name')}
             className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            placeholder="e.g., users.view, credentials.create"
+            placeholder="e.g., users:view, credentials:create"
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             This will be auto-generated as "{form.watch('resource') || 'resource'}:{form.watch('action') || 'action'}" if left empty
@@ -209,6 +213,7 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
             Description
           </label>
           <textarea
+            disabled={isSystem}
             {...form.register('description')}
             rows={3}
             className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
@@ -255,7 +260,7 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
         {/* Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700/50">
           <div>
-            {isEditing && !showDeleteConfirm && (
+            {isEditing && !showDeleteConfirm && !isSystem && (
               <button
                 type="button"
                 onClick={() => setShowDeleteConfirm(true)}
@@ -276,7 +281,7 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
             </button>
             <button
               type="submit"
-              disabled={createPermission.isPending || updatePermission.isPending}
+              disabled={isSystem || createPermission.isPending || updatePermission.isPending}
               className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {createPermission.isPending || updatePermission.isPending ? 'Saving...' : isEditing ? 'Update' : 'Create'}

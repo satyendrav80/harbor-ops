@@ -445,8 +445,10 @@ export function UsersRolesPage() {
                       </div>
                       <button
                         onClick={() => handleEditPermission(permission)}
-                        className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
+                        disabled={permission.system}
+                        className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1 disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label="Edit permission"
+                        title={permission.system ? 'System permission cannot be modified' : 'Edit permission'}
                       >
                         <Edit className="w-4 h-4" />
                       </button>

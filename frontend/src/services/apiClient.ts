@@ -16,6 +16,17 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const data = json ? await res.json() : await res.text();
   if (!res.ok) {
     const errorMessage = json && data?.error ? data.error : (json && data?.message ? data.message : 'Request failed');
+    if (res.status === 401 || res.status === 403) {
+      try {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      } catch {}
+      if (typeof window !== 'undefined') {
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 0);
+      }
+    }
     throw { message: errorMessage, status: res.status } as ApiError;
   }
   return data as T;
