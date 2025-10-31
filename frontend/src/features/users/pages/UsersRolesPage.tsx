@@ -12,7 +12,8 @@ import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll'
 import { UserModal } from '../components/UserModal';
 import { RoleModal } from '../components/RoleModal';
 import { PermissionModal } from '../components/PermissionModal';
-import { Users, Shield, Search, Plus, X, Check, AlertCircle, Edit, Key, Ban, CheckCircle, XCircle } from 'lucide-react';
+import { CollapsibleResourcePermissions } from '../components/CollapsibleResourcePermissions';
+import { Users, Shield, Search, Plus, X, Check, AlertCircle, Edit, Key, Ban, CheckCircle, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import type { UserWithRoles, RoleWithPermissions, Permission } from '../../../services/users';
 
 /**
@@ -438,43 +439,25 @@ export function UsersRolesPage() {
               <EmptyState icon={Key} title="No permissions found" description="Create your first permission to get started." />
             </div>
           ) : (
-            <div className="p-6 space-y-6">
-              {Object.entries(
-                permissions.reduce<Record<string, typeof permissions>>((acc, perm) => {
-                  if (!acc[perm.resource]) acc[perm.resource] = [] as any;
-                  acc[perm.resource].push(perm);
-                  return acc;
-                }, {})
-              ).map(([resource, perms]) => (
-                <div key={resource} className="border border-gray-200 dark:border-gray-700/50 rounded-lg">
-                  <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#151B24]">
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{resource}</h3>
-                  </div>
-                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {perms.map((permission) => (
-                      <div key={permission.id} className="border border-gray-200 dark:border-gray-700/50 rounded p-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">{permission.action}</p>
-                            {permission.description && (
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{permission.description}</p>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => handleEditPermission(permission)}
-                            disabled={permission.system}
-                            className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                            aria-label="Edit permission"
-                            title={permission.system ? 'System permission cannot be modified' : 'Edit permission'}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+            <div className="p-6">
+              <CollapsibleResourcePermissions
+                permissions={permissions}
+                renderPermission={(permission) => (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                    <Check className="w-3 h-3" />
+                    {permission.action}
+                    <button
+                      onClick={() => handleEditPermission(permission)}
+                      disabled={permission.system}
+                      className="hover:text-red-500 focus:outline-none disabled:opacity-50"
+                      aria-label="Edit permission"
+                      title={permission.system ? 'System permission cannot be modified' : 'Edit permission'}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+              />
             </div>
           )}
         </div>
@@ -740,6 +723,8 @@ function RoleCard({
   assigningPermission,
   removingPermission,
 }: RoleCardProps) {
+  const [permissionsBoxExpanded, setPermissionsBoxExpanded] = useState(false);
+  const [availablePermissionsExpanded, setAvailablePermissionsExpanded] = useState(false);
   const rolePermissionIds = role.permissions.map((rp) => rp.permission.id);
   const availablePermissions = permissions.filter((p) => !rolePermissionIds.includes(p.id));
   const isSystemRole = (role as any).system === true;
@@ -779,64 +764,85 @@ function RoleCard({
           {role.permissions.length === 0 ? (
             <p className="text-xs text-gray-400 dark:text-gray-500">No permissions assigned</p>
           ) : (
-            <div className="space-y-2">
-              {Object.entries(
-                role.permissions.reduce<Record<string, typeof role.permissions>>((acc, rp) => {
-                  const res = (rp.permission as any).resource || 'general';
-                  if (!acc[res]) acc[res] = [] as any;
-                  acc[res].push(rp);
-                  return acc;
-                }, {})
-              ).map(([resource, rps]) => (
-                <div key={resource} className="border border-gray-200 dark:border-gray-700/50 rounded">
-                  <div className="px-2 py-1 bg-gray-50 dark:bg-[#151B24] text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    {resource}
-                  </div>
-                  <div className="p-2 flex flex-wrap gap-2">
-                    {rps.map((rp: any) => (
-                      <span
-                        key={rp.permission.id}
-                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
-                      >
+            <div className="border border-gray-200 dark:border-gray-700/50 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setPermissionsBoxExpanded(!permissionsBoxExpanded)}
+                className="w-full px-4 py-2 border-b border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#151B24] flex items-center justify-between hover:bg-gray-100 dark:hover:bg-[#1C252E] transition-colors"
+              >
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Permissions</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">({role.permissions.length})</span>
+                  {permissionsBoxExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  )}
+                </div>
+              </button>
+              {permissionsBoxExpanded && (
+                <div className="p-4">
+                  <CollapsibleResourcePermissions
+                    permissions={role.permissions}
+                    renderPermission={(permission) => (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
                         <Check className="w-3 h-3" />
-                        {rp.permission.action || rp.permission.name}
+                        {permission.action || permission.name.split(':')[1]}
                         <button
-                          onClick={() => onRemovePermission(role.id, rp.permission.id)}
+                          onClick={() => onRemovePermission(role.id, permission.id)}
                           disabled={removingPermission || isSystemRole}
                           className="hover:text-red-500 focus:outline-none disabled:opacity-50"
-                          aria-label={`Remove ${rp.permission.name} permission`}
+                          aria-label={`Remove ${permission.name} permission`}
                           title={isSystemRole ? 'System role cannot be modified' : 'Remove permission'}
                         >
                           <X className="w-3 h-3" />
                         </button>
                       </span>
-                    ))}
-                  </div>
+                    )}
+                  />
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
         {isExpanded && !isSystemRole && (
           <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Available Permissions:</p>
-            {availablePermissions.length === 0 ? (
-              <p className="text-xs text-gray-400 dark:text-gray-500">All permissions are already assigned</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {availablePermissions.map((permission) => (
-                  <button
-                    key={permission.id}
-                    onClick={() => onAssignPermission(role.id, permission.id)}
-                    disabled={assigningPermission}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md bg-white dark:bg-[#1C252E] border border-gray-300 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#151B24] focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Plus className="w-4 h-4" />
-                    {permission.name}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="border border-gray-200 dark:border-gray-700/50 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setAvailablePermissionsExpanded(!availablePermissionsExpanded)}
+                className="w-full px-4 py-2 border-b border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-[#151B24] flex items-center justify-between hover:bg-gray-100 dark:hover:bg-[#1C252E] transition-colors"
+              >
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Available Permissions</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">({availablePermissions.length})</span>
+                  {availablePermissionsExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  )}
+                </div>
+              </button>
+              {availablePermissionsExpanded && (
+                <div className="p-4">
+                  {availablePermissions.length === 0 ? (
+                    <p className="text-xs text-gray-400 dark:text-gray-500">All permissions are already assigned</p>
+                  ) : (
+                    <CollapsibleResourcePermissions
+                      permissions={availablePermissions}
+                      renderPermission={(permission) => (
+                        <button
+                          onClick={() => onAssignPermission(role.id, permission.id)}
+                          disabled={assigningPermission}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md bg-white dark:bg-[#1C252E] border border-gray-300 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#151B24] focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Plus className="w-4 h-4" />
+                          {permission.action || permission.name.split(':')[1]}
+                        </button>
+                      )}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
         {role.users.length > 0 && (
@@ -858,3 +864,4 @@ function RoleCard({
     </div>
   );
 }
+

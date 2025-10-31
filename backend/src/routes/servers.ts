@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requirePermission } from '../middleware/auth';
 
 const prisma = new PrismaClient();
 const router = Router();
 
 router.use(requireAuth);
 
-router.get('/', async (req, res) => {
+router.get('/', requirePermission('servers:view'), async (req, res) => {
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 20;
   const search = (req.query.search as string) || '';
@@ -46,27 +46,27 @@ router.get('/', async (req, res) => {
   });
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requirePermission('servers:create'), async (req, res) => {
   const { name, publicIp, privateIp, sshPort, username, password } = req.body;
   const created = await prisma.server.create({ data: { name, publicIp, privateIp, sshPort: Number(sshPort), username, password } });
   res.status(201).json(created);
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', requirePermission('servers:view'), async (req, res) => {
   const id = Number(req.params.id);
   const server = await prisma.server.findUnique({ where: { id } });
   if (!server) return res.status(404).json({ error: 'Not found' });
   res.json(server);
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', requirePermission('servers:update'), async (req, res) => {
   const id = Number(req.params.id);
   const { name, publicIp, privateIp, sshPort, username, password } = req.body;
   const updated = await prisma.server.update({ where: { id }, data: { name, publicIp, privateIp, sshPort: Number(sshPort), username, password } });
   res.json(updated);
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requirePermission('servers:delete'), async (req, res) => {
   const id = Number(req.params.id);
   await prisma.server.delete({ where: { id } });
   res.status(204).end();

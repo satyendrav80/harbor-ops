@@ -9,11 +9,21 @@ export type Service = {
   createdAt: string;
 };
 
+export type ServicesResponse = {
+  data: Service[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 /**
- * Fetch all services
+ * Fetch all services (returns paginated response)
  */
-export async function getServices(): Promise<Service[]> {
-  return apiFetch<Service[]>('/services');
+export async function getServices(): Promise<ServicesResponse> {
+  return apiFetch<ServicesResponse>('/services?limit=1000');
 }
 
 /**

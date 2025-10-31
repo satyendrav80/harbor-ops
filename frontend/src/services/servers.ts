@@ -11,11 +11,21 @@ export type Server = {
   createdAt: string;
 };
 
+export type ServersResponse = {
+  data: Server[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 /**
- * Fetch all servers
+ * Fetch all servers (returns paginated response)
  */
-export async function getServers(): Promise<Server[]> {
-  return apiFetch<Server[]>('/servers');
+export async function getServers(): Promise<ServersResponse> {
+  return apiFetch<ServersResponse>('/servers?limit=1000');
 }
 
 /**

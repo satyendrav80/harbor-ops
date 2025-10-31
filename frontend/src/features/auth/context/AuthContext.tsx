@@ -67,8 +67,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasPermission = useCallback((p: string) => {
     if (!user?.permissions) return false;
+    // Wildcard permission grants all access
     if (user.permissions.includes('*')) return true;
-    return user.permissions.includes(p);
+    // Direct permission match
+    if (user.permissions.includes(p)) return true;
+    // Check for manage permission: if checking "groups:view", also check "groups:manage"
+    const [resource] = p.split(':');
+    const managePermission = `${resource}:manage`;
+    return user.permissions.includes(managePermission);
   }, [user]);
 
   // Refresh permissions when token changes (on mount or after login)

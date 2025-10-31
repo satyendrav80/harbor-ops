@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient, ReleaseStatus } from '@prisma/client';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requirePermission } from '../middleware/auth';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -45,7 +45,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /services/:id/release-notes
-router.post('/services/:id/release-notes', async (req, res) => {
+router.post('/services/:id/release-notes', requirePermission('release-notes:create'), async (req, res) => {
   const serviceId = Number(req.params.id);
   const { note } = req.body as { note: string };
   const created = await prisma.releaseNote.create({ data: { serviceId, note } });
@@ -53,7 +53,7 @@ router.post('/services/:id/release-notes', async (req, res) => {
 });
 
 // PUT /release-notes/:id (only if pending)
-router.put('/:id', async (req, res) => {
+router.put('/:id', requirePermission('release-notes:update'), async (req, res) => {
   const id = Number(req.params.id);
   const existing = await prisma.releaseNote.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'Not found' });
@@ -64,7 +64,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // POST /release-notes/:id/mark-deployed
-router.post('/:id/mark-deployed', async (req, res) => {
+router.post('/:id/mark-deployed', requirePermission('release-notes:update'), async (req, res) => {
   const id = Number(req.params.id);
   const updated = await prisma.releaseNote.update({ where: { id }, data: { status: ReleaseStatus.deployed } });
   res.json(updated);

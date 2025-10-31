@@ -33,8 +33,20 @@ export function requirePermission(permissionName: string) {
     if (userRoles.some((ur) => ur.role.name === 'admin')) {
       return next();
     }
-    const has = userRoles.some((ur) => ur.role.permissions.some((rp) => rp.permission.name === permissionName));
-    if (!has) return res.status(403).json({ error: 'Forbidden' });
+    
+    // Extract resource from permission name (e.g., "groups:view" -> "groups")
+    const [resource] = permissionName.split(':');
+    const managePermission = `${resource}:manage`;
+    
+    // Check if user has the specific permission or the manage permission for the resource
+    const hasSpecific = userRoles.some((ur) => 
+      ur.role.permissions.some((rp) => rp.permission.name === permissionName)
+    );
+    const hasManage = userRoles.some((ur) => 
+      ur.role.permissions.some((rp) => rp.permission.name === managePermission)
+    );
+    
+    if (!hasSpecific && !hasManage) return res.status(403).json({ error: 'Forbidden' });
     next();
   };
 }
