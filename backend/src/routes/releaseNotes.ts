@@ -57,8 +57,27 @@ router.get('/', async (req, res) => {
 // POST /services/:id/release-notes
 router.post('/services/:id/release-notes', requirePermission('release-notes:create'), async (req, res) => {
   const serviceId = Number(req.params.id);
-  const { note } = req.body as { note: string };
-  const created = await prisma.releaseNote.create({ data: { serviceId, note } });
+  const { note, publishDate } = req.body as { note: string; publishDate?: string };
+  const created = await prisma.releaseNote.create({
+    data: {
+      serviceId,
+      note,
+      publishDate: publishDate ? new Date(publishDate) : new Date(),
+    },
+  });
+  res.status(201).json(created);
+});
+
+// POST /release-notes (create new release note)
+router.post('/', requirePermission('release-notes:create'), async (req, res) => {
+  const { serviceId, note, publishDate } = req.body as { serviceId: number; note: string; publishDate?: string };
+  const created = await prisma.releaseNote.create({
+    data: {
+      serviceId: Number(serviceId),
+      note,
+      publishDate: publishDate ? new Date(publishDate) : new Date(),
+    },
+  });
   res.status(201).json(created);
 });
 
@@ -68,8 +87,11 @@ router.put('/:id', requirePermission('release-notes:update'), async (req, res) =
   const existing = await prisma.releaseNote.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'Not found' });
   if (existing.status !== ReleaseStatus.pending) return res.status(400).json({ error: 'Cannot edit deployed note' });
-  const { note } = req.body as { note: string };
-  const updated = await prisma.releaseNote.update({ where: { id }, data: { note } });
+  const { note, publishDate } = req.body as { note?: string; publishDate?: string };
+  const updateData: any = {};
+  if (note !== undefined) updateData.note = note;
+  if (publishDate !== undefined) updateData.publishDate = new Date(publishDate);
+  const updated = await prisma.releaseNote.update({ where: { id }, data: updateData });
   res.json(updated);
 });
 

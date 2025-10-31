@@ -15,6 +15,7 @@ import { useAddItemToGroup, useRemoveItemFromGroup } from '../../groups/hooks/us
 import { useAuth } from '../../auth/context/AuthContext';
 import { useConstants } from '../../constants/hooks/useConstants';
 import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
+import { getTags } from '../../../services/tags';
 
 const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required').max(100, 'Service name must be 100 characters or less'),
@@ -22,6 +23,7 @@ const serviceSchema = z.object({
   serverId: z.coerce.number().int().min(1, 'Server is required'),
   credentialIds: z.array(z.number()).optional(),
   domainIds: z.array(z.number()).optional(),
+  tagIds: z.array(z.number()).optional(),
   sourceRepo: z.string().optional().refine((val) => !val || val === '' || z.string().url().safeParse(val).success, {
     message: 'Invalid URL',
   }),
@@ -106,6 +108,17 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
     enabled: isOpen && isEditing && !!service?.id && hasPermission('domains:view'),
   });
 
+  // Fetch tags for multi-select
+  const { data: tagsData } = useQuery({
+    queryKey: ['tags', 'all'],
+    queryFn: async () => {
+      const response = await getTags(1, 1000);
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: isOpen && hasPermission('tags:view'),
+  });
+
   const form = useForm<ServiceFormValues>({
     resolver: zodResolver(serviceSchema),
     defaultValues: {
@@ -114,6 +127,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
       serverId: service?.serverId || 0,
       credentialIds: [],
       domainIds: [],
+      tagIds: [],
       sourceRepo: service?.sourceRepo || '',
       appId: service?.appId || '',
       functionName: service?.functionName || '',
@@ -159,6 +173,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         serverId: service.serverId,
         credentialIds: service.credentials?.map((sc) => sc.credential.id) || [],
         domainIds: existingDomainsData || [],
+        tagIds: service.tags?.map((st) => st.tag.id) || [],
         sourceRepo: service.sourceRepo || '',
         appId: service.appId || '',
         functionName: service.functionName || '',
@@ -172,6 +187,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         serverId: 0,
         credentialIds: [],
         domainIds: [],
+        tagIds: [],
         sourceRepo: '',
         appId: '',
         functionName: '',
@@ -197,6 +213,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
             serverId: values.serverId,
             credentialIds: values.credentialIds || [],
             domainIds: values.domainIds || [],
+            tagIds: values.tagIds || [],
             sourceRepo: values.sourceRepo || null,
             appId: values.appId || null,
             functionName: values.functionName || null,
@@ -210,6 +227,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
           serverId: values.serverId,
           credentialIds: values.credentialIds || [],
           domainIds: values.domainIds || [],
+          tagIds: values.tagIds || [],
           sourceRepo: values.sourceRepo || null,
           appId: values.appId || null,
           functionName: values.functionName || null,
@@ -468,6 +486,22 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
             />
             {form.formState.errors.domainIds && (
               <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.domainIds?.message}</p>
+            )}
+          </div>
+        )}
+
+        {hasPermission('tags:view') && tagsData && tagsData.length > 0 && (
+          <div>
+            <SearchableMultiSelect
+              options={tagsData.map((t) => ({ id: t.id, name: t.value ? `${t.name}:${t.value}` : t.name }))}
+              selectedIds={form.watch('tagIds') || []}
+              onChange={(selectedIds) => form.setValue('tagIds', selectedIds)}
+              placeholder="Search and select tags..."
+              label="Tags (Optional)"
+              disabled={isLoading}
+            />
+            {form.formState.errors.tagIds && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.tagIds?.message}</p>
             )}
           </div>
         )}

@@ -140,7 +140,18 @@ const ReleaseNoteItem = memo(({
               </button>
             </div>
           )}
-          <div className="flex items-center gap-4 mt-4 text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-gray-500 dark:text-gray-400">
+            {releaseNote.publishDate && (
+              <span className="font-medium">
+                Publish Date: {new Date(releaseNote.publishDate).toLocaleString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            )}
             {releaseNote.createdAt && (
               <span>Created {new Date(releaseNote.createdAt).toLocaleDateString()}</span>
             )}
@@ -180,6 +191,7 @@ const ReleaseNoteItem = memo(({
     prevProps.releaseNote.id === nextProps.releaseNote.id &&
     prevProps.releaseNote.note === nextProps.releaseNote.note &&
     prevProps.releaseNote.status === nextProps.releaseNote.status &&
+    prevProps.releaseNote.publishDate === nextProps.releaseNote.publishDate &&
     prevProps.releaseNote.createdAt === nextProps.releaseNote.createdAt &&
     prevProps.releaseNote.updatedAt === nextProps.releaseNote.updatedAt &&
     prevProps.releaseNote.serviceId === nextProps.releaseNote.serviceId;

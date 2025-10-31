@@ -64,7 +64,7 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
 });
 
 router.post('/', requirePermission('servers:create'), async (req, res) => {
-  const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds, domainIds } = req.body;
+  const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds, domainIds, tagIds } = req.body;
   const encryptedPassword = password ? encrypt(password) : null;
   
   const data: any = {
@@ -126,6 +126,15 @@ router.post('/', requirePermission('servers:create'), async (req, res) => {
       await tx.serverDomain.createMany({ data: domainData, skipDuplicates: true });
     }
     
+    // Attach tags if provided
+    if (tagIds && Array.isArray(tagIds) && tagIds.length > 0) {
+      const tagData = tagIds.map((tagId: number) => ({
+        serverId: server.id,
+        tagId: Number(tagId),
+      }));
+      await tx.serverTag.createMany({ data: tagData, skipDuplicates: true });
+    }
+    
     // Return server with credentials and domains
     return await tx.server.findUnique({
       where: { id: server.id },
@@ -177,7 +186,7 @@ router.put('/:id', requirePermission('servers:update'), async (req, res) => {
   const server = await prisma.server.findUnique({ where: { id } });
   if (!server) return res.status(404).json({ error: 'Server not found' });
   
-  const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds, domainIds } = req.body;
+  const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds, domainIds, tagIds } = req.body;
   
   const updateData: any = {
     name,
@@ -255,6 +264,21 @@ router.put('/:id', requirePermission('servers:update'), async (req, res) => {
           domainId: Number(domainId),
         }));
         await tx.serverDomain.createMany({ data: domainData, skipDuplicates: true });
+      }
+    }
+    
+    // Update tags if provided
+    if (tagIds !== undefined) {
+      // Remove all existing tags
+      await tx.serverTag.deleteMany({ where: { serverId: id } });
+      
+      // Add new tags if provided
+      if (Array.isArray(tagIds) && tagIds.length > 0) {
+        const tagData = tagIds.map((tagId: number) => ({
+          serverId: id,
+          tagId: Number(tagId),
+        }));
+        await tx.serverTag.createMany({ data: tagData, skipDuplicates: true });
       }
     }
     

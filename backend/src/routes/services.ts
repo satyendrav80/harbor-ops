@@ -65,7 +65,7 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
 });
 
 router.post('/', requirePermission('services:create'), async (req, res) => {
-  const { name, port, serverId, credentialIds, domainIds, sourceRepo, appId, functionName, deploymentUrl, metadata } = req.body;
+  const { name, port, serverId, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, metadata } = req.body;
   
   // Create service with credentials and domains in a transaction
   const created = await prisma.$transaction(async (tx) => {
@@ -100,6 +100,15 @@ router.post('/', requirePermission('services:create'), async (req, res) => {
       await tx.serviceDomain.createMany({ data: domainData, skipDuplicates: true });
     }
     
+    // Attach tags if provided
+    if (tagIds && Array.isArray(tagIds) && tagIds.length > 0) {
+      const tagData = tagIds.map((tagId: number) => ({
+        serviceId: service.id,
+        tagId: Number(tagId),
+      }));
+      await tx.serviceTag.createMany({ data: tagData, skipDuplicates: true });
+    }
+    
     // Return service with relations
     return await tx.service.findUnique({
       where: { id: service.id },
@@ -107,6 +116,7 @@ router.post('/', requirePermission('services:create'), async (req, res) => {
         server: true,
         credentials: { include: { credential: true } },
         domains: { include: { domain: true } },
+        tags: { include: { tag: true } },
       },
     });
   });
@@ -132,7 +142,7 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
 
 router.put('/:id', requirePermission('services:update'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, port, serverId, credentialIds, domainIds, sourceRepo, appId, functionName, deploymentUrl, metadata } = req.body;
+  const { name, port, serverId, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, metadata } = req.body;
   
   // Update service with credentials and domains in a transaction
   const updated = await prisma.$transaction(async (tx) => {
@@ -181,6 +191,21 @@ router.put('/:id', requirePermission('services:update'), async (req, res) => {
       }
     }
     
+    // Update tags if provided
+    if (tagIds !== undefined) {
+      // Remove all existing tags
+      await tx.serviceTag.deleteMany({ where: { serviceId: id } });
+      
+      // Add new tags if provided
+      if (Array.isArray(tagIds) && tagIds.length > 0) {
+        const tagData = tagIds.map((tagId: number) => ({
+          serviceId: id,
+          tagId: Number(tagId),
+        }));
+        await tx.serviceTag.createMany({ data: tagData, skipDuplicates: true });
+      }
+    }
+    
     // Return service with relations
     return await tx.service.findUnique({
       where: { id },
@@ -188,6 +213,7 @@ router.put('/:id', requirePermission('services:update'), async (req, res) => {
         server: true,
         credentials: { include: { credential: true } },
         domains: { include: { domain: true } },
+        tags: { include: { tag: true } },
       },
     });
   });

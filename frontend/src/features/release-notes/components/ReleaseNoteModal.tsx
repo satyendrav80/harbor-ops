@@ -17,6 +17,7 @@ type ReleaseNoteModalProps = {
 const releaseNoteSchema = z.object({
   serviceId: z.number().min(1, 'Service is required'),
   note: z.string().min(1, 'Release note is required').max(5000, 'Release note must be 5000 characters or less'),
+  publishDate: z.string().min(1, 'Publish date is required'),
 });
 
 type ReleaseNoteFormValues = z.infer<typeof releaseNoteSchema>;
@@ -33,6 +34,9 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
     defaultValues: {
       serviceId: releaseNote?.serviceId || 0,
       note: releaseNote?.note || '',
+      publishDate: releaseNote?.publishDate
+        ? new Date(releaseNote.publishDate).toISOString().slice(0, 16)
+        : new Date().toISOString().slice(0, 16),
     },
   });
 
@@ -44,11 +48,15 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
       form.reset({
         serviceId: releaseNote.serviceId,
         note: releaseNote.note,
+        publishDate: releaseNote.publishDate
+          ? new Date(releaseNote.publishDate).toISOString().slice(0, 16)
+          : new Date().toISOString().slice(0, 16),
       });
     } else {
       form.reset({
         serviceId: 0,
         note: '',
+        publishDate: new Date().toISOString().slice(0, 16),
       });
     }
     setError(null);
@@ -61,11 +69,13 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         await updateReleaseNote.mutateAsync({
           id: releaseNote.id,
           note: values.note,
+          publishDate: values.publishDate,
         });
       } else {
         await createReleaseNote.mutateAsync({
           serviceId: values.serviceId,
           note: values.note,
+          publishDate: values.publishDate,
         });
       }
       
@@ -74,6 +84,7 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         form.reset({
           serviceId: 0,
           note: '',
+          publishDate: new Date().toISOString().slice(0, 16),
         });
       }
       onClose();
@@ -121,6 +132,23 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
               )}
             </div>
           )}
+
+          {/* Publish Date */}
+          <div>
+            <label htmlFor="publish-date" className="block text-sm font-medium text-gray-900 dark:text-white mb-1">
+              Publish Date *
+            </label>
+            <input
+              id="publish-date"
+              type="datetime-local"
+              {...form.register('publishDate')}
+              className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+              disabled={isLoading}
+            />
+            {form.formState.errors.publishDate && (
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{form.formState.errors.publishDate.message}</p>
+            )}
+          </div>
 
           {/* Release Note */}
           <div>

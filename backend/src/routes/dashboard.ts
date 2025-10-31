@@ -35,26 +35,27 @@ router.get('/stats', requirePermission('dashboard:view'), async (_req, res) => {
 /**
  * GET /dashboard/server-status
  * Get server status counts (online, warning, offline)
- * For now, we'll use a simple heuristic based on server metadata
- * In production, this would come from actual health checks
+ * 
+ * TODO: Implement actual server health monitoring
+ * Expected response structure:
+ * {
+ *   total: number;      // Total number of servers
+ *   online: number;     // Number of servers with healthy status
+ *   warning: number;    // Number of servers with warning status
+ *   offline: number;    // Number of servers with offline/down status
+ * }
+ * 
+ * Implementation ideas:
+ * - Store server health status in database with periodic health checks
+ * - Use ping/SSH connection tests to determine server status
+ * - Integrate with monitoring tools (Nagios, Prometheus, etc.)
+ * - Store last health check timestamp and status in server table or separate health_check table
  */
 router.get('/server-status', requirePermission('dashboard:view'), async (_req, res) => {
   try {
-    const total = await prisma.server.count();
-    
-    // For now, simulate status distribution
-    // In production, this would be based on actual health checks stored in the database
-    // We can enhance this later with actual health monitoring
-    const online = Math.floor(total * 0.8);
-    const warning = Math.floor(total * 0.15);
-    const offline = total - online - warning;
-
-    res.json({
-      total,
-      online,
-      warning,
-      offline,
-    });
+    // TODO: Implement actual server status monitoring
+    // For now, return empty/null to indicate no data available
+    res.json(null);
   } catch (error) {
     console.error('Error fetching server status:', error);
     res.status(500).json({ error: 'Failed to fetch server status' });
@@ -64,29 +65,30 @@ router.get('/server-status', requirePermission('dashboard:view'), async (_req, r
 /**
  * GET /dashboard/service-health
  * Get service health status
- * For now, we'll use a simple heuristic
- * In production, this would come from actual service monitoring
+ * 
+ * TODO: Implement actual service health monitoring
+ * Expected response structure:
+ * [
+ *   {
+ *     id: number;        // Service ID
+ *     name: string;      // Service name
+ *     health: number;    // Health percentage (0-100)
+ *   },
+ *   ...
+ * ]
+ * 
+ * Implementation ideas:
+ * - Monitor service endpoints with HTTP health checks
+ * - Track response times, error rates, availability
+ * - Store health metrics in database (service_health table)
+ * - Integrate with APM tools (New Relic, Datadog, etc.)
+ * - Calculate health based on uptime, response time, error rate
  */
 router.get('/service-health', requirePermission('dashboard:view'), async (_req, res) => {
   try {
-    const services = await prisma.service.findMany({
-      select: {
-        id: true,
-        name: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10, // Limit to top 10 services for dashboard
-    });
-
-    // For now, simulate health percentages based on index
-    // In production, this would be based on actual health metrics
-    const serviceHealth = services.map((service, index) => ({
-      id: service.id,
-      name: service.name,
-      health: index % 4 === 0 ? 100 : index % 4 === 1 ? 100 : index % 4 === 2 ? 85 : 0,
-    }));
-
-    res.json(serviceHealth);
+    // TODO: Implement actual service health monitoring
+    // For now, return empty array to indicate no data available
+    res.json([]);
   } catch (error) {
     console.error('Error fetching service health:', error);
     res.status(500).json({ error: 'Failed to fetch service health' });
@@ -96,57 +98,33 @@ router.get('/service-health', requirePermission('dashboard:view'), async (_req, 
 /**
  * GET /dashboard/recent-alerts
  * Get recent alerts/activity
- * Currently based on pending release notes and can be extended
+ * 
+ * TODO: Implement actual alerting system
+ * Expected response structure:
+ * [
+ *   {
+ *     id: number;                    // Alert ID
+ *     timestamp: string;              // Human-readable time ago (e.g., "10m ago", "1h ago")
+ *     item: string;                   // Item name (server, service, credential, etc.)
+ *     status: 'high' | 'degraded' | 'expiring' | 'recovered';  // Alert status
+ *     action?: string;                // Optional action label (e.g., "Renew", "Details")
+ *   },
+ *   ...
+ * ]
+ * 
+ * Implementation ideas:
+ * - Monitor servers/services for critical issues (CPU, memory, disk, uptime)
+ * - Track credential expiration dates and alert when expiring
+ * - Monitor service response times and error rates
+ * - Store alerts in database (alerts table)
+ * - Integrate with monitoring/alerting tools (PagerDuty, Opsgenie, etc.)
+ * - Create alerts for: server down, high CPU/memory, service errors, credential expiry
  */
 router.get('/recent-alerts', requirePermission('dashboard:view'), async (_req, res) => {
   try {
-    const releaseNotes = await prisma.releaseNote.findMany({
-      where: {
-        status: ReleaseStatus.pending,
-      },
-      include: {
-        service: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    });
-
-    const services = await prisma.service.findMany({
-      select: {
-        id: true,
-        name: true,
-      },
-    });
-    
-    const serviceMap = new Map(services.map((s) => [s.id, s.name]));
-
-    // Create alerts from pending release notes
-    const alerts = releaseNotes.slice(0, 10).map((rn, index) => {
-      const createdAt = new Date(rn.createdAt);
-      const timeAgo = getTimeAgo(createdAt);
-      
-      // Determine status based on index for variety
-      let status: 'high' | 'degraded' | 'expiring' | 'recovered';
-      if (index === 0) status = 'high';
-      else if (index === 1) status = 'degraded';
-      else if (index === 2) status = 'expiring';
-      else status = 'recovered';
-
-      return {
-        id: rn.id,
-        timestamp: timeAgo,
-        item: serviceMap.get(rn.serviceId) || `service-${rn.serviceId}`,
-        status,
-        action: index === 2 ? 'Renew' : 'Details',
-      };
-    });
-
-    res.json(alerts);
+    // TODO: Implement actual alerting system
+    // For now, return empty array to indicate no data available
+    res.json([]);
   } catch (error) {
     console.error('Error fetching recent alerts:', error);
     res.status(500).json({ error: 'Failed to fetch recent alerts' });
@@ -205,25 +183,22 @@ router.get('/search', requirePermission('dashboard:view'), async (req, res) => {
       }),
       prisma.credential.findMany({
         where: {
-          OR: [
-            { name: searchPattern },
-            { username: searchPattern },
-          ],
+          name: searchPattern,
         },
         select: {
           id: true,
           name: true,
-          username: true,
+          type: true,
         },
         take: limit,
       }),
       prisma.domain.findMany({
         where: {
-          domain: searchPattern,
+          name: searchPattern,
         },
         select: {
           id: true,
-          domain: true,
+          name: true,
         },
         take: limit,
       }),
@@ -246,11 +221,11 @@ router.get('/search', requirePermission('dashboard:view'), async (req, res) => {
         id: c.id,
         name: c.name,
         type: 'credential',
-        subtitle: c.username,
+        subtitle: c.type,
       })),
       domains: domains.map((d) => ({
         id: d.id,
-        name: d.domain,
+        name: d.name,
         type: 'domain',
         subtitle: null,
       })),

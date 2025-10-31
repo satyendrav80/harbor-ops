@@ -15,6 +15,7 @@ import { useAddItemToGroup, useRemoveItemFromGroup } from '../../groups/hooks/us
 import { useAuth } from '../../auth/context/AuthContext';
 import { getCredentials } from '../../../services/credentials';
 import { getDomains, getDomainsByItem } from '../../../services/domains';
+import { getTags } from '../../../services/tags';
 
 type ServerModalProps = {
   isOpen: boolean;
@@ -71,6 +72,17 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
     enabled: isOpen && hasPermission('domains:view'),
   });
 
+  // Fetch tags for multi-select
+  const { data: tagsData } = useQuery({
+    queryKey: ['tags', 'all'],
+    queryFn: async () => {
+      const response = await getTags(1, 1000);
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: isOpen && hasPermission('tags:view'),
+  });
+
   // Fetch existing domains for this server (if editing)
   const { data: existingDomainsData } = useQuery({
     queryKey: ['domains', 'server', server?.id],
@@ -96,6 +108,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
       password: z.string().optional(),
       credentialIds: z.array(z.number()).optional(),
       domainIds: z.array(z.number()).optional(),
+      tagIds: z.array(z.number()).optional(),
       groupIds: z.array(z.number()).optional(),
     }).refine((data) => {
       // OS and EC2: require IP fields and SSH port
@@ -142,6 +155,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
       password: '',
       credentialIds: server?.credentials?.map((sc) => sc.credential.id) || [],
       domainIds: [],
+      tagIds: server?.tags?.map((st) => st.tag.id) || [],
       groupIds: [],
     },
   });
@@ -164,6 +178,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         password: '', // Password is not sent in response, will be revealed via API
         credentialIds: server.credentials?.map((sc) => sc.credential.id) || [],
         domainIds: existingDomainsData || [],
+        tagIds: server.tags?.map((st) => st.tag.id) || [],
         groupIds: existingGroupsData || [],
       });
     } else {
@@ -179,6 +194,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         password: '',
         credentialIds: [],
         domainIds: [],
+        tagIds: [],
         groupIds: [],
       });
     }
@@ -202,6 +218,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         type: values.type,
         credentialIds: values.credentialIds || [],
         domainIds: values.domainIds || [],
+        tagIds: values.tagIds || [],
       };
       
       // OS and EC2: IP fields + SSH port + optional username/password
@@ -518,6 +535,22 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
             />
             {form.formState.errors.domainIds && (
               <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.domainIds?.message}</p>
+            )}
+          </div>
+        )}
+
+        {hasPermission('tags:view') && tagsData && tagsData.length > 0 && (
+          <div>
+            <SearchableMultiSelect
+              options={tagsData.map((t) => ({ id: t.id, name: t.value ? `${t.name}:${t.value}` : t.name }))}
+              selectedIds={form.watch('tagIds') || []}
+              onChange={(selectedIds) => form.setValue('tagIds', selectedIds)}
+              placeholder="Search and select tags..."
+              label="Tags (Optional)"
+              disabled={isLoading}
+            />
+            {form.formState.errors.tagIds && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.tagIds?.message}</p>
             )}
           </div>
         )}

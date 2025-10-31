@@ -192,26 +192,50 @@ export function DashboardPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          title="Total Servers"
-          value={stats?.totalServers || 0}
-          loading={statsLoading}
-        />
-        <StatCard
-          title="Active Services"
-          value={stats?.activeServices || 0}
-          loading={statsLoading}
-        />
-        <StatCard
-          title="Credentials"
-          value={stats?.totalCredentials || 0}
-          loading={statsLoading}
-        />
-        <StatCard
-          title="Tags"
-          value={stats?.totalTags || 0}
-          loading={statsLoading}
-        />
+        <button
+          onClick={() => navigate('/servers')}
+          className="text-left hover:opacity-80 transition-opacity"
+          aria-label="Navigate to servers page"
+        >
+          <StatCard
+            title="Total Servers"
+            value={stats?.totalServers || 0}
+            loading={statsLoading}
+          />
+        </button>
+        <button
+          onClick={() => navigate('/services')}
+          className="text-left hover:opacity-80 transition-opacity"
+          aria-label="Navigate to services page"
+        >
+          <StatCard
+            title="Active Services"
+            value={stats?.activeServices || 0}
+            loading={statsLoading}
+          />
+        </button>
+        <button
+          onClick={() => navigate('/credentials')}
+          className="text-left hover:opacity-80 transition-opacity"
+          aria-label="Navigate to credentials page"
+        >
+          <StatCard
+            title="Credentials"
+            value={stats?.totalCredentials || 0}
+            loading={statsLoading}
+          />
+        </button>
+        <button
+          onClick={() => navigate('/tags')}
+          className="text-left hover:opacity-80 transition-opacity"
+          aria-label="Navigate to tags page"
+        >
+          <StatCard
+            title="Tags"
+            value={stats?.totalTags || 0}
+            loading={statsLoading}
+          />
+        </button>
       </div>
 
       {/* Pending Redeploys Card */}
@@ -235,27 +259,35 @@ export function DashboardPage() {
       )}
 
       {/* Data Visualization Widgets */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
-        <div className="lg:col-span-2">
-          <ServerStatusChart
-            total={serverStatus?.total || 0}
-            online={serverStatus?.online || 0}
-            warning={serverStatus?.warning || 0}
-            offline={serverStatus?.offline || 0}
-            loading={serverStatusLoading}
-          />
+      {(serverStatus || (serviceHealth && Array.isArray(serviceHealth) && serviceHealth.length > 0)) && (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
+          {serverStatus && (
+            <div className="lg:col-span-2">
+              <ServerStatusChart
+                total={serverStatus.total}
+                online={serverStatus.online}
+                warning={serverStatus.warning}
+                offline={serverStatus.offline}
+                loading={serverStatusLoading}
+              />
+            </div>
+          )}
+          {serviceHealth && Array.isArray(serviceHealth) && serviceHealth.length > 0 && (
+            <div className={serverStatus ? 'lg:col-span-3' : 'lg:col-span-5'}>
+              <ServiceHealthBar services={serviceHealth} loading={serviceHealthLoading} />
+            </div>
+          )}
         </div>
-        <div className="lg:col-span-3">
-          <ServiceHealthBar services={serviceHealth || []} loading={serviceHealthLoading} />
-        </div>
-      </div>
+      )}
 
       {/* Recent Activity & Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <RecentAlertsTable alerts={alerts || []} loading={alertsLoading} />
-        </div>
-        <div>
+        {alerts && Array.isArray(alerts) && alerts.length > 0 && (
+          <div className="lg:col-span-2">
+            <RecentAlertsTable alerts={alerts} loading={alertsLoading} />
+          </div>
+        )}
+        <div className={alerts && Array.isArray(alerts) && alerts.length > 0 ? '' : 'lg:col-span-3'}>
           <QuickActions />
         </div>
       </div>
