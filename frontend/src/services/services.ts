@@ -1,12 +1,16 @@
 import { apiFetch } from './apiClient';
+import type { Server } from './servers';
+import type { Credential } from './credentials';
 
 export type Service = {
   id: number;
   name: string;
   port: number;
   serverId: number;
-  credentialId?: number;
+  credentialId?: number | null;
   createdAt: string;
+  server?: Server;
+  credential?: Credential | null;
 };
 
 export type ServicesResponse = {
@@ -22,8 +26,12 @@ export type ServicesResponse = {
 /**
  * Fetch all services (returns paginated response)
  */
-export async function getServices(): Promise<ServicesResponse> {
-  return apiFetch<ServicesResponse>('/services?limit=1000');
+export async function getServices(page?: number, limit?: number, search?: string): Promise<ServicesResponse> {
+  const params = new URLSearchParams();
+  if (page) params.append('page', page.toString());
+  if (limit) params.append('limit', limit.toString());
+  if (search) params.append('search', search);
+  return apiFetch<ServicesResponse>(`/services?${params.toString()}`);
 }
 
 /**
@@ -43,7 +51,7 @@ export async function getService(id: number): Promise<Service> {
 /**
  * Create a new service
  */
-export async function createService(data: Omit<Service, 'id' | 'createdAt'>): Promise<Service> {
+export async function createService(data: Omit<Service, 'id' | 'createdAt' | 'server' | 'credential'>): Promise<Service> {
   return apiFetch<Service>('/services', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -53,7 +61,7 @@ export async function createService(data: Omit<Service, 'id' | 'createdAt'>): Pr
 /**
  * Update a service
  */
-export async function updateService(id: number, data: Partial<Omit<Service, 'id' | 'createdAt'>>): Promise<Service> {
+export async function updateService(id: number, data: Partial<Omit<Service, 'id' | 'createdAt' | 'server' | 'credential'>>): Promise<Service> {
   return apiFetch<Service>(`/services/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),

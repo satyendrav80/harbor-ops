@@ -7,6 +7,7 @@ import { ProfilePage } from './features/profile/pages/ProfilePage';
 import { UsersRolesPage } from './features/users/pages/UsersRolesPage';
 import { GroupsPage } from './features/groups/pages/GroupsPage';
 import { ServersPage } from './features/servers/pages/ServersPage';
+import { ServicesPage } from './features/services/pages/ServicesPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth } from './components/common/RequireAuth';
 import { RequirePermission } from './components/common/RequirePermission';
@@ -69,10 +70,7 @@ export default function App() {
           <RequireAuth>
             <RequirePermission permission="services:view">
               <AppLayout>
-                <div className="p-8">
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Services</h1>
-                  <p className="text-gray-600 dark:text-gray-400">Services page coming soon...</p>
-                </div>
+                <ServicesPage />
               </AppLayout>
             </RequirePermission>
           </RequireAuth>

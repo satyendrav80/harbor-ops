@@ -18,7 +18,19 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
   // Build search conditions
   const searchConditions: any = search
     ? {
-        name: { contains: search, mode: 'insensitive' },
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          ...(isNaN(Number(search)) ? [] : [{ port: { equals: Number(search) } }]),
+          {
+            server: {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { publicIp: { contains: search, mode: 'insensitive' } },
+                { privateIp: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+        ],
       }
     : {};
 
@@ -53,13 +65,32 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
 
 router.post('/', requirePermission('services:create'), async (req, res) => {
   const { name, port, serverId, credentialId } = req.body;
-  const created = await prisma.service.create({ data: { name, port: Number(port), serverId: Number(serverId), credentialId: credentialId ? Number(credentialId) : null } });
+  const created = await prisma.service.create({
+    data: {
+      name,
+      port: Number(port),
+      serverId: Number(serverId),
+      credentialId: credentialId ? Number(credentialId) : null,
+    },
+    include: {
+      server: true,
+      credential: true,
+    },
+  });
   res.status(201).json(created);
 });
 
 router.get('/:id', requirePermission('services:view'), async (req, res) => {
   const id = Number(req.params.id);
-  const item = await prisma.service.findUnique({ where: { id } });
+  const item = await prisma.service.findUnique({
+    where: { id },
+    include: {
+      server: true,
+      credential: true,
+      tags: { include: { tag: true } },
+      releaseNotes: true,
+    },
+  });
   if (!item) return res.status(404).json({ error: 'Not found' });
   res.json(item);
 });
@@ -67,7 +98,19 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
 router.put('/:id', requirePermission('services:update'), async (req, res) => {
   const id = Number(req.params.id);
   const { name, port, serverId, credentialId } = req.body;
-  const updated = await prisma.service.update({ where: { id }, data: { name, port: Number(port), serverId: Number(serverId), credentialId: credentialId ? Number(credentialId) : null } });
+  const updated = await prisma.service.update({
+    where: { id },
+    data: {
+      name,
+      port: Number(port),
+      serverId: Number(serverId),
+      credentialId: credentialId ? Number(credentialId) : null,
+    },
+    include: {
+      server: true,
+      credential: true,
+    },
+  });
   res.json(updated);
 });
 

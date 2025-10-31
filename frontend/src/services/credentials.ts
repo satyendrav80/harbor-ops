@@ -8,11 +8,22 @@ export type Credential = {
   createdAt: string;
 };
 
+export type CredentialsResponse = {
+  data: Credential[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 /**
- * Fetch all credentials
+ * Fetch all credentials (returns paginated response)
  */
 export async function getCredentials(): Promise<Credential[]> {
-  return apiFetch<Credential[]>('/credentials');
+  const response = await apiFetch<CredentialsResponse>('/credentials?limit=1000');
+  return response.data;
 }
 
 /**
