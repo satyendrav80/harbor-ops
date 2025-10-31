@@ -9,6 +9,9 @@ export function useGroups(params?: { page?: number; limit?: number; search?: str
     queryKey: ['groups', params],
     queryFn: () => getGroups(params),
     staleTime: 30 * 1000, // 30 seconds
+    structuralSharing: true,
+    refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData, // Keep previous data during refetches to prevent flicker
   });
 }
 

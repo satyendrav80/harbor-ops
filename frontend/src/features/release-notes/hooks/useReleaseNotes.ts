@@ -18,6 +18,9 @@ export function useReleaseNotes(
       return undefined;
     },
     initialPageParam: 1,
+    structuralSharing: true, // Preserve object references when data hasn't changed
+    refetchOnWindowFocus: false, // Prevent refetch on window focus to reduce flicker
+    placeholderData: (previousData) => previousData, // Keep previous data during refetches to prevent flicker
   });
 }
 

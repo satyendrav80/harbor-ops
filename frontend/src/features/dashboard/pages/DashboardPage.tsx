@@ -10,7 +10,7 @@ import { QuickActions } from '../components/QuickActions';
 import { useAuth } from '../../auth/context/AuthContext';
 import { Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 /**
  * DashboardPage component displaying overview of Harbor-Ops infrastructure
@@ -18,6 +18,11 @@ import { useState } from 'react';
 export function DashboardPage() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Memoize search handler to prevent input from losing focus
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  }, []);
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: serverStatus, isLoading: serverStatusLoading } = useServerStatus();
   const { data: serviceHealth, isLoading: serviceHealthLoading } = useServiceHealth();
@@ -42,10 +47,11 @@ export function DashboardPage() {
                 <Search className="w-5 h-5" />
               </div>
               <input
+                key="dashboard-search-input"
                 className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-full placeholder:text-gray-400 dark:placeholder:text-gray-500 px-4 text-sm font-normal leading-normal"
                 placeholder="Quick lookup for servers, services..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleSearchChange}
               />
             </div>
           </label>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useCredentials } from '../hooks/useCredentials';
@@ -47,6 +47,11 @@ export function CredentialsPage() {
   const serviceId = searchParams.get('serviceId');
   
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  
+  // Memoize search handler to prevent input from losing focus
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  }, []);
   const [credentialModalOpen, setCredentialModalOpen] = useState(false);
   const [selectedCredentialForEdit, setSelectedCredentialForEdit] = useState<Credential | null>(null);
   const [revealedData, setRevealedData] = useState<Record<number, any>>({});
@@ -89,9 +94,20 @@ export function CredentialsPage() {
     isFetchingNextPage: isFetchingNextCredentialsPage,
   } = useCredentials(debouncedSearch, 20, serverId ? Number(serverId) : undefined, serviceId ? Number(serviceId) : undefined);
 
+  // Keep previous data during refetches to prevent flicker
+  const previousDataRef = useRef<Credential[]>([]);
+  
   // Flatten credentials from all pages
+  // Use previous data if current data is undefined (during refetch)
   const credentials = useMemo(() => {
-    return credentialsData?.pages.flatMap((page) => page.data) ?? [];
+    if (!credentialsData?.pages) {
+      // During refetch, return previous data to prevent flicker
+      return previousDataRef.current;
+    }
+    const flattened = credentialsData.pages.flatMap((page) => page.data);
+    // Update ref with new data
+    previousDataRef.current = flattened;
+    return flattened;
   }, [credentialsData]);
 
   const deleteCredential = useDeleteCredential();
@@ -201,10 +217,11 @@ export function CredentialsPage() {
                 <Search className="w-5 h-5" />
               </div>
               <input
+                key="credential-search-input"
                 className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-full placeholder:text-gray-400 dark:placeholder:text-gray-500 px-4 text-sm font-normal leading-normal"
                 placeholder="Search credentials..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleSearchChange}
               />
             </div>
           </label>

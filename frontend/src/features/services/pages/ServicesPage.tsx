@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useServices } from '../hooks/useServices';
 import { useCreateService, useUpdateService, useDeleteService } from '../hooks/useServiceMutations';
@@ -45,6 +45,11 @@ export function ServicesPage() {
   const serviceId = searchParams.get('serviceId');
   
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  
+  // Memoize search handler to prevent input from losing focus
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  }, []);
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
   const [selectedServiceForEdit, setSelectedServiceForEdit] = useState<Service | null>(null);
 
@@ -86,9 +91,20 @@ export function ServicesPage() {
 
   const deleteService = useDeleteService();
 
+  // Keep previous data during refetches to prevent flicker
+  const previousDataRef = useRef<Service[]>([]);
+  
   // Flatten services from all pages
+  // Use previous data if current data is undefined (during refetch)
   const services = useMemo(() => {
-    return servicesData?.pages.flatMap((page) => page.data) ?? [];
+    if (!servicesData?.pages) {
+      // During refetch, return previous data to prevent flicker
+      return previousDataRef.current;
+    }
+    const flattened = servicesData.pages.flatMap((page) => page.data);
+    // Update ref with new data
+    previousDataRef.current = flattened;
+    return flattened;
   }, [servicesData]);
 
   // Infinite scroll observer
@@ -153,9 +169,10 @@ export function ServicesPage() {
                 <Search className="w-4 h-4" />
               </div>
               <input
+                key="service-search-input"
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleSearchChange}
                 placeholder="Search services..."
                 className="flex-1 px-4 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 border border-gray-200 dark:border-gray-700/50 border-l-0 rounded-r-lg focus:outline-0 focus:ring-2 focus:ring-primary/50"
               />

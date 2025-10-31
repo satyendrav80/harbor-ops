@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useServers } from '../hooks/useServers';
@@ -41,6 +41,11 @@ export function ServersPage() {
   const serverId = searchParams.get('serverId');
   
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  
+  // Memoize search handler to prevent input from losing focus
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  }, []);
   const [serverModalOpen, setServerModalOpen] = useState(false);
   const [selectedServerForEdit, setSelectedServerForEdit] = useState<Server | null>(null);
   const [revealedPasswords, setRevealedPasswords] = useState<Record<number, string | null>>({});
@@ -77,9 +82,20 @@ export function ServersPage() {
 
   const deleteServer = useDeleteServer();
 
+  // Keep previous data during refetches to prevent flicker
+  const previousDataRef = useRef<Server[]>([]);
+  
   // Flatten servers from all pages
+  // Use previous data if current data is undefined (during refetch)
   const servers = useMemo(() => {
-    return serversData?.pages.flatMap((page) => page.data) ?? [];
+    if (!serversData?.pages) {
+      // During refetch, return previous data to prevent flicker
+      return previousDataRef.current;
+    }
+    const flattened = serversData.pages.flatMap((page) => page.data);
+    // Update ref with new data
+    previousDataRef.current = flattened;
+    return flattened;
   }, [serversData]);
 
   // Infinite scroll observer
@@ -171,10 +187,11 @@ export function ServersPage() {
                 <Search className="w-5 h-5" />
               </div>
               <input
+                key="server-search-input"
                 className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-full placeholder:text-gray-400 dark:placeholder:text-gray-500 px-4 text-sm font-normal leading-normal"
                 placeholder="Search servers..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleSearchChange}
               />
             </div>
           </label>

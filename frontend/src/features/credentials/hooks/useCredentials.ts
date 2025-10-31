@@ -27,5 +27,8 @@ export function useCredentials(search?: string, limit: number = 20, serverId?: n
       return undefined;
     },
     initialPageParam: 1,
+    structuralSharing: true,
+    refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData, // Keep previous data during refetches to prevent flicker
   });
 }

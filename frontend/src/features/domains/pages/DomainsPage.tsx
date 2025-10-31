@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useDomains } from '../hooks/useDomains';
 import { useCreateDomain, useUpdateDomain, useDeleteDomain } from '../hooks/useDomainMutations';
@@ -39,6 +39,11 @@ export function DomainsPage() {
   const [domainModalOpen, setDomainModalOpen] = useState(false);
   const [selectedDomainForEdit, setSelectedDomainForEdit] = useState<Domain | null>(null);
 
+  // Memoize search handler to prevent input from losing focus
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  }, []);
+
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
 
@@ -54,9 +59,20 @@ export function DomainsPage() {
 
   const deleteDomain = useDeleteDomain();
 
+  // Keep previous data during refetches to prevent flicker
+  const previousDataRef = useRef<Domain[]>([]);
+  
   // Flatten domains from all pages
+  // Use previous data if current data is undefined (during refetch)
   const domains = useMemo(() => {
-    return domainsData?.pages.flatMap((page) => page.data) ?? [];
+    if (!domainsData?.pages) {
+      // During refetch, return previous data to prevent flicker
+      return previousDataRef.current;
+    }
+    const flattened = domainsData.pages.flatMap((page) => page.data);
+    // Update ref with new data
+    previousDataRef.current = flattened;
+    return flattened;
   }, [domainsData]);
 
   // Infinite scroll observer
@@ -130,10 +146,11 @@ export function DomainsPage() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
+            key="domain-search-input"
             type="text"
             placeholder="Search domains..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={handleSearchChange}
             className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>

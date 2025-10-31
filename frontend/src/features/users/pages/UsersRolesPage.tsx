@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useUsers } from '../hooks/useUsers';
 import { useRoles } from '../hooks/useRoles';
@@ -41,6 +41,11 @@ function useDebounce<T>(value: T, delay: number = 500): T {
 export function UsersRolesPage() {
   const { hasPermission } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Memoize search handler to prevent input from losing focus
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  }, []);
   const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'permissions'>('users');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [assigningRole, setAssigningRole] = useState<string | null>(null);
@@ -230,10 +235,11 @@ export function UsersRolesPage() {
                 <Search className="w-5 h-5" />
               </div>
               <input
+                key="user-search-input"
                 className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-full placeholder:text-gray-400 dark:placeholder:text-gray-500 px-4 text-sm font-normal leading-normal"
                 placeholder="Search users or roles..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleSearchChange}
               />
             </div>
           </label>

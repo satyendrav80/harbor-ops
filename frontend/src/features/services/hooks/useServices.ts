@@ -18,6 +18,9 @@ export function useServices(search: string = '', limit: number = 20) {
     },
     initialPageParam: 1,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    structuralSharing: true,
+    refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData, // Keep previous data during refetches to prevent flicker
   });
 }
 
