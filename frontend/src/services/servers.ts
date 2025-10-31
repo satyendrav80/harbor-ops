@@ -64,3 +64,10 @@ export async function deleteServer(id: number): Promise<void> {
   });
 }
 
+/**
+ * Reveal server password (requires credentials:reveal permission)
+ */
+export async function revealServerPassword(id: number): Promise<{ password: string | null }> {
+  return apiFetch<{ password: string | null }>(`/servers/${id}/reveal-password`);
+}
+

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 import { Response } from 'express';
+import { encrypt, decrypt } from '../utils/encryption';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -10,6 +11,60 @@ router.use(requireAuth);
 
 function mask(cred: any) {
   return { ...cred, data: 'hidden' };
+}
+
+// Helper to mask sensitive fields in credential data (for responses)
+function maskCredentialData(data: any): any {
+  if (!data || typeof data !== 'object') return data;
+  const masked = { ...data };
+  // Mask common password/secret fields
+  const sensitiveFields = ['password', 'secret', 'apiKey', 'token', 'privateKey', 'accessToken'];
+  sensitiveFields.forEach((field) => {
+    if (masked[field]) {
+      masked[field] = '••••••••';
+    }
+  });
+  return masked;
+}
+
+// Helper to encrypt sensitive fields in credential data (before saving)
+function encryptCredentialData(data: any): any {
+  if (!data || typeof data !== 'object') return data;
+  const encrypted = { ...data };
+  // Encrypt common password/secret fields
+  const sensitiveFields = ['password', 'secret', 'apiKey', 'token', 'privateKey', 'accessToken'];
+  sensitiveFields.forEach((field) => {
+    if (encrypted[field] && encrypted[field] !== '••••••••') {
+      // Only encrypt if not already masked (to avoid re-encrypting)
+      try {
+        encrypted[field] = encrypt(String(encrypted[field]));
+      } catch (error) {
+        console.error(`Failed to encrypt field ${field}:`, error);
+      }
+    }
+  });
+  return encrypted;
+}
+
+// Helper to decrypt sensitive fields in credential data
+function decryptCredentialData(data: any): any {
+  if (!data || typeof data !== 'object') return data;
+  const decrypted = { ...data };
+  // Decrypt common password/secret fields
+  const sensitiveFields = ['password', 'secret', 'apiKey', 'token', 'privateKey', 'accessToken'];
+  sensitiveFields.forEach((field) => {
+    if (decrypted[field] && typeof decrypted[field] === 'string' && decrypted[field] !== '••••••••') {
+      try {
+        const decryptedValue = decrypt(decrypted[field]);
+        if (decryptedValue) {
+          decrypted[field] = decryptedValue;
+        }
+      } catch (error) {
+        console.error(`Failed to decrypt field ${field}:`, error);
+      }
+    }
+  });
+  return decrypted;
 }
 
 async function hasCredentialsViewPermission(req: AuthRequest): Promise<boolean> {
@@ -56,8 +111,15 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
 
   // Check if user can view full credential data (has view permission)
   const hasFullView = await hasCredentialsViewPermission(req);
+  const processedItems = hasFullView 
+    ? items.map((item) => ({
+        ...item,
+        data: maskCredentialData(item.data as any), // Mask sensitive fields
+      }))
+    : items.map(mask);
+  
   res.json({
-    data: hasFullView ? items : items.map(mask),
+    data: processedItems,
     pagination: {
       page,
       limit,
@@ -69,8 +131,11 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
 
 router.post('/', requirePermission('credentials:create'), async (req, res) => {
   const { name, type, data } = req.body;
-  const created = await prisma.credential.create({ data: { name, type, data } });
-  res.status(201).json(created);
+  const encryptedData = encryptCredentialData(data);
+  const created = await prisma.credential.create({ 
+    data: { name, type, data: encryptedData } 
+  });
+  res.json(mask(created));
 });
 
 router.get('/:id', requirePermission('credentials:view'), async (req: AuthRequest, res: Response) => {
@@ -78,14 +143,42 @@ router.get('/:id', requirePermission('credentials:view'), async (req: AuthReques
   const item = await prisma.credential.findUnique({ where: { id } });
   if (!item) return res.status(404).json({ error: 'Not found' });
   const hasFullView = await hasCredentialsViewPermission(req);
-  res.json(hasFullView ? item : mask(item));
+  
+  if (hasFullView) {
+    // Mask sensitive fields in response (not decrypted yet)
+    const maskedItem = {
+      ...item,
+      data: maskCredentialData(item.data as any),
+    };
+    res.json(maskedItem);
+  } else {
+    res.json(mask(item));
+  }
 });
 
 router.put('/:id', requirePermission('credentials:update'), async (req, res) => {
   const id = Number(req.params.id);
   const { name, type, data } = req.body;
-  const updated = await prisma.credential.update({ where: { id }, data: { name, type, data } });
-  res.json(updated);
+  const encryptedData = encryptCredentialData(data);
+  const updated = await prisma.credential.update({ 
+    where: { id }, 
+    data: { name, type, data: encryptedData } 
+  });
+  res.json(mask(updated));
+});
+
+// Reveal credential data endpoint - requires credentials:reveal permission
+router.get('/:id/reveal', requirePermission('credentials:reveal'), async (req: AuthRequest, res: Response) => {
+  const id = Number(req.params.id);
+  const item = await prisma.credential.findUnique({ where: { id } });
+  if (!item) return res.status(404).json({ error: 'Credential not found' });
+  
+  try {
+    const decryptedData = decryptCredentialData(item.data);
+    res.json({ data: decryptedData });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to decrypt credential data' });
+  }
 });
 
 router.delete('/:id', requirePermission('credentials:delete'), async (req, res) => {

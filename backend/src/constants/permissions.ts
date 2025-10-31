@@ -18,6 +18,7 @@ export const PERMISSION_ACTIONS = [
   'update',
   'delete',
   'manage',
+  'reveal',
 ] as const;
 
 export function isSystemPermission(resource: string, action: string): boolean {
