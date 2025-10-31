@@ -1,6 +1,7 @@
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { Activity } from 'lucide-react';
+import { memo } from 'react';
 import type { ServiceHealth } from '../types';
 
 type ServiceHealthBarProps = {
@@ -10,8 +11,9 @@ type ServiceHealthBarProps = {
 
 /**
  * ServiceHealthBar component displaying service health as progress bars
+ * Memoized to prevent unnecessary re-renders
  */
-export function ServiceHealthBar({ services, loading }: ServiceHealthBarProps) {
+export const ServiceHealthBar = memo(function ServiceHealthBar({ services, loading }: ServiceHealthBarProps) {
   if (loading) {
     return (
       <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6">
@@ -58,5 +60,20 @@ export function ServiceHealthBar({ services, loading }: ServiceHealthBarProps) {
       </div>
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  // Only re-render if props actually change
+  if (prevProps.loading !== nextProps.loading) return false;
+  if (prevProps.services.length !== nextProps.services.length) return false;
+  
+  // Check if any service data changed
+  for (let i = 0; i < prevProps.services.length; i++) {
+    const prev = prevProps.services[i];
+    const next = nextProps.services[i];
+    if (!next || prev.id !== next.id || prev.name !== next.name || prev.health !== next.health) {
+      return false;
+    }
+  }
+  
+  return true;
+});
 

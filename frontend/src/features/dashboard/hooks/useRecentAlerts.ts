@@ -8,6 +8,10 @@ export function useRecentAlerts() {
   return useQuery<RecentAlert[]>({
     queryKey: ['dashboard', 'recent-alerts'],
     queryFn: getRecentAlerts,
+    staleTime: 30 * 1000, // 30 seconds
+    structuralSharing: true,
+    refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData,
   });
 }
 

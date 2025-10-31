@@ -13,6 +13,7 @@ import releaseNotesRouter from './routes/releaseNotes';
 import usersRouter from './routes/users';
 import constantsRouter from './routes/constants';
 import domainsRouter from './routes/domains';
+import dashboardRouter from './routes/dashboard';
 import { requireApprovedUser } from './middleware/auth';
 
 const app = express();
@@ -34,6 +35,7 @@ app.use('/groups', requireApprovedUser, groupsRouter);
 app.use('/tags', requireApprovedUser, tagsRouter);
 app.use('/release-notes', requireApprovedUser, releaseNotesRouter);
 app.use('/domains', requireApprovedUser, domainsRouter);
+app.use('/dashboard', requireApprovedUser, dashboardRouter);
 app.use('/', requireApprovedUser, usersRouter);
 
 const port = Number(process.env.PORT) || 3044;

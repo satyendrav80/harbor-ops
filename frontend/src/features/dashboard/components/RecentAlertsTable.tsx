@@ -1,6 +1,7 @@
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { AlertCircle } from 'lucide-react';
+import { memo } from 'react';
 import type { RecentAlert } from '../types';
 
 type RecentAlertsTableProps = {
@@ -10,8 +11,9 @@ type RecentAlertsTableProps = {
 
 /**
  * RecentAlertsTable component displaying recent alerts/activity
+ * Memoized to prevent unnecessary re-renders
  */
-export function RecentAlertsTable({ alerts, loading }: RecentAlertsTableProps) {
+export const RecentAlertsTable = memo(function RecentAlertsTable({ alerts, loading }: RecentAlertsTableProps) {
   if (loading) {
     return (
       <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6">
@@ -99,5 +101,20 @@ export function RecentAlertsTable({ alerts, loading }: RecentAlertsTableProps) {
       </div>
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  // Only re-render if props actually change
+  if (prevProps.loading !== nextProps.loading) return false;
+  if (prevProps.alerts.length !== nextProps.alerts.length) return false;
+  
+  // Check if any alert data changed
+  for (let i = 0; i < prevProps.alerts.length; i++) {
+    const prev = prevProps.alerts[i];
+    const next = nextProps.alerts[i];
+    if (!next || prev.id !== next.id || prev.status !== next.status || prev.item !== next.item) {
+      return false;
+    }
+  }
+  
+  return true;
+});
 

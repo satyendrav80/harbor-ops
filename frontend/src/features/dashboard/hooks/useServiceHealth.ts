@@ -8,6 +8,10 @@ export function useServiceHealth() {
   return useQuery<ServiceHealth[]>({
     queryKey: ['dashboard', 'service-health'],
     queryFn: getServiceHealth,
+    staleTime: 30 * 1000, // 30 seconds
+    structuralSharing: true,
+    refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData,
   });
 }
 

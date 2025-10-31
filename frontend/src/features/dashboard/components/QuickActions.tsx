@@ -1,15 +1,17 @@
 import { Plus, PlusCircle, FolderPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../features/auth/context/AuthContext';
+import { memo, useMemo } from 'react';
 
 /**
  * QuickActions component displaying quick action buttons
+ * Memoized to prevent unnecessary re-renders
  */
-export function QuickActions() {
+export const QuickActions = memo(function QuickActions() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
 
-  const actions = [
+  const actions = useMemo(() => [
     {
       label: 'Add Server',
       path: '/servers',
@@ -31,7 +33,7 @@ export function QuickActions() {
       permission: 'groups:view',
       primary: false,
     },
-  ].filter((action) => hasPermission(action.permission));
+  ].filter((action) => hasPermission(action.permission)), [hasPermission]);
 
   if (actions.length === 0) {
     return null;
@@ -61,5 +63,6 @@ export function QuickActions() {
       </div>
     </div>
   );
-}
+});
+QuickActions.displayName = 'QuickActions';
 

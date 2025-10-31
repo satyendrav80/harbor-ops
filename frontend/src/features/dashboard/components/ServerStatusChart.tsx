@@ -1,4 +1,5 @@
 import { Loading } from '../../../components/common/Loading';
+import { memo } from 'react';
 
 type ServerStatusChartProps = {
   total: number;
@@ -10,8 +11,9 @@ type ServerStatusChartProps = {
 
 /**
  * ServerStatusChart component displaying server status as a donut chart
+ * Memoized to prevent unnecessary re-renders
  */
-export function ServerStatusChart({ total, online, warning, offline, loading }: ServerStatusChartProps) {
+export const ServerStatusChart = memo(function ServerStatusChart({ total, online, warning, offline, loading }: ServerStatusChartProps) {
   if (loading) {
     return (
       <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6">
@@ -89,5 +91,14 @@ export function ServerStatusChart({ total, online, warning, offline, loading }: 
       </div>
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  // Only re-render if props actually change
+  return (
+    prevProps.total === nextProps.total &&
+    prevProps.online === nextProps.online &&
+    prevProps.warning === nextProps.warning &&
+    prevProps.offline === nextProps.offline &&
+    prevProps.loading === nextProps.loading
+  );
+});
 

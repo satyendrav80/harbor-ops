@@ -1,4 +1,5 @@
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { memo } from 'react';
 
 type StatCardProps = {
   title: string;
@@ -12,8 +13,9 @@ type StatCardProps = {
 
 /**
  * StatCard component for displaying dashboard statistics
+ * Memoized to prevent unnecessary re-renders
  */
-export function StatCard({ title, value, change, loading }: StatCardProps) {
+export const StatCard = memo(function StatCard({ title, value, change, loading }: StatCardProps) {
   if (loading) {
     return (
       <div className="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50">
@@ -36,5 +38,14 @@ export function StatCard({ title, value, change, loading }: StatCardProps) {
       )}
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  // Only re-render if props actually change
+  return (
+    prevProps.title === nextProps.title &&
+    prevProps.value === nextProps.value &&
+    prevProps.loading === nextProps.loading &&
+    prevProps.change?.value === nextProps.change?.value &&
+    prevProps.change?.isPositive === nextProps.change?.isPositive
+  );
+});
 
