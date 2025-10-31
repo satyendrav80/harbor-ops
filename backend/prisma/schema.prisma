@@ -132,6 +132,8 @@ model Service {
   releaseNotes   ReleaseNote[]
   credentials    ServiceCredential[]
   domains        ServiceDomain[]
+  dependencies   ServiceDependency[] @relation("ServiceDependencies")
+  dependentServices ServiceDependency[] @relation("ServiceDependents")
 
   @@map("services")
 }
@@ -255,6 +257,29 @@ model ServiceDomain {
 
   @@id([serviceId, domainId])
   @@map("service_domains")
+}
+
+model ServiceDependency {
+  id                Int       @id @default(autoincrement()) @map("id")
+  serviceId         Int                                       @map("service_id")
+  service           Service    @relation("ServiceDependencies", fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  // Internal dependency (references another service)
+  dependencyServiceId Int?                                     @map("dependency_service_id")
+  dependencyService   Service? @relation("ServiceDependents", fields: [dependencyServiceId], references: [id], onDelete: Cascade)
+  
+  // External dependency (third-party services like OpenAI, AWS, etc.)
+  externalServiceName String?                                 @map("external_service_name")
+  externalServiceType String?                                 @map("external_service_type")
+  externalServiceUrl  String?                                 @map("external_service_url")
+  description        String?                                 @map("description")
+  
+  createdAt          DateTime  @default(now())               @map("created_at")
+  
+  // Ensure either dependencyServiceId or externalServiceName is provided
+  @@index([serviceId])
+  @@index([dependencyServiceId])
+  @@map("service_dependencies")
 }
 
 // Meta table for storing key-value pairs for any resource

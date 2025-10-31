@@ -297,6 +297,38 @@ export function ServicesPage() {
                     )}
                   </div>
                   
+                  {/* Dependencies */}
+                  {service.dependencies && service.dependencies.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Dependencies</p>
+                      <div className="flex flex-wrap gap-2">
+                        {service.dependencies.map((dep) => (
+                          <div
+                            key={dep.id}
+                            className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700/50"
+                          >
+                            {dep.dependencyService ? (
+                              <>
+                                <span className="text-blue-500">●</span>
+                                <span>
+                                  {dep.dependencyService.name} (:{dep.dependencyService.port})
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-purple-500">●</span>
+                                <span>
+                                  {dep.externalServiceName}
+                                  {dep.externalServiceType && ` (${dep.externalServiceType})`}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
                   {/* Additional service fields */}
                   {(service.sourceRepo || service.appId || service.functionName || service.deploymentUrl) && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">

@@ -2,6 +2,22 @@ import { apiFetch } from './apiClient';
 import type { Server } from './servers';
 import type { Credential } from './credentials';
 
+export type ServiceDependency = {
+  id: number;
+  serviceId: number;
+  dependencyServiceId?: number | null;
+  dependencyService?: {
+    id: number;
+    name: string;
+    port: number;
+  } | null;
+  externalServiceName?: string | null;
+  externalServiceType?: string | null;
+  externalServiceUrl?: string | null;
+  description?: string | null;
+  createdAt: string;
+};
+
 export type Service = {
   id: number;
   name: string;
@@ -27,6 +43,7 @@ export type Service = {
       name: string;
     };
   }>;
+  dependencies?: ServiceDependency[];
 };
 
 export type ServicesResponse = {
@@ -89,6 +106,34 @@ export async function updateService(id: number, data: Partial<Omit<Service, 'id'
  */
 export async function deleteService(id: number): Promise<void> {
   return apiFetch<void>(`/services/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Add a service dependency
+ */
+export async function addServiceDependency(
+  serviceId: number,
+  data: {
+    dependencyServiceId?: number;
+    externalServiceName?: string;
+    externalServiceType?: string;
+    externalServiceUrl?: string;
+    description?: string;
+  }
+): Promise<ServiceDependency> {
+  return apiFetch<ServiceDependency>(`/services/${serviceId}/dependencies`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Remove a service dependency
+ */
+export async function removeServiceDependency(serviceId: number, dependencyId: number): Promise<void> {
+  return apiFetch<void>(`/services/${serviceId}/dependencies/${dependencyId}`, {
     method: 'DELETE',
   });
 }

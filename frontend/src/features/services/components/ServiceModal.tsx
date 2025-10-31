@@ -16,6 +16,7 @@ import { useAuth } from '../../auth/context/AuthContext';
 import { useConstants } from '../../constants/hooks/useConstants';
 import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
 import { getTags } from '../../../services/tags';
+import { ServiceDependencies } from './ServiceDependencies';
 
 const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required').max(100, 'Service name must be 100 characters or less'),
@@ -520,6 +521,11 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
               <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.groupIds?.message}</p>
             )}
           </div>
+        )}
+
+        {/* Service Dependencies - Only show when editing */}
+        {isEditing && service?.id && (
+          <ServiceDependencies serviceId={service.id} dependencies={service.dependencies} />
         )}
 
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700/50">

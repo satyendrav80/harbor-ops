@@ -44,6 +44,17 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
             domains: { include: { domain: true } },
             tags: { include: { tag: true } },
             releaseNotes: true,
+            dependencies: {
+              include: {
+                dependencyService: {
+                  select: {
+                    id: true,
+                    name: true,
+                    port: true,
+                  },
+                },
+              },
+            },
           }
         : undefined,
       orderBy: { createdAt: 'desc' },
@@ -117,6 +128,17 @@ router.post('/', requirePermission('services:create'), async (req, res) => {
         credentials: { include: { credential: true } },
         domains: { include: { domain: true } },
         tags: { include: { tag: true } },
+        dependencies: {
+          include: {
+            dependencyService: {
+              select: {
+                id: true,
+                name: true,
+                port: true,
+              },
+            },
+          },
+        },
       },
     });
   });
@@ -134,6 +156,17 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
       domains: { include: { domain: true } },
       tags: { include: { tag: true } },
       releaseNotes: true,
+      dependencies: {
+        include: {
+          dependencyService: {
+            select: {
+              id: true,
+              name: true,
+              port: true,
+            },
+          },
+        },
+      },
     },
   });
   if (!item) return res.status(404).json({ error: 'Not found' });
@@ -214,11 +247,96 @@ router.put('/:id', requirePermission('services:update'), async (req, res) => {
         credentials: { include: { credential: true } },
         domains: { include: { domain: true } },
         tags: { include: { tag: true } },
+        dependencies: {
+          include: {
+            dependencyService: {
+              select: {
+                id: true,
+                name: true,
+                port: true,
+              },
+            },
+          },
+        },
       },
     });
   });
   
   res.json(updated);
+});
+
+// POST /services/:id/dependencies - Add a dependency
+router.post('/:id/dependencies', requirePermission('services:update'), async (req, res) => {
+  const serviceId = Number(req.params.id);
+  const { dependencyServiceId, externalServiceName, externalServiceType, externalServiceUrl, description } = req.body;
+  
+  // Validate: either dependencyServiceId OR externalServiceName must be provided
+  if (!dependencyServiceId && !externalServiceName) {
+    return res.status(400).json({ error: 'Either dependencyServiceId or externalServiceName must be provided' });
+  }
+  
+  // Cannot have both
+  if (dependencyServiceId && externalServiceName) {
+    return res.status(400).json({ error: 'Cannot specify both dependencyServiceId and externalServiceName' });
+  }
+  
+  // Prevent self-dependency
+  if (dependencyServiceId && Number(dependencyServiceId) === serviceId) {
+    return res.status(400).json({ error: 'Service cannot depend on itself' });
+  }
+  
+  try {
+    const dependency = await prisma.serviceDependency.create({
+      data: {
+        serviceId,
+        dependencyServiceId: dependencyServiceId ? Number(dependencyServiceId) : null,
+        externalServiceName: externalServiceName || null,
+        externalServiceType: externalServiceType || null,
+        externalServiceUrl: externalServiceUrl || null,
+        description: description || null,
+      },
+      include: {
+        dependencyService: {
+          select: {
+            id: true,
+            name: true,
+            port: true,
+          },
+        },
+      },
+    });
+    
+    res.status(201).json(dependency);
+  } catch (error) {
+    console.error('Error creating service dependency:', error);
+    res.status(500).json({ error: 'Failed to create service dependency' });
+  }
+});
+
+// DELETE /services/:id/dependencies/:dependencyId - Remove a dependency
+router.delete('/:id/dependencies/:dependencyId', requirePermission('services:update'), async (req, res) => {
+  const serviceId = Number(req.params.id);
+  const dependencyId = Number(req.params.dependencyId);
+  
+  try {
+    // Verify the dependency belongs to this service
+    const dependency = await prisma.serviceDependency.findUnique({
+      where: { id: dependencyId },
+    });
+    
+    if (!dependency || dependency.serviceId !== serviceId) {
+      return res.status(404).json({ error: 'Dependency not found' });
+    }
+    
+    await prisma.serviceDependency.delete({
+      where: { id: dependencyId },
+    });
+    
+    res.status(204).end();
+  } catch (error) {
+    console.error('Error deleting service dependency:', error);
+    res.status(500).json({ error: 'Failed to delete service dependency' });
+  }
 });
 
 router.delete('/:id', requirePermission('services:delete'), async (req, res) => {
