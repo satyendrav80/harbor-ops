@@ -12,6 +12,7 @@ import { CredentialsPage } from './features/credentials/pages/CredentialsPage';
 import { DomainsPage } from './features/domains/pages/DomainsPage';
 import { TagsPage } from './features/tags/pages/TagsPage';
 import { ReleaseNotesPage } from './features/release-notes/pages/ReleaseNotesPage';
+import { ResourceMapPage } from './features/resource-map/pages/ResourceMapPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth } from './components/common/RequireAuth';
 import { RequirePermission } from './components/common/RequirePermission';
@@ -135,6 +136,18 @@ export default function App() {
             <RequirePermission permission="domains:view">
               <AppLayout>
                 <DomainsPage />
+              </AppLayout>
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/resource-map"
+        element={
+          <RequireAuth>
+            <RequirePermission permission="servers:view">
+              <AppLayout>
+                <ResourceMapPage />
               </AppLayout>
             </RequirePermission>
           </RequireAuth>
