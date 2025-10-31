@@ -125,11 +125,30 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
   // Get selected server to show type-specific fields
   const selectedServerId = form.watch('serverId');
   const selectedServer = useMemo(() => {
-    return serversData?.data.find((s) => s.id === selectedServerId);
+    if (!selectedServerId || selectedServerId === 0 || !serversData?.data) return null;
+    // Ensure we compare with the correct type (number)
+    const serverIdNum = Number(selectedServerId);
+    return serversData.data.find((s) => s.id === serverIdNum);
   }, [selectedServerId, serversData]);
 
   const serverType = selectedServer?.type;
   const showAmplifyLambdaFields = serverType === 'amplify' || serverType === 'lambda';
+
+  // Reset type-specific fields when server type changes
+  useEffect(() => {
+    if (!selectedServerId || selectedServerId === 0) {
+      // Reset type-specific fields when no server is selected
+      form.setValue('appId', '');
+      form.setValue('functionName', '');
+      return;
+    }
+
+    if (serverType !== 'amplify' && serverType !== 'lambda') {
+      // Clear amplify/lambda specific fields when server type doesn't support them
+      form.setValue('appId', '');
+      form.setValue('functionName', '');
+    }
+  }, [selectedServerId, serverType, form]);
 
   // Reset form when service changes
   useEffect(() => {
@@ -311,14 +330,33 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
             <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Server</span>
             <select
               className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-              {...form.register('serverId')}
+              {...form.register('serverId', {
+                onChange: (e) => {
+                  // Force update by triggering form watch
+                  const newServerId = Number(e.target.value);
+                  form.setValue('serverId', newServerId, { shouldDirty: true });
+                  
+                  // Clear type-specific fields when server changes
+                  if (newServerId === 0) {
+                    form.setValue('appId', '');
+                    form.setValue('functionName', '');
+                  } else {
+                    // Find the new server and clear fields if needed
+                    const newServer = servers.find((s) => s.id === newServerId);
+                    if (newServer && newServer.type !== 'amplify' && newServer.type !== 'lambda') {
+                      form.setValue('appId', '');
+                      form.setValue('functionName', '');
+                    }
+                  }
+                },
+              })}
             >
               <option value={0}>Select a server</option>
               {servers.map((server) => {
                 const serverTypeLabel = constants?.serverTypeLabels[server.type] || server.type;
                 return (
                   <option key={server.id} value={server.id}>
-                    {server.name} ({serverTypeLabel}) - {server.publicIp}
+                    {server.name} ({serverTypeLabel}) - {server.publicIp || server.endpoint || 'N/A'}
                   </option>
                 );
               })}
@@ -345,45 +383,61 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
           )}
         </div>
 
-        {showAmplifyLambdaFields && (
-          <>
-            <div>
-              <label className="flex flex-col">
-                <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">
-                  {serverType === 'amplify' ? 'App ID' : 'Function Name'}
-                </span>
-                <input
-                  className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-                  placeholder={serverType === 'amplify' ? 'Enter Amplify App ID' : 'Enter Lambda function name'}
-                  type="text"
-                  autoComplete="off"
-                  {...form.register(serverType === 'amplify' ? 'appId' : 'functionName')}
-                />
-              </label>
-              {form.formState.errors.appId && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.appId?.message}</p>
-              )}
-              {form.formState.errors.functionName && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.functionName?.message}</p>
-              )}
-            </div>
+        {/* Amplify-specific fields */}
+        {serverType === 'amplify' && (
+          <div>
+            <label className="flex flex-col">
+              <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">App ID</span>
+              <input
+                className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                placeholder="Enter Amplify App ID"
+                type="text"
+                autoComplete="off"
+                {...form.register('appId')}
+              />
+            </label>
+            {form.formState.errors.appId && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.appId?.message}</p>
+            )}
+          </div>
+        )}
 
-            <div>
-              <label className="flex flex-col">
-                <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Deployment URL</span>
-                <input
-                  className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-                  placeholder="https://example.com or https://function-name.execute-region.amazonaws.com"
-                  type="url"
-                  autoComplete="off"
-                  {...form.register('deploymentUrl')}
-                />
-              </label>
-              {form.formState.errors.deploymentUrl && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.deploymentUrl.message}</p>
-              )}
-            </div>
-          </>
+        {/* Lambda-specific fields */}
+        {serverType === 'lambda' && (
+          <div>
+            <label className="flex flex-col">
+              <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Function Name</span>
+              <input
+                className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                placeholder="Enter Lambda function name"
+                type="text"
+                autoComplete="off"
+                {...form.register('functionName')}
+              />
+            </label>
+            {form.formState.errors.functionName && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.functionName?.message}</p>
+            )}
+          </div>
+        )}
+
+        {/* Deployment URL - shown for amplify and lambda */}
+        {showAmplifyLambdaFields && (
+          <div>
+            <label className="flex flex-col">
+              <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Deployment URL</span>
+              <input
+                className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                placeholder="https://example.com or https://function-name.execute-region.amazonaws.com"
+                type="url"
+                autoComplete="off"
+                {...form.register('deploymentUrl')}
+              />
+            </label>
+            {form.formState.errors.deploymentUrl && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.deploymentUrl.message}</p>
+            )}
+          </div>
         )}
 
         {credentialsList.length > 0 && (
