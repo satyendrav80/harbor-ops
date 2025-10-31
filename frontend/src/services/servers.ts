@@ -5,11 +5,27 @@ export type Server = {
   id: number;
   name: string;
   type: ServerType;
-  publicIp: string;
-  privateIp: string;
-  sshPort: number;
-  username: string;
+  publicIp?: string | null;
+  privateIp?: string | null;
+  endpoint?: string | null;
+  port?: number | null;
+  sshPort?: number | null;
+  username?: string | null;
   password?: string;
+  credentials?: Array<{
+    credential: {
+      id: number;
+      name: string;
+      type: string;
+    };
+  }>;
+  tags?: Array<{
+    tag: {
+      id: number;
+      name: string;
+      value: string | null;
+    };
+  }>;
   createdAt: string;
 };
 

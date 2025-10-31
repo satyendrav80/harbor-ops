@@ -13,6 +13,7 @@ import { useConstants } from '../../constants/hooks/useConstants';
 import { getGroups, getGroupsByItem } from '../../../services/groups';
 import { useAddItemToGroup, useRemoveItemFromGroup } from '../../groups/hooks/useGroupMutations';
 import { useAuth } from '../../auth/context/AuthContext';
+import { getCredentials } from '../../../services/credentials';
 
 type ServerModalProps = {
   isOpen: boolean;
@@ -43,6 +44,14 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
     enabled: isOpen && hasPermission('groups:view'),
   });
 
+  // Fetch credentials for dropdown
+  const { data: credentials } = useQuery({
+    queryKey: ['credentials', 'all'],
+    queryFn: () => getCredentials(),
+    staleTime: 5 * 60 * 1000,
+    enabled: isOpen,
+  });
+
   // Fetch existing groups for this server (if editing)
   const { data: existingGroupsData } = useQuery({
     queryKey: ['groups', 'server', server?.id],
@@ -54,32 +63,46 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
   });
 
   // Create schema dynamically based on constants from backend
-  // Make all fields optional or have conditional validation
   const serverSchema = useMemo(() => {
     const serverTypes = constants?.serverTypes || ['os'];
     return z.object({
       name: z.string().min(1, 'Server name is required').max(100, 'Server name must be 100 characters or less'),
       type: z.enum(serverTypes as [string, ...string[]]).default(serverTypes[0] as string),
-      publicIp: z.string().min(1, 'Public IP is required').ip('Invalid IP address'),
-      privateIp: z.string().min(1, 'Private IP is required').ip('Invalid IP address'),
+      publicIp: z.string().ip('Invalid IP address').optional().or(z.literal('')),
+      privateIp: z.string().ip('Invalid IP address').optional().or(z.literal('')),
+      endpoint: z.string().optional().or(z.literal('')),
+      port: z.coerce.number().int().min(1).max(65535).optional(),
       sshPort: z.coerce.number().int().min(1).max(65535).optional(),
-      username: z.string().max(100).optional(),
+      username: z.string().max(100).optional().or(z.literal('')),
       password: z.string().optional(),
+      credentialIds: z.array(z.number()).optional(),
       groupIds: z.array(z.number()).optional(),
     }).refine((data) => {
-      // For OS servers, require SSH-related fields
-      if (data.type === 'os') {
+      // OS and EC2: require IP fields and SSH port
+      if (data.type === 'os' || data.type === 'ec2') {
+        if (!data.publicIp || data.publicIp.trim().length === 0) {
+          return false;
+        }
+        if (!data.privateIp || data.privateIp.trim().length === 0) {
+          return false;
+        }
         if (!data.sshPort || data.sshPort < 1 || data.sshPort > 65535) {
           return false;
         }
-        if (!data.username || data.username.trim().length === 0) {
+      }
+      // RDS: require endpoint and port
+      else if (data.type === 'rds') {
+        if (!data.endpoint || data.endpoint.trim().length === 0) {
+          return false;
+        }
+        if (!data.port || data.port < 1 || data.port > 65535) {
           return false;
         }
       }
       return true;
     }, {
-      message: 'SSH port and username are required for OS servers',
-      path: ['sshPort'], // This will show error on sshPort field
+      message: 'Required fields missing for server type',
+      path: ['type'],
     });
   }, [constants]);
 
@@ -92,9 +115,12 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
       type: server?.type || (constants?.serverTypes[0] as string) || 'os',
       publicIp: server?.publicIp || '',
       privateIp: server?.privateIp || '',
+      endpoint: server?.endpoint || '',
+      port: server?.port || undefined,
       sshPort: server?.sshPort || 22,
       username: server?.username || '',
       password: '',
+      credentialIds: server?.credentials?.map((sc) => sc.credential.id) || [],
       groupIds: [],
     },
   });
@@ -106,11 +132,14 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
       form.reset({
         name: server.name,
         type: server.type || defaultType,
-        publicIp: server.publicIp,
-        privateIp: server.privateIp,
+        publicIp: server.publicIp || '',
+        privateIp: server.privateIp || '',
+        endpoint: server.endpoint || '',
+        port: server.port || undefined,
         sshPort: server.sshPort || 22,
         username: server.username || '',
         password: '', // Password is not sent in response, will be revealed via API
+        credentialIds: server.credentials?.map((sc) => sc.credential.id) || [],
         groupIds: existingGroupsData || [],
       });
     } else {
@@ -119,9 +148,12 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         type: defaultType,
         publicIp: '',
         privateIp: '',
+        endpoint: '',
+        port: undefined,
         sshPort: 22,
         username: '',
         password: '',
+        credentialIds: [],
         groupIds: [],
       });
     }
@@ -131,62 +163,49 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
 
   // Watch server type for conditional fields (after form is initialized)
   const watchedType = form.watch('type');
-  const isOsServer = watchedType === 'os';
+  const isOsOrEc2 = watchedType === 'os' || watchedType === 'ec2';
+  const isRds = watchedType === 'rds';
+  const isCloudService = ['amplify', 'lambda', 'ecs', 'other'].includes(watchedType);
 
   const onSubmit = async (values: ServerFormValues) => {
     setError(null);
     try {
       let createdOrUpdatedServer: Server;
       
+      const submitData: any = {
+        name: values.name,
+        type: values.type,
+        credentialIds: values.credentialIds || [],
+      };
+      
+      // OS and EC2: IP fields + SSH port + optional username/password
+      if (values.type === 'os' || values.type === 'ec2') {
+        submitData.publicIp = values.publicIp || null;
+        submitData.privateIp = values.privateIp || null;
+        submitData.sshPort = values.sshPort ? Number(values.sshPort) : null;
+        submitData.username = values.username || null;
+      } 
+      // RDS: endpoint + port + optional username/password
+      else if (values.type === 'rds') {
+        submitData.endpoint = values.endpoint || null;
+        submitData.port = values.port ? Number(values.port) : null;
+        submitData.username = values.username || null;
+      } 
+      // Amplify, Lambda, ECS, Other: Only endpoint + optional username/password
+      else {
+        submitData.endpoint = values.endpoint || null;
+        submitData.username = values.username || null;
+      }
+      
+      // Password is optional for all types
+      if (values.password && values.password.trim()) {
+        submitData.password = values.password;
+      }
+      
       if (isEditing && server) {
-        // Only include password if it's provided and not masked
-        const updateData: any = {
-          name: values.name,
-          type: values.type,
-          publicIp: values.publicIp,
-          privateIp: values.privateIp,
-        };
-        
-        // Only include SSH-related fields for OS servers or if provided
-        if (values.type === 'os') {
-          updateData.sshPort = values.sshPort;
-          updateData.username = values.username;
-        } else if (values.sshPort !== undefined) {
-          updateData.sshPort = values.sshPort;
-        }
-        if (values.username !== undefined && values.username !== '') {
-          updateData.username = values.username;
-        }
-        
-        // Only send password if it's provided and not empty
-        if (values.password && values.password.trim()) {
-          updateData.password = values.password;
-        }
-        
-        createdOrUpdatedServer = await updateServer.mutateAsync({ id: server.id, data: updateData });
+        createdOrUpdatedServer = await updateServer.mutateAsync({ id: server.id, data: submitData });
       } else {
-        const createData: any = {
-          name: values.name,
-          type: values.type,
-          publicIp: values.publicIp,
-          privateIp: values.privateIp,
-        };
-        
-        // Only include SSH-related fields for OS servers
-        if (values.type === 'os') {
-          createData.sshPort = values.sshPort;
-          createData.username = values.username;
-        } else if (values.sshPort !== undefined) {
-          createData.sshPort = values.sshPort;
-        }
-        if (values.username !== undefined && values.username !== '') {
-          createData.username = values.username;
-        }
-        if (values.password && values.password.trim()) {
-          createData.password = values.password;
-        }
-        
-        createdOrUpdatedServer = await createServer.mutateAsync(createData);
+        createdOrUpdatedServer = await createServer.mutateAsync(submitData);
       }
 
       // Update groups membership
@@ -283,134 +302,164 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
           )}
         </div>
 
+        {/* IP fields for OS and EC2 */}
+        {isOsOrEc2 && (
+          <>
+            <div>
+              <label className="flex flex-col">
+                <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Public IP</span>
+                <input
+                  className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                  placeholder="e.g., 192.168.1.100"
+                  type="text"
+                  autoComplete="off"
+                  {...form.register('publicIp')}
+                />
+              </label>
+              {form.formState.errors.publicIp && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.publicIp.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="flex flex-col">
+                <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Private IP</span>
+                <input
+                  className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                  placeholder="e.g., 10.0.0.100"
+                  type="text"
+                  autoComplete="off"
+                  {...form.register('privateIp')}
+                />
+              </label>
+              {form.formState.errors.privateIp && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.privateIp.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="flex flex-col">
+                <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">SSH Port</span>
+                <input
+                  className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                  placeholder="22"
+                  type="number"
+                  autoComplete="off"
+                  {...form.register('sshPort')}
+                />
+              </label>
+              {form.formState.errors.sshPort && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.sshPort.message}</p>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Endpoint + Port for RDS */}
+        {isRds && (
+          <>
+            <div>
+              <label className="flex flex-col">
+                <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Endpoint</span>
+                <input
+                  className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                  placeholder="e.g., db-instance.region.rds.amazonaws.com"
+                  type="text"
+                  autoComplete="off"
+                  {...form.register('endpoint')}
+                />
+              </label>
+              {form.formState.errors.endpoint && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.endpoint.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="flex flex-col">
+                <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Port</span>
+                <input
+                  className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                  placeholder="e.g., 5432, 3306"
+                  type="number"
+                  autoComplete="off"
+                  {...form.register('port')}
+                />
+              </label>
+              {form.formState.errors.port && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.port.message}</p>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Endpoint for Amplify/Lambda/ECS/Other */}
+        {isCloudService && (
+          <div>
+            <label className="flex flex-col">
+              <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Endpoint (Optional)</span>
+              <input
+                className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                placeholder="e.g., https://api.example.com"
+                type="text"
+                autoComplete="off"
+                {...form.register('endpoint')}
+              />
+            </label>
+            {form.formState.errors.endpoint && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.endpoint.message}</p>
+            )}
+          </div>
+        )}
+
+        {/* Username and Password (optional for all types) */}
+        {(isOsOrEc2 || isRds || isCloudService) && (
+          <>
+            <div>
+              <label className="flex flex-col">
+                <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">
+                  Username {isOsOrEc2 ? '' : '(Optional)'}
+                </span>
+                <input
+                  className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                  placeholder={isOsOrEc2 ? 'Enter SSH username' : 'Optional username'}
+                  type="text"
+                  autoComplete="off"
+                  {...form.register('username')}
+                />
+              </label>
+              {form.formState.errors.username && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.username.message}</p>
+              )}
+            </div>
+
+            <div>
+              <MaskedPasswordInput
+                value={form.watch('password') || ''}
+                onChange={(value) => form.setValue('password', value, { shouldValidate: true })}
+                placeholder={isEditing ? 'Leave empty to keep current password' : 'Password (optional)'}
+                label={`Password (Optional) ${isEditing ? '(leave empty to keep current password)' : ''}`}
+                revealEndpoint={isEditing && server ? `/servers/${server.id}/reveal-password` : undefined}
+                error={form.formState.errors.password?.message}
+                disabled={isLoading}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Credential selector (optional for all types) - Multi-select */}
         <div>
-          <label className="flex flex-col">
-            <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Public IP</span>
-            <input
-              className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-              placeholder="e.g., 192.168.1.100"
-              type="text"
-              autoComplete="off"
-              {...form.register('publicIp')}
-            />
-          </label>
-          {form.formState.errors.publicIp && (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.publicIp.message}</p>
+          <SearchableMultiSelect
+            options={(credentials || []).map((cred) => ({ id: cred.id, name: `${cred.name} (${cred.type})` }))}
+            selectedIds={form.watch('credentialIds') || []}
+            onChange={(selectedIds) => form.setValue('credentialIds', selectedIds as number[])}
+            placeholder="Search and select credentials..."
+            label="Credentials (Optional)"
+            disabled={isLoading}
+          />
+          {form.formState.errors.credentialIds && (
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.credentialIds?.message}</p>
           )}
         </div>
-
-        <div>
-          <label className="flex flex-col">
-            <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Private IP</span>
-            <input
-              className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-              placeholder="e.g., 10.0.0.100"
-              type="text"
-              autoComplete="off"
-              {...form.register('privateIp')}
-            />
-          </label>
-          {form.formState.errors.privateIp && (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.privateIp.message}</p>
-          )}
-        </div>
-
-                {isOsServer && (
-                  <>
-                    <div>
-                      <label className="flex flex-col">
-                        <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">SSH Port</span>
-                        <input
-                          className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-                          placeholder="22"
-                          type="number"
-                          autoComplete="off"
-                          {...form.register('sshPort')}
-                        />
-                      </label>
-                      {form.formState.errors.sshPort && (
-                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.sshPort.message}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="flex flex-col">
-                        <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Username</span>
-                        <input
-                          className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-                          placeholder="Enter SSH username"
-                          type="text"
-                          autoComplete="off"
-                          {...form.register('username')}
-                        />
-                      </label>
-                      {form.formState.errors.username && (
-                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.username.message}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <MaskedPasswordInput
-                        value={form.watch('password') || ''}
-                        onChange={(value) => form.setValue('password', value, { shouldValidate: true })}
-                        placeholder={isEditing ? 'Leave empty to keep current password' : 'Enter SSH password'}
-                        label={`Password ${isEditing ? '(leave empty to keep current password)' : ''}`}
-                        revealEndpoint={isEditing && server ? `/servers/${server.id}/reveal-password` : undefined}
-                        error={form.formState.errors.password?.message}
-                        disabled={isLoading}
-                      />
-                    </div>
-                  </>
-                )}
-
-                {/* Optional SSH fields for non-OS servers */}
-                {!isOsServer && (
-                  <>
-                    <div>
-                      <label className="flex flex-col">
-                        <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Port (Optional)</span>
-                        <input
-                          className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-                          placeholder="Optional port"
-                          type="number"
-                          autoComplete="off"
-                          {...form.register('sshPort')}
-                        />
-                      </label>
-                      {form.formState.errors.sshPort && (
-                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.sshPort.message}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="flex flex-col">
-                        <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Username (Optional)</span>
-                        <input
-                          className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-                          placeholder="Optional username"
-                          type="text"
-                          autoComplete="off"
-                          {...form.register('username')}
-                        />
-                      </label>
-                      {form.formState.errors.username && (
-                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.username.message}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <MaskedPasswordInput
-                        value={form.watch('password') || ''}
-                        onChange={(value) => form.setValue('password', value, { shouldValidate: true })}
-                        placeholder={isEditing ? 'Leave empty to keep current password' : 'Optional password'}
-                        label={`Password (Optional) ${isEditing ? '(leave empty to keep current password)' : ''}`}
-                        revealEndpoint={isEditing && server ? `/servers/${server.id}/reveal-password` : undefined}
-                        error={form.formState.errors.password?.message}
-                        disabled={isLoading}
-                      />
-                    </div>
-                  </>
-                )}
 
                 {hasPermission('groups:update') && groupsData?.data && groupsData.data.length > 0 && (
                   <div>

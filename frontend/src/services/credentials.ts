@@ -62,3 +62,10 @@ export async function deleteCredential(id: number): Promise<void> {
   });
 }
 
+/**
+ * Reveal credential data (requires credentials:reveal permission)
+ */
+export async function revealCredentialData(id: number): Promise<{ data: any }> {
+  return apiFetch<{ data: any }>(`/credentials/${id}/reveal`);
+}
+

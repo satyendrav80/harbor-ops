@@ -150,7 +150,7 @@ router.get('/me', authMiddleware, async (req: any, res) => {
       },
     },
   });
-  if (!user) return res.status(404).json({ error: 'Not found' });
+  if (!user) return res.status(401).json({ error: 'User no longer exists' });
   
   // Extract permissions; admin role grants wildcard
   const roleNames = user.roles.map((ur) => ur.role.name);

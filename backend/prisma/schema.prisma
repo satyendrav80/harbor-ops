@@ -72,8 +72,19 @@ model Credential {
   data       Json                                 @map("data")
   createdAt  DateTime @default(now())             @map("created_at")
   services   Service[]
+  servers    ServerCredential[]
 
   @@map("credentials")
+}
+
+model ServerCredential {
+  serverId    Int @map("server_id")
+  credentialId Int @map("credential_id")
+  server      Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  credential  Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@id([serverId, credentialId])
+  @@map("server_credentials")
 }
 
 enum ServerType {
@@ -87,18 +98,20 @@ enum ServerType {
 }
 
 model Server {
-  id         Int        @id @default(autoincrement()) @map("id")
-  name       String                                   @map("name")
-  type       ServerType @default(os)                 @map("type")
-  publicIp   String?                                  @map("public_ip")
-  privateIp  String?                                  @map("private_ip")
-  endpoint   String?                                  @map("endpoint")
-  sshPort    Int?                                     @map("ssh_port")
-  username   String?                                  @map("username")
-  password   String?                                  @map("password")
-  createdAt  DateTime   @default(now())               @map("created_at")
-  services   Service[]
-  tags       ServerTag[]
+  id          Int         @id @default(autoincrement()) @map("id")
+  name        String                                    @map("name")
+  type        ServerType  @default(os)                 @map("type")
+  publicIp    String?                                   @map("public_ip")
+  privateIp   String?                                   @map("private_ip")
+  endpoint    String?                                   @map("endpoint")
+  port        Int?                                      @map("port")
+  sshPort     Int?                                      @map("ssh_port")
+  username    String?                                   @map("username")
+  password    String?                                   @map("password")
+  createdAt   DateTime    @default(now())               @map("created_at")
+  services    Service[]
+  tags        ServerTag[]
+  credentials ServerCredential[]
 
   @@map("servers")
 }

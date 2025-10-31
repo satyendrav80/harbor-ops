@@ -203,24 +203,63 @@ export function ServersPage() {
                   <div className="flex items-center gap-3 mb-2">
                     <ServerIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{server.name}</h3>
+                    {server.type && (
+                      <span className="inline-flex items-center rounded-md bg-gray-50 dark:bg-gray-700 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 ring-1 ring-inset ring-gray-500/10">
+                        {server.type.toUpperCase()}
+                      </span>
+                    )}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Public IP</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{server.publicIp}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Private IP</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{server.privateIp}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">SSH Port</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{server.sshPort}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Username</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{server.username}</p>
-                    </div>
+
+                    {/* OS/EC2 fields */}
+                    {(server.type === 'os' || server.type === 'ec2') && (
+                      <>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Public IP</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{server.publicIp || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Private IP</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{server.privateIp || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">SSH Port</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{server.sshPort || '-'}</p>
+                        </div>
+                      </>
+                    )}
+
+                    {/* RDS fields */}
+                    {server.type === 'rds' && (
+                      <>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Endpoint</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{server.endpoint || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Port</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{server.port || '-'}</p>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Cloud services (Amplify/Lambda/ECS/Other) fields */}
+                    {['amplify', 'lambda', 'ecs', 'other'].includes(server.type || '') && (
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Endpoint</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{server.endpoint || '-'}</p>
+                      </div>
+                    )}
+
+                    {/* Username field (optional) */}
+                    {server.username && (
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Username</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{server.username}</p>
+                      </div>
+                    )}
+
+                    {/* Password field (always shown if password exists) */}
                     <div>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Password</p>
                       <div className="flex items-center gap-2">
@@ -264,7 +303,43 @@ export function ServersPage() {
                         )}
                       </div>
                     </div>
+
+                    {/* Credentials */}
+                    {server.credentials && server.credentials.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Credentials</p>
+                        <div className="flex flex-wrap gap-2">
+                          {server.credentials.map((sc) => (
+                            <span
+                              key={sc.credential.id}
+                              className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-1 text-xs font-medium"
+                            >
+                              {sc.credential.name} ({sc.credential.type})
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
+                  
+                  {/* Tags */}
+                  {server.tags && server.tags.length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Tags</p>
+                      <div className="flex flex-wrap gap-2">
+                        {server.tags.map((serverTag) => (
+                          <span
+                            key={serverTag.tag.id}
+                            className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-1 text-xs font-medium"
+                          >
+                            {serverTag.tag.name}
+                            {serverTag.tag.value && `: ${serverTag.tag.value}`}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {server.createdAt && (
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
                       Created {new Date(server.createdAt).toLocaleDateString()}
