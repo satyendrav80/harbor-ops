@@ -17,6 +17,11 @@ import { useConstants } from '../../constants/hooks/useConstants';
 import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
 import { getTags } from '../../../services/tags';
 import { ServiceDependencies } from './ServiceDependencies';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
+import { Highlight } from '@tiptap/extension-highlight';
 
 const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required').max(100, 'Service name must be 100 characters or less'),
@@ -33,6 +38,10 @@ const serviceSchema = z.object({
   deploymentUrl: z.string().optional().refine((val) => !val || val === '' || z.string().url().safeParse(val).success, {
     message: 'Invalid URL',
   }),
+  documentationUrl: z.string().optional().refine((val) => !val || val === '' || z.string().url().safeParse(val).success, {
+    message: 'Invalid URL',
+  }),
+  documentation: z.string().optional().nullable(),
   groupIds: z.array(z.number()).optional(),
 });
 
@@ -133,7 +142,34 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
       appId: service?.appId || '',
       functionName: service?.functionName || '',
       deploymentUrl: service?.deploymentUrl || '',
+      documentationUrl: service?.documentationUrl || '',
+      documentation: service?.documentation || '',
       groupIds: [],
+    },
+  });
+
+  // Tiptap editor for documentation
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        // Link is already included in StarterKit, so we configure it here
+        link: {
+          openOnClick: false,
+        },
+      }),
+      TextStyle,
+      Color,
+      Highlight,
+    ],
+    content: service?.documentation || '',
+    editorProps: {
+      attributes: {
+        class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[200px] px-4 py-2 text-sm text-gray-900 dark:text-white',
+        style: 'white-space: pre-wrap;',
+      },
+    },
+    onUpdate: ({ editor }) => {
+      form.setValue('documentation', editor.getHTML(), { shouldDirty: true });
     },
   });
 
@@ -179,8 +215,14 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         appId: service.appId || '',
         functionName: service.functionName || '',
         deploymentUrl: service.deploymentUrl || '',
+        documentationUrl: service.documentationUrl || '',
+        documentation: service.documentation || '',
         groupIds: existingGroupsData || [],
       });
+      // Update editor content when service changes
+      if (editor) {
+        editor.commands.setContent(service.documentation || '');
+      }
     } else {
       form.reset({
         name: '',
@@ -193,12 +235,18 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         appId: '',
         functionName: '',
         deploymentUrl: '',
+        documentationUrl: '',
+        documentation: '',
         groupIds: [],
       });
+      // Clear editor when creating new service
+      if (editor) {
+        editor.commands.setContent('');
+      }
     }
     setError(null);
     setShowDeleteConfirm(false);
-  }, [isOpen, service, form, existingGroupsData, existingDomainsData]);
+  }, [isOpen, service, form, existingGroupsData, existingDomainsData, editor]);
 
   const onSubmit = async (values: ServiceFormValues) => {
     setError(null);
@@ -219,6 +267,8 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
             appId: values.appId || null,
             functionName: values.functionName || null,
             deploymentUrl: values.deploymentUrl || null,
+            documentationUrl: values.documentationUrl || null,
+            documentation: values.documentation || null,
           },
         });
       } else {
@@ -233,6 +283,8 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
           appId: values.appId || null,
           functionName: values.functionName || null,
           deploymentUrl: values.deploymentUrl || null,
+          documentationUrl: values.documentationUrl || null,
+          documentation: values.documentation || null,
         });
       }
 
@@ -272,11 +324,15 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
           name: '',
           port: 80,
           serverId: 0,
-          credentialId: null,
+          credentialIds: [],
+          domainIds: [],
+          tagIds: [],
           sourceRepo: '',
           appId: '',
           functionName: '',
           deploymentUrl: '',
+          documentationUrl: '',
+          documentation: '',
           groupIds: [],
         });
       }
@@ -522,6 +578,172 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
             )}
           </div>
         )}
+
+        {/* Documentation Section */}
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Documentation & Rules</h3>
+            
+            {/* External Documentation Link */}
+            <div className="mb-4">
+              <label className="flex flex-col">
+                <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">
+                  External Documentation Link (Optional)
+                </span>
+                <input
+                  className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                  placeholder="https://docs.example.com/service-rules"
+                  type="url"
+                  autoComplete="off"
+                  {...form.register('documentationUrl')}
+                />
+              </label>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Provide a link to external documentation or rules for this service
+              </p>
+              {form.formState.errors.documentationUrl && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.documentationUrl.message}</p>
+              )}
+            </div>
+
+            {/* Inline Documentation Editor */}
+            <div>
+              <label className="block text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">
+                Inline Documentation (Optional)
+              </label>
+              <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg overflow-hidden">
+                {/* Toolbar */}
+                {editor && (
+                  <div className="border-b border-gray-200 dark:border-gray-700/50 p-2 flex flex-wrap gap-1">
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleBold().run()}
+                      disabled={!editor.can().chain().focus().toggleBold().run()}
+                      className={`px-2 py-1 text-xs rounded border ${
+                        editor.isActive('bold')
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white dark:bg-[#1C252E] text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <strong>B</strong>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleItalic().run()}
+                      disabled={!editor.can().chain().focus().toggleItalic().run()}
+                      className={`px-2 py-1 text-xs rounded border ${
+                        editor.isActive('italic')
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white dark:bg-[#1C252E] text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <em>I</em>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleStrike().run()}
+                      disabled={!editor.can().chain().focus().toggleStrike().run()}
+                      className={`px-2 py-1 text-xs rounded border ${
+                        editor.isActive('strike')
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white dark:bg-[#1C252E] text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <s>S</s>
+                    </button>
+                    <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1" />
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                      className={`px-2 py-1 text-xs rounded border ${
+                        editor.isActive('heading', { level: 1 })
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white dark:bg-[#1C252E] text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      H1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                      className={`px-2 py-1 text-xs rounded border ${
+                        editor.isActive('heading', { level: 2 })
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white dark:bg-[#1C252E] text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      H2
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                      className={`px-2 py-1 text-xs rounded border ${
+                        editor.isActive('heading', { level: 3 })
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white dark:bg-[#1C252E] text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      H3
+                    </button>
+                    <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1" />
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleBulletList().run()}
+                      className={`px-2 py-1 text-xs rounded border ${
+                        editor.isActive('bulletList')
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white dark:bg-[#1C252E] text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      •
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                      className={`px-2 py-1 text-xs rounded border ${
+                        editor.isActive('orderedList')
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white dark:bg-[#1C252E] text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      1.
+                    </button>
+                    <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = window.prompt('Enter URL:');
+                        if (url) {
+                          editor.chain().focus().setLink({ href: url }).run();
+                        }
+                      }}
+                      className={`px-2 py-1 text-xs rounded border ${
+                        editor.isActive('link')
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white dark:bg-[#1C252E] text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      Link
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editor.chain().focus().unsetLink().run()}
+                      disabled={!editor.isActive('link')}
+                      className="px-2 py-1 text-xs rounded border bg-white dark:bg-[#1C252E] text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+                    >
+                      Unlink
+                    </button>
+                  </div>
+                )}
+                {/* Editor Content */}
+                <EditorContent editor={editor} className="min-h-[200px]" />
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Use the editor above to write documentation, rules, or guidelines directly
+              </p>
+            </div>
+          </div>
+        </div>
 
         {/* Service Dependencies - Only show when editing */}
         {isEditing && service?.id && (

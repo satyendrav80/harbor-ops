@@ -385,6 +385,40 @@ export function ServicesPage() {
                       )}
                     </div>
                   )}
+
+                  {/* Documentation Section */}
+                  {(service.documentationUrl || service.documentation) && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Documentation & Rules</h4>
+                      
+                      {service.documentationUrl && (
+                        <div className="mb-3">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">External Documentation</p>
+                          <a
+                            href={service.documentationUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium text-primary hover:underline break-all inline-flex items-center gap-1"
+                          >
+                            <span>{service.documentationUrl}</span>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                        </div>
+                      )}
+
+                      {service.documentation && (
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Inline Documentation</p>
+                          <div
+                            className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline"
+                            dangerouslySetInnerHTML={{ __html: service.documentation }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 ml-4">
                   {hasPermission('services:update') && (

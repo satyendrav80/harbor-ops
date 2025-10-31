@@ -124,6 +124,8 @@ model Service {
   appId          String?                                  @map("app_id")
   functionName   String?                                  @map("function_name")
   deploymentUrl  String?                                  @map("deployment_url")
+  documentationUrl String?                               @map("documentation_url")
+  documentation String?                                  @db.Text @map("documentation")
   metadata       Json?                                    @map("metadata")
   createdAt      DateTime    @default(now())              @map("created_at")
   serverId       Int                                      @map("server_id")

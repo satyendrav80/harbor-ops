@@ -27,6 +27,8 @@ export type Service = {
   appId?: string | null;
   functionName?: string | null;
   deploymentUrl?: string | null;
+  documentationUrl?: string | null;
+  documentation?: string | null;
   metadata?: any | null;
   createdAt: string;
   server?: Server;

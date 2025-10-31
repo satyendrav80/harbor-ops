@@ -89,7 +89,7 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
 });
 
 router.post('/', requirePermission('services:create'), async (req, res) => {
-  const { name, port, serverId, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, metadata } = req.body;
+  const { name, port, serverId, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, documentationUrl, documentation, metadata } = req.body;
   
   // Create service with credentials and domains in a transaction
   const created = await prisma.$transaction(async (tx) => {
@@ -102,6 +102,8 @@ router.post('/', requirePermission('services:create'), async (req, res) => {
         appId: appId || null,
         functionName: functionName || null,
         deploymentUrl: deploymentUrl || null,
+        documentationUrl: documentationUrl || null,
+        documentation: documentation || null,
         metadata: metadata || null,
       },
     });
@@ -188,7 +190,7 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
 
 router.put('/:id', requirePermission('services:update'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, port, serverId, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, metadata } = req.body;
+  const { name, port, serverId, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, documentationUrl, documentation, metadata } = req.body;
   
   // Update service with credentials and domains in a transaction
   const updated = await prisma.$transaction(async (tx) => {
@@ -203,6 +205,8 @@ router.put('/:id', requirePermission('services:update'), async (req, res) => {
         appId: appId !== undefined ? (appId || null) : undefined,
         functionName: functionName !== undefined ? (functionName || null) : undefined,
         deploymentUrl: deploymentUrl !== undefined ? (deploymentUrl || null) : undefined,
+        documentationUrl: documentationUrl !== undefined ? (documentationUrl || null) : undefined,
+        documentation: documentation !== undefined ? (documentation || null) : undefined,
         metadata: metadata !== undefined ? (metadata || null) : undefined,
       },
     });

@@ -22,4 +22,14 @@ export default defineConfig({
       'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
     },
   },
+  optimizeDeps: {
+    include: [
+      '@tiptap/react',
+      '@tiptap/starter-kit',
+      '@tiptap/extension-link',
+      '@tiptap/extension-text-style',
+      '@tiptap/extension-color',
+      '@tiptap/extension-highlight',
+    ],
+  },
 });
