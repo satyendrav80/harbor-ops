@@ -10,6 +10,9 @@ import type { Service } from '../../../services/services';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import { useConstants } from '../../constants/hooks/useConstants';
+import { useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { getServers } from '../../../services/servers';
 
 /**
  * Debounce hook to delay search input
@@ -37,12 +40,39 @@ export function ServicesPage() {
   usePageTitle('Services');
   const { hasPermission } = useAuth();
   const { data: constants } = useConstants();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams] = useSearchParams();
+  const serverId = searchParams.get('serverId');
+  const serviceId = searchParams.get('serviceId');
+  
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
   const [selectedServiceForEdit, setSelectedServiceForEdit] = useState<Service | null>(null);
 
+  // Fetch servers for filter display
+  const { data: serversData } = useQuery({
+    queryKey: ['servers', 'filter'],
+    queryFn: () => getServers(),
+    enabled: !!serverId,
+  });
+
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
+
+  // Auto-scroll to service if serviceId is in URL
+  useEffect(() => {
+    if (serviceId) {
+      setTimeout(() => {
+        const element = document.getElementById(`service-${serviceId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('ring-2', 'ring-primary', 'ring-opacity-50');
+          setTimeout(() => {
+            element.classList.remove('ring-2', 'ring-primary', 'ring-opacity-50');
+          }, 3000);
+        }
+      }, 500);
+    }
+  }, [serviceId]);
 
   // Fetch services with infinite scroll
   const {
@@ -163,8 +193,11 @@ export function ServicesPage() {
         <div className="space-y-4">
           {services.map((service) => (
             <div
+              id={`service-${service.id}`}
               key={service.id}
-              className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6"
+              className={`bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6 transition-all ${
+                serviceId && Number(serviceId) === service.id ? 'ring-2 ring-primary ring-opacity-50' : ''
+              }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -191,17 +224,42 @@ export function ServicesPage() {
                     {service.credentials && service.credentials.length > 0 && (
                       <div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Credentials</p>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {service.credentials.map((sc) => `${sc.credential.name} (${sc.credential.type})`).join(', ')}
-                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {service.credentials.map((sc) => (
+                            <button
+                              key={sc.credential.id}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                window.location.href = `/credentials?serviceId=${service.id}&credentialId=${sc.credential.id}`;
+                              }}
+                              className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-1 text-xs font-medium hover:bg-primary/20 transition-colors cursor-pointer"
+                              title={`Click to view credential ${sc.credential.name} on credentials page`}
+                            >
+                              {sc.credential.name} ({sc.credential.type})
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                     {service.domains && service.domains.length > 0 && (
                       <div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Domains</p>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {service.domains.map((sd) => sd.domain.name).join(', ')}
-                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {service.domains.map((sd) => (
+                            <a
+                              key={sd.domain.id}
+                              href={`https://${sd.domain.name}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 text-xs font-medium hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer underline"
+                              title={`Open ${sd.domain.name} in new tab`}
+                            >
+                              {sd.domain.name}
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
                     {service.createdAt && (

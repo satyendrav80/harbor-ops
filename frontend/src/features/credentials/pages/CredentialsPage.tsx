@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useCredentials } from '../hooks/useCredentials';
 import { useCreateCredential, useUpdateCredential, useDeleteCredential } from '../hooks/useCredentialMutations';
@@ -6,10 +7,13 @@ import { revealCredentialData } from '../../../services/credentials';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { CredentialModal } from '../components/CredentialModal';
-import { Search, Plus, Edit, Trash2, Key, X, Eye, EyeOff } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Key, X, Eye, EyeOff, Server, Cloud } from 'lucide-react';
 import type { Credential } from '../../../services/credentials';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
+import { getServers } from '../../../services/servers';
+import { getServices } from '../../../services/services';
+import { useQuery } from '@tanstack/react-query';
 
 /**
  * Debounce hook to delay search input
@@ -36,16 +40,57 @@ function useDebounce<T>(value: T, delay: number = 500): T {
 export function CredentialsPage() {
   usePageTitle('Credentials');
   const { hasPermission } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const serverId = searchParams.get('serverId');
+  const credentialId = searchParams.get('credentialId');
+  const serviceId = searchParams.get('serviceId');
+  
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [credentialModalOpen, setCredentialModalOpen] = useState(false);
   const [selectedCredentialForEdit, setSelectedCredentialForEdit] = useState<Credential | null>(null);
   const [revealedData, setRevealedData] = useState<Record<number, any>>({});
   const [revealingData, setRevealingData] = useState<Record<number, boolean>>({});
 
+  // Fetch servers and services for filter display
+  const { data: serversData } = useQuery({
+    queryKey: ['servers', 'filter'],
+    queryFn: () => getServers(),
+    enabled: !!serverId || !!serviceId,
+  });
+
+  const { data: servicesData } = useQuery({
+    queryKey: ['services', 'filter'],
+    queryFn: () => getServices(1, 1000),
+    enabled: !!serviceId,
+  });
+
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
 
-  // Fetch credentials with infinite scroll
+  // Update URL when search changes
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams);
+    if (debouncedSearch) {
+      params.set('search', debouncedSearch);
+    } else {
+      params.delete('search');
+    }
+    setSearchParams(params, { replace: true });
+  }, [debouncedSearch]);
+
+  // Auto-reveal credential if credentialId is in URL
+  useEffect(() => {
+    if (credentialId && !revealedData[Number(credentialId)]) {
+      // Delay to ensure credentials are loaded
+      const timer = setTimeout(() => {
+        handleRevealData(Number(credentialId));
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [credentialId, credentialsData]);
+
+  // Fetch credentials with infinite scroll (filtered by server/service if provided)
   const {
     data: credentialsData,
     isLoading: credentialsLoading,
@@ -53,7 +98,7 @@ export function CredentialsPage() {
     fetchNextPage: fetchNextCredentialsPage,
     hasNextPage: hasNextCredentialsPage,
     isFetchingNextPage: isFetchingNextCredentialsPage,
-  } = useCredentials(debouncedSearch, 20);
+  } = useCredentials(debouncedSearch, 20, serverId ? Number(serverId) : undefined, serviceId ? Number(serviceId) : undefined);
 
   const deleteCredential = useDeleteCredential();
 
@@ -269,6 +314,54 @@ export function CredentialsPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* Mapped Servers */}
+                    {credential.servers && credential.servers.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Used by Servers</p>
+                        <div className="flex flex-wrap gap-2">
+                          {credential.servers.map((sc) => (
+                            <button
+                              key={sc.server.id}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                window.location.href = `/servers?serverId=${sc.server.id}`;
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer"
+                              title={`Click to view server ${sc.server.name}`}
+                            >
+                              <Server className="w-3 h-3" />
+                              {sc.server.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mapped Services */}
+                    {credential.services && credential.services.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Used by Services</p>
+                        <div className="flex flex-wrap gap-2">
+                          {credential.services.map((sc) => (
+                            <button
+                              key={sc.service.id}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                window.location.href = `/services?serviceId=${sc.service.id}`;
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded border border-green-200 dark:border-green-800 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors cursor-pointer"
+                              title={`Click to view service ${sc.service.name}`}
+                            >
+                              <Cloud className="w-3 h-3" />
+                              {sc.service.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {credential.createdAt && (
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">

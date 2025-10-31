@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useServers } from '../hooks/useServers';
 import { useCreateServer, useUpdateServer, useDeleteServer } from '../hooks/useServerMutations';
@@ -36,7 +37,10 @@ function useDebounce<T>(value: T, delay: number = 500): T {
 export function ServersPage() {
   usePageTitle('Servers');
   const { hasPermission } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams] = useSearchParams();
+  const serverId = searchParams.get('serverId');
+  
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [serverModalOpen, setServerModalOpen] = useState(false);
   const [selectedServerForEdit, setSelectedServerForEdit] = useState<Server | null>(null);
   const [revealedPasswords, setRevealedPasswords] = useState<Record<number, string | null>>({});
@@ -44,6 +48,22 @@ export function ServersPage() {
 
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
+
+  // Auto-scroll to server if serverId is in URL
+  useEffect(() => {
+    if (serverId) {
+      setTimeout(() => {
+        const element = document.getElementById(`server-${serverId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('ring-2', 'ring-primary', 'ring-opacity-50');
+          setTimeout(() => {
+            element.classList.remove('ring-2', 'ring-primary', 'ring-opacity-50');
+          }, 3000);
+        }
+      }, 500);
+    }
+  }, [serverId]);
 
   // Fetch servers with infinite scroll
   const {
@@ -310,12 +330,40 @@ export function ServersPage() {
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Credentials</p>
                         <div className="flex flex-wrap gap-2">
                           {server.credentials.map((sc) => (
-                            <span
+                            <button
                               key={sc.credential.id}
-                              className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-1 text-xs font-medium"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                window.location.href = `/credentials?serverId=${server.id}&credentialId=${sc.credential.id}`;
+                              }}
+                              className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-1 text-xs font-medium hover:bg-primary/20 transition-colors cursor-pointer"
+                              title={`Click to view credential ${sc.credential.name} on credentials page`}
                             >
                               {sc.credential.name} ({sc.credential.type})
-                            </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Domains */}
+                    {server.domains && server.domains.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Domains</p>
+                        <div className="flex flex-wrap gap-2">
+                          {server.domains.map((sd) => (
+                            <a
+                              key={sd.domain.id}
+                              href={`https://${sd.domain.name}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 text-xs font-medium hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer underline"
+                              title={`Open ${sd.domain.name} in new tab`}
+                            >
+                              {sd.domain.name}
+                            </a>
                           ))}
                         </div>
                       </div>

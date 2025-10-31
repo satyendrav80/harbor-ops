@@ -6,6 +6,21 @@ export type Credential = {
   type: string;
   data: string;
   createdAt: string;
+  servers?: Array<{
+    server: {
+      id: number;
+      name: string;
+      type: string;
+    };
+  }>;
+  services?: Array<{
+    service: {
+      id: number;
+      name: string;
+      port: number;
+      serverId: number;
+    };
+  }>;
 };
 
 export type CredentialsResponse = {

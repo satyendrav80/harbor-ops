@@ -125,9 +125,9 @@ export function SearchableMultiSelect({
 
       {/* Dropdown */}
       {isOpen && !disabled && (
-        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-lg max-h-60 overflow-hidden">
+        <div className="absolute z-[60] w-full mt-1 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-lg max-h-[200px] overflow-hidden">
           {/* Search input */}
-          <div className="sticky top-0 p-2 bg-white dark:bg-[#1C252E] border-b border-gray-200 dark:border-gray-700/50">
+          <div className="sticky top-0 p-2 bg-white dark:bg-[#1C252E] border-b border-gray-200 dark:border-gray-700/50 z-10">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
               <input
@@ -143,7 +143,7 @@ export function SearchableMultiSelect({
           </div>
 
           {/* Options list */}
-          <div className="overflow-y-auto max-h-48">
+          <div className="overflow-y-auto max-h-[140px]">
             {filteredOptions.length === 0 ? (
               <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
                 No options found

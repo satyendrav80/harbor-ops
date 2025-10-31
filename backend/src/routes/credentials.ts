@@ -87,6 +87,8 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 20;
   const search = (req.query.search as string) || '';
+  const serverId = req.query.serverId ? Number(req.query.serverId) : undefined;
+  const serviceId = req.query.serviceId ? Number(req.query.serviceId) : undefined;
   const offset = (page - 1) * limit;
 
   // Build search conditions
@@ -99,9 +101,28 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
       }
     : {};
 
+  // Filter by server or service if provided
+  if (serverId) {
+    searchConditions.servers = {
+      some: {
+        serverId: Number(serverId),
+      },
+    };
+  } else if (serviceId) {
+    searchConditions.services = {
+      some: {
+        serviceId: Number(serviceId),
+      },
+    };
+  }
+
   const [items, total] = await Promise.all([
     prisma.credential.findMany({
       where: searchConditions,
+      include: {
+        servers: { include: { server: { select: { id: true, name: true, type: true } } } },
+        services: { include: { service: { select: { id: true, name: true, port: true, serverId: true } } } },
+      },
       orderBy: { createdAt: 'desc' },
       skip: offset,
       take: limit,

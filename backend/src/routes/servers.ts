@@ -63,7 +63,7 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
 });
 
 router.post('/', requirePermission('servers:create'), async (req, res) => {
-  const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds } = req.body;
+  const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds, domainIds } = req.body;
   const encryptedPassword = password ? encrypt(password) : null;
   
   const data: any = {

@@ -142,7 +142,7 @@ export function DomainsPage() {
       {/* Domains List */}
       {domains.length === 0 ? (
         <EmptyState
-          icon={<Globe className="w-12 h-12 text-gray-400" />}
+          icon={Globe}
           title="No domains found"
           description={searchQuery ? 'Try adjusting your search query.' : 'Get started by creating a new domain.'}
           action={
