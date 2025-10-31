@@ -4,7 +4,7 @@ export type Credential = {
   id: number;
   name: string;
   type: string;
-  data: string;
+  data: Record<string, string>; // Changed from string to object (key-value pairs)
   createdAt: string;
   servers?: Array<{
     server: {

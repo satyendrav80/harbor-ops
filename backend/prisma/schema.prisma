@@ -69,7 +69,6 @@ model Credential {
   id         Int      @id @default(autoincrement()) @map("id")
   name       String                               @map("name")
   type       String                               @map("type")
-  data       Json                                 @map("data")
   createdAt  DateTime @default(now())             @map("created_at")
   services   ServiceCredential[]
   servers    ServerCredential[]
@@ -255,4 +254,41 @@ model ServiceDomain {
 
   @@id([serviceId, domainId])
   @@map("service_domains")
+}
+
+// Meta table for storing key-value pairs for any resource
+enum MetaResourceType {
+  credential
+  server
+  service
+  user
+  group
+  tag
+  domain
+}
+
+enum MetaValueType {
+  string
+  number
+  boolean
+  json
+}
+
+model Meta {
+  id           Int             @id @default(autoincrement()) @map("id")
+  resourceType MetaResourceType @map("resource_type")
+  resourceId   Int             @map("resource_id")
+  key          String          @map("key")
+  value        String          @map("value") // Encrypted value stored as string
+  valueType    MetaValueType   @default(string) @map("value_type")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  // Note: Polymorphic relations - resourceId refers to different tables based on resourceType
+  // Foreign key constraints cannot be enforced at DB level for polymorphic relations
+  // Relations are handled at application level
+
+  @@unique([resourceType, resourceId, key])
+  @@index([resourceType, resourceId])
+  @@map("meta")
 }

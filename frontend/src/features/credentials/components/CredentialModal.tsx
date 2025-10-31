@@ -53,18 +53,16 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
         data: {},
       });
       
-      // Parse credential data (it's masked, but we'll allow editing)
+      // Parse credential data (it's masked, but we'll show keys for editing)
       try {
-        const parsedData = typeof credential.data === 'string' 
-          ? JSON.parse(credential.data) 
-          : credential.data;
+        const parsedData = credential.data || {};
         
         if (typeof parsedData === 'object' && parsedData !== null) {
           const keys = Object.keys(parsedData);
           setDataKeys(keys);
           const values: Record<string, string> = {};
           keys.forEach((key) => {
-            // Data is masked, so we'll show empty fields
+            // Data is masked, so we'll show empty fields (user can fill them to update)
             values[key] = '';
           });
           setDataValues(values);
@@ -145,8 +143,8 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
       }
     });
     
-    // Validate data has at least one non-empty key-value pair
-    if (Object.keys(dataObject).length === 0) {
+    // Validate data has at least one non-empty key-value pair (only required on create, not update)
+    if (!isEditing && Object.keys(dataObject).length === 0) {
       form.setError('data', { message: 'Credential data is required. Please add at least one key-value pair with both key and value filled.' });
       return;
     }
@@ -162,7 +160,8 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
           data: {
             name: values.name,
             type: values.type,
-            data: dataObject,
+            // Only send data if there are changes (allow partial updates)
+            ...(Object.keys(dataObject).length > 0 ? { data: dataObject } : {}),
           },
         });
       } else {
