@@ -58,8 +58,10 @@ export function UserModal({ isOpen, onClose, user, onDelete }: UserModalProps) {
     },
   });
 
-  // Reset form when user changes
+  // Reset form when modal opens/closes or user changes
   useEffect(() => {
+    if (!isOpen) return;
+    
     if (user) {
       form.reset({
         email: user.email,
@@ -75,7 +77,10 @@ export function UserModal({ isOpen, onClose, user, onDelete }: UserModalProps) {
         username: '',
       });
     }
-  }, [user, form]);
+    setShowPassword(false);
+    setError(null);
+    setShowDeleteConfirm(false);
+  }, [isOpen, user, form]);
 
   const onSubmit = async (values: UserFormValues) => {
     setError(null);
@@ -105,7 +110,17 @@ export function UserModal({ isOpen, onClose, user, onDelete }: UserModalProps) {
           username: values.username,
         });
       }
-      form.reset();
+      
+      // Reset form after successful submission (only for create, not update)
+      if (!isEditing) {
+        form.reset({
+          email: '',
+          password: '',
+          name: '',
+          username: '',
+        });
+        setShowPassword(false);
+      }
       onClose();
     } catch (err: any) {
       setError(err?.message || 'Failed to save user');

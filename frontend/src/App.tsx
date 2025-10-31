@@ -9,6 +9,7 @@ import { GroupsPage } from './features/groups/pages/GroupsPage';
 import { ServersPage } from './features/servers/pages/ServersPage';
 import { ServicesPage } from './features/services/pages/ServicesPage';
 import { CredentialsPage } from './features/credentials/pages/CredentialsPage';
+import { DomainsPage } from './features/domains/pages/DomainsPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth } from './components/common/RequireAuth';
 import { RequirePermission } from './components/common/RequirePermission';
@@ -126,6 +127,18 @@ export default function App() {
             <RequirePermission permission="groups:view">
               <AppLayout>
                 <GroupsPage />
+              </AppLayout>
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/domains"
+        element={
+          <RequireAuth>
+            <RequirePermission permission="domains:view">
+              <AppLayout>
+                <DomainsPage />
               </AppLayout>
             </RequirePermission>
           </RequireAuth>

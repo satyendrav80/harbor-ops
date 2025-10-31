@@ -42,8 +42,10 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
     },
   });
 
-  // Parse and set credential data when editing
+  // Reset form when modal opens/closes or credential changes
   useEffect(() => {
+    if (!isOpen) return;
+    
     if (credential && isEditing) {
       form.reset({
         name: credential.name,
@@ -85,7 +87,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
     }
     setError(null);
     setShowDeleteConfirm(false);
-  }, [credential, form, isEditing]);
+  }, [isOpen, credential, form, isEditing]);
 
   const addDataField = () => {
     const newKey = `key${dataKeys.length + 1}`;
@@ -171,6 +173,16 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
         });
       }
 
+      // Reset form after successful submission (only for create, not update)
+      if (!isEditing) {
+        form.reset({
+          name: '',
+          type: '',
+          data: {},
+        });
+        setDataKeys([]);
+        setDataValues({});
+      }
       onClose();
     } catch (err: any) {
       setError(err?.message || `Failed to ${isEditing ? 'update' : 'create'} credential`);

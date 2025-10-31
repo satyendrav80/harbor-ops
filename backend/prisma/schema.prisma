@@ -71,7 +71,7 @@ model Credential {
   type       String                               @map("type")
   data       Json                                 @map("data")
   createdAt  DateTime @default(now())             @map("created_at")
-  services   Service[]
+  services   ServiceCredential[]
   servers    ServerCredential[]
 
   @@map("credentials")
@@ -112,6 +112,7 @@ model Server {
   services    Service[]
   tags        ServerTag[]
   credentials ServerCredential[]
+  domains     ServerDomain[]
 
   @@map("servers")
 }
@@ -128,10 +129,10 @@ model Service {
   createdAt      DateTime    @default(now())              @map("created_at")
   serverId       Int                                      @map("server_id")
   server         Server      @relation(fields: [serverId], references: [id])
-  credentialId   Int?                                     @map("credential_id")
-  credential     Credential? @relation(fields: [credentialId], references: [id])
   tags           ServiceTag[]
   releaseNotes   ReleaseNote[]
+  credentials    ServiceCredential[]
+  domains        ServiceDomain[]
 
   @@map("services")
 }
@@ -220,6 +221,38 @@ model Domain {
   name      String    @unique                       @map("name")
   createdAt DateTime  @default(now())               @map("created_at")
   updatedAt DateTime  @updatedAt                   @map("updated_at")
+  servers   ServerDomain[]
+  services  ServiceDomain[]
 
   @@map("domains")
+}
+
+model ServiceCredential {
+  serviceId    Int @map("service_id")
+  credentialId Int @map("credential_id")
+  service      Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  credential   Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@id([serviceId, credentialId])
+  @@map("service_credentials")
+}
+
+model ServerDomain {
+  serverId Int @map("server_id")
+  domainId Int @map("domain_id")
+  server   Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  @@id([serverId, domainId])
+  @@map("server_domains")
+}
+
+model ServiceDomain {
+  serviceId Int @map("service_id")
+  domainId  Int @map("domain_id")
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  domain    Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  @@id([serviceId, domainId])
+  @@map("service_domains")
 }

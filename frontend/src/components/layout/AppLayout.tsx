@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../features/auth/context/AuthContext';
 import { ThemeToggle } from '../ui/ThemeToggle';
-import { LayoutDashboard, Server, Cloud, Lock, Tag, FileText, FolderTree, User, Menu, X, LogOut, Shield } from 'lucide-react';
+import { LayoutDashboard, Server, Cloud, Lock, Tag, FileText, FolderTree, User, Menu, X, LogOut, Shield, Globe } from 'lucide-react';
 import { GlobalApiError } from '../common/GlobalApiError';
 import { usePageTitle } from '../../hooks/usePageTitle';
 
@@ -25,6 +25,7 @@ const allNavigationItems: NavigationItem[] = [
   { name: 'Tags', path: '/tags', icon: Tag, permission: 'tags:view' },
   { name: 'Release Notes', path: '/release-notes', icon: FileText, permission: 'release-notes:view' },
   { name: 'Groups', path: '/groups', icon: FolderTree, permission: 'groups:view' },
+  { name: 'Domains', path: '/domains', icon: Globe, permission: 'domains:view' },
   { name: 'Users & Roles', path: '/users', icon: Shield, permission: 'users:view' },
   { name: 'Profile', path: '/profile', icon: User }, // Profile is always visible
 ];

@@ -40,7 +40,8 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
       include: includeRelations
         ? {
             server: true,
-            credential: true,
+            credentials: { include: { credential: true } },
+            domains: { include: { domain: true } },
             tags: { include: { tag: true } },
             releaseNotes: true,
           }
@@ -64,24 +65,52 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
 });
 
 router.post('/', requirePermission('services:create'), async (req, res) => {
-  const { name, port, serverId, credentialId, sourceRepo, appId, functionName, deploymentUrl, metadata } = req.body;
-  const created = await prisma.service.create({
-    data: {
-      name,
-      port: Number(port),
-      serverId: Number(serverId),
-      credentialId: credentialId ? Number(credentialId) : null,
-      sourceRepo: sourceRepo || null,
-      appId: appId || null,
-      functionName: functionName || null,
-      deploymentUrl: deploymentUrl || null,
-      metadata: metadata || null,
-    },
-    include: {
-      server: true,
-      credential: true,
-    },
+  const { name, port, serverId, credentialIds, domainIds, sourceRepo, appId, functionName, deploymentUrl, metadata } = req.body;
+  
+  // Create service with credentials and domains in a transaction
+  const created = await prisma.$transaction(async (tx) => {
+    const service = await tx.service.create({
+      data: {
+        name,
+        port: Number(port),
+        serverId: Number(serverId),
+        sourceRepo: sourceRepo || null,
+        appId: appId || null,
+        functionName: functionName || null,
+        deploymentUrl: deploymentUrl || null,
+        metadata: metadata || null,
+      },
+    });
+    
+    // Attach credentials if provided
+    if (credentialIds && Array.isArray(credentialIds) && credentialIds.length > 0) {
+      const credentialData = credentialIds.map((credId: number) => ({
+        serviceId: service.id,
+        credentialId: Number(credId),
+      }));
+      await tx.serviceCredential.createMany({ data: credentialData, skipDuplicates: true });
+    }
+    
+    // Attach domains if provided
+    if (domainIds && Array.isArray(domainIds) && domainIds.length > 0) {
+      const domainData = domainIds.map((domainId: number) => ({
+        serviceId: service.id,
+        domainId: Number(domainId),
+      }));
+      await tx.serviceDomain.createMany({ data: domainData, skipDuplicates: true });
+    }
+    
+    // Return service with relations
+    return await tx.service.findUnique({
+      where: { id: service.id },
+      include: {
+        server: true,
+        credentials: { include: { credential: true } },
+        domains: { include: { domain: true } },
+      },
+    });
   });
+  
   res.status(201).json(created);
 });
 
@@ -91,7 +120,8 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
     where: { id },
     include: {
       server: true,
-      credential: true,
+      credentials: { include: { credential: true } },
+      domains: { include: { domain: true } },
       tags: { include: { tag: true } },
       releaseNotes: true,
     },
@@ -102,25 +132,66 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
 
 router.put('/:id', requirePermission('services:update'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, port, serverId, credentialId, sourceRepo, appId, functionName, deploymentUrl, metadata } = req.body;
-  const updated = await prisma.service.update({
-    where: { id },
-    data: {
-      name,
-      port: Number(port),
-      serverId: Number(serverId),
-      credentialId: credentialId ? Number(credentialId) : null,
-      sourceRepo: sourceRepo !== undefined ? (sourceRepo || null) : undefined,
-      appId: appId !== undefined ? (appId || null) : undefined,
-      functionName: functionName !== undefined ? (functionName || null) : undefined,
-      deploymentUrl: deploymentUrl !== undefined ? (deploymentUrl || null) : undefined,
-      metadata: metadata !== undefined ? (metadata || null) : undefined,
-    },
-    include: {
-      server: true,
-      credential: true,
-    },
+  const { name, port, serverId, credentialIds, domainIds, sourceRepo, appId, functionName, deploymentUrl, metadata } = req.body;
+  
+  // Update service with credentials and domains in a transaction
+  const updated = await prisma.$transaction(async (tx) => {
+    // Update service
+    await tx.service.update({
+      where: { id },
+      data: {
+        name,
+        port: Number(port),
+        serverId: Number(serverId),
+        sourceRepo: sourceRepo !== undefined ? (sourceRepo || null) : undefined,
+        appId: appId !== undefined ? (appId || null) : undefined,
+        functionName: functionName !== undefined ? (functionName || null) : undefined,
+        deploymentUrl: deploymentUrl !== undefined ? (deploymentUrl || null) : undefined,
+        metadata: metadata !== undefined ? (metadata || null) : undefined,
+      },
+    });
+    
+    // Update credentials if provided
+    if (credentialIds !== undefined) {
+      // Remove all existing credentials
+      await tx.serviceCredential.deleteMany({ where: { serviceId: id } });
+      
+      // Add new credentials if provided
+      if (Array.isArray(credentialIds) && credentialIds.length > 0) {
+        const credentialData = credentialIds.map((credId: number) => ({
+          serviceId: id,
+          credentialId: Number(credId),
+        }));
+        await tx.serviceCredential.createMany({ data: credentialData, skipDuplicates: true });
+      }
+    }
+    
+    // Update domains if provided
+    if (domainIds !== undefined) {
+      // Remove all existing domains
+      await tx.serviceDomain.deleteMany({ where: { serviceId: id } });
+      
+      // Add new domains if provided
+      if (Array.isArray(domainIds) && domainIds.length > 0) {
+        const domainData = domainIds.map((domainId: number) => ({
+          serviceId: id,
+          domainId: Number(domainId),
+        }));
+        await tx.serviceDomain.createMany({ data: domainData, skipDuplicates: true });
+      }
+    }
+    
+    // Return service with relations
+    return await tx.service.findUnique({
+      where: { id },
+      include: {
+        server: true,
+        credentials: { include: { credential: true } },
+        domains: { include: { domain: true } },
+      },
+    });
   });
+  
   res.json(updated);
 });
 

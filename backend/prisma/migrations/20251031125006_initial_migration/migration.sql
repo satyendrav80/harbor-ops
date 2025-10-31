@@ -73,6 +73,14 @@ CREATE TABLE "public"."credentials" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."server_credentials" (
+    "server_id" INTEGER NOT NULL,
+    "credential_id" INTEGER NOT NULL,
+
+    CONSTRAINT "server_credentials_pkey" PRIMARY KEY ("server_id","credential_id")
+);
+
+-- CreateTable
 CREATE TABLE "public"."servers" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
@@ -80,6 +88,7 @@ CREATE TABLE "public"."servers" (
     "public_ip" TEXT,
     "private_ip" TEXT,
     "endpoint" TEXT,
+    "port" INTEGER,
     "ssh_port" INTEGER,
     "username" TEXT,
     "password" TEXT,
@@ -100,7 +109,6 @@ CREATE TABLE "public"."services" (
     "metadata" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "server_id" INTEGER NOT NULL,
-    "credential_id" INTEGER,
 
     CONSTRAINT "services_pkey" PRIMARY KEY ("id")
 );
@@ -172,6 +180,30 @@ CREATE TABLE "public"."domains" (
     CONSTRAINT "domains_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "public"."service_credentials" (
+    "service_id" INTEGER NOT NULL,
+    "credential_id" INTEGER NOT NULL,
+
+    CONSTRAINT "service_credentials_pkey" PRIMARY KEY ("service_id","credential_id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."server_domains" (
+    "server_id" INTEGER NOT NULL,
+    "domain_id" INTEGER NOT NULL,
+
+    CONSTRAINT "server_domains_pkey" PRIMARY KEY ("server_id","domain_id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."service_domains" (
+    "service_id" INTEGER NOT NULL,
+    "domain_id" INTEGER NOT NULL,
+
+    CONSTRAINT "service_domains_pkey" PRIMARY KEY ("service_id","domain_id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "public"."users"("email");
 
@@ -209,10 +241,13 @@ ALTER TABLE "public"."role_permissions" ADD CONSTRAINT "role_permissions_role_id
 ALTER TABLE "public"."role_permissions" ADD CONSTRAINT "role_permissions_permission_id_fkey" FOREIGN KEY ("permission_id") REFERENCES "public"."permissions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."services" ADD CONSTRAINT "services_server_id_fkey" FOREIGN KEY ("server_id") REFERENCES "public"."servers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."server_credentials" ADD CONSTRAINT "server_credentials_server_id_fkey" FOREIGN KEY ("server_id") REFERENCES "public"."servers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."services" ADD CONSTRAINT "services_credential_id_fkey" FOREIGN KEY ("credential_id") REFERENCES "public"."credentials"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "public"."server_credentials" ADD CONSTRAINT "server_credentials_credential_id_fkey" FOREIGN KEY ("credential_id") REFERENCES "public"."credentials"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."services" ADD CONSTRAINT "services_server_id_fkey" FOREIGN KEY ("server_id") REFERENCES "public"."servers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."group_items" ADD CONSTRAINT "group_items_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "public"."groups"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -231,3 +266,21 @@ ALTER TABLE "public"."server_tags" ADD CONSTRAINT "server_tags_tag_id_fkey" FORE
 
 -- AddForeignKey
 ALTER TABLE "public"."release_notes" ADD CONSTRAINT "release_notes_service_id_fkey" FOREIGN KEY ("service_id") REFERENCES "public"."services"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."service_credentials" ADD CONSTRAINT "service_credentials_service_id_fkey" FOREIGN KEY ("service_id") REFERENCES "public"."services"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."service_credentials" ADD CONSTRAINT "service_credentials_credential_id_fkey" FOREIGN KEY ("credential_id") REFERENCES "public"."credentials"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."server_domains" ADD CONSTRAINT "server_domains_server_id_fkey" FOREIGN KEY ("server_id") REFERENCES "public"."servers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."server_domains" ADD CONSTRAINT "server_domains_domain_id_fkey" FOREIGN KEY ("domain_id") REFERENCES "public"."domains"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."service_domains" ADD CONSTRAINT "service_domains_service_id_fkey" FOREIGN KEY ("service_id") REFERENCES "public"."services"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."service_domains" ADD CONSTRAINT "service_domains_domain_id_fkey" FOREIGN KEY ("domain_id") REFERENCES "public"."domains"("id") ON DELETE CASCADE ON UPDATE CASCADE;

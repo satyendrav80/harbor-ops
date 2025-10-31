@@ -101,5 +101,46 @@ router.delete('/:id', requirePermission('domains:delete'), async (req, res) => {
   res.status(204).end();
 });
 
+// Get domains for a specific server or service
+router.get('/by-item/:itemType/:itemId', requirePermission('domains:view'), async (req, res) => {
+  const itemType = req.params.itemType;
+  const itemId = Number(req.params.itemId);
+
+  if (!['server', 'service'].includes(itemType)) {
+    return res.status(400).json({ error: 'Invalid item type. Must be "server" or "service"' });
+  }
+  if (isNaN(itemId)) {
+    return res.status(400).json({ error: 'Invalid item ID' });
+  }
+
+  try {
+    if (itemType === 'server') {
+      const serverDomains = await prisma.serverDomain.findMany({
+        where: {
+          serverId: itemId,
+        },
+        select: {
+          domainId: true,
+        },
+      });
+      const domainIds = serverDomains.map((sd) => sd.domainId);
+      res.json(domainIds);
+    } else {
+      const serviceDomains = await prisma.serviceDomain.findMany({
+        where: {
+          serviceId: itemId,
+        },
+        select: {
+          domainId: true,
+        },
+      });
+      const domainIds = serviceDomains.map((sd) => sd.domainId);
+      res.json(domainIds);
+    }
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to fetch domains by item' });
+  }
+});
+
 export default router;
 

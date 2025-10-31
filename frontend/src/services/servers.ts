@@ -19,6 +19,12 @@ export type Server = {
       type: string;
     };
   }>;
+  domains?: Array<{
+    domain: {
+      id: number;
+      name: string;
+    };
+  }>;
   tags?: Array<{
     tag: {
       id: number;
@@ -56,7 +62,7 @@ export async function getServer(id: number): Promise<Server> {
 /**
  * Create a new server
  */
-export async function createServer(data: Omit<Server, 'id' | 'createdAt'>): Promise<Server> {
+export async function createServer(data: Omit<Server, 'id' | 'createdAt' | 'tags' | 'credentials' | 'domains'> & { credentialIds?: number[]; domainIds?: number[] }): Promise<Server> {
   return apiFetch<Server>('/servers', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -66,7 +72,7 @@ export async function createServer(data: Omit<Server, 'id' | 'createdAt'>): Prom
 /**
  * Update a server
  */
-export async function updateServer(id: number, data: Partial<Omit<Server, 'id' | 'createdAt'>>): Promise<Server> {
+export async function updateServer(id: number, data: Partial<Omit<Server, 'id' | 'createdAt' | 'tags' | 'credentials' | 'domains'>> & { credentialIds?: number[]; domainIds?: number[] }): Promise<Server> {
   return apiFetch<Server>(`/servers/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),

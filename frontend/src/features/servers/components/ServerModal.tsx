@@ -14,6 +14,7 @@ import { getGroups, getGroupsByItem } from '../../../services/groups';
 import { useAddItemToGroup, useRemoveItemFromGroup } from '../../groups/hooks/useGroupMutations';
 import { useAuth } from '../../auth/context/AuthContext';
 import { getCredentials } from '../../../services/credentials';
+import { getDomains, getDomainsByItem } from '../../../services/domains';
 
 type ServerModalProps = {
   isOpen: boolean;
@@ -62,6 +63,24 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
     enabled: isOpen && isEditing && !!server?.id && hasPermission('groups:view'),
   });
 
+  // Fetch domains for multi-select
+  const { data: domainsData } = useQuery({
+    queryKey: ['domains', 'all'],
+    queryFn: () => getDomains({ limit: 1000 }),
+    staleTime: 5 * 60 * 1000,
+    enabled: isOpen && hasPermission('domains:view'),
+  });
+
+  // Fetch existing domains for this server (if editing)
+  const { data: existingDomainsData } = useQuery({
+    queryKey: ['domains', 'server', server?.id],
+    queryFn: async () => {
+      if (!server?.id) return [];
+      return getDomainsByItem('server', server.id);
+    },
+    enabled: isOpen && isEditing && !!server?.id && hasPermission('domains:view'),
+  });
+
   // Create schema dynamically based on constants from backend
   const serverSchema = useMemo(() => {
     const serverTypes = constants?.serverTypes || ['os'];
@@ -76,6 +95,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
       username: z.string().max(100).optional().or(z.literal('')),
       password: z.string().optional(),
       credentialIds: z.array(z.number()).optional(),
+      domainIds: z.array(z.number()).optional(),
       groupIds: z.array(z.number()).optional(),
     }).refine((data) => {
       // OS and EC2: require IP fields and SSH port
@@ -121,12 +141,15 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
       username: server?.username || '',
       password: '',
       credentialIds: server?.credentials?.map((sc) => sc.credential.id) || [],
+      domainIds: [],
       groupIds: [],
     },
   });
 
-  // Reset form when server changes
+  // Reset form when modal opens/closes or server changes
   useEffect(() => {
+    if (!isOpen) return;
+    
     const defaultType = (constants?.serverTypes[0] as string) || 'os';
     if (server) {
       form.reset({
@@ -140,6 +163,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         username: server.username || '',
         password: '', // Password is not sent in response, will be revealed via API
         credentialIds: server.credentials?.map((sc) => sc.credential.id) || [],
+        domainIds: existingDomainsData || [],
         groupIds: existingGroupsData || [],
       });
     } else {
@@ -154,12 +178,13 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         username: '',
         password: '',
         credentialIds: [],
+        domainIds: [],
         groupIds: [],
       });
     }
     setError(null);
     setShowDeleteConfirm(false);
-  }, [server, form, constants, existingGroupsData]);
+  }, [isOpen, server, form, constants, existingGroupsData, existingDomainsData]);
 
   // Watch server type for conditional fields (after form is initialized)
   const watchedType = form.watch('type');
@@ -176,6 +201,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         name: values.name,
         type: values.type,
         credentialIds: values.credentialIds || [],
+        domainIds: values.domainIds || [],
       };
       
       // OS and EC2: IP fields + SSH port + optional username/password
@@ -238,6 +264,24 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         );
       }
 
+      // Reset form after successful submission (only for create, not update)
+      if (!isEditing) {
+        const defaultType = (constants?.serverTypes[0] as string) || 'os';
+              form.reset({
+                name: '',
+                type: defaultType,
+                publicIp: '',
+                privateIp: '',
+                endpoint: '',
+                port: undefined,
+                sshPort: 22,
+                username: '',
+                password: '',
+                credentialIds: [],
+                domainIds: [],
+                groupIds: [],
+              });
+      }
       onClose();
     } catch (err: any) {
       setError(err?.message || `Failed to ${isEditing ? 'update' : 'create'} server`);
@@ -461,7 +505,24 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
           )}
         </div>
 
-                {hasPermission('groups:update') && groupsData?.data && groupsData.data.length > 0 && (
+        {/* Domains selector (optional) - Multi-select */}
+        {hasPermission('domains:view') && domainsData?.data && domainsData.data.length > 0 && (
+          <div>
+            <SearchableMultiSelect
+              options={domainsData.data.map((d) => ({ id: d.id, name: d.name }))}
+              selectedIds={form.watch('domainIds') || []}
+              onChange={(selectedIds) => form.setValue('domainIds', selectedIds)}
+              placeholder="Search and select domains..."
+              label="Domains (Optional)"
+              disabled={isLoading}
+            />
+            {form.formState.errors.domainIds && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.domainIds?.message}</p>
+            )}
+          </div>
+        )}
+
+        {hasPermission('groups:update') && groupsData?.data && groupsData.data.length > 0 && (
                   <div>
                     <SearchableMultiSelect
                       options={groupsData.data.map((g) => ({ id: g.id, name: g.name }))}

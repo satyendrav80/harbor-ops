@@ -77,8 +77,10 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
     return () => subscription.unsubscribe();
   }, [form]);
 
-  // Reset form when permission changes
+  // Reset form when modal opens/closes or permission changes
   useEffect(() => {
+    if (!isOpen) return;
+    
     if (permission) {
       form.reset({ 
         name: permission.name,
@@ -94,7 +96,9 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
         description: '' 
       });
     }
-  }, [permission, form]);
+    setError(null);
+    setShowDeleteConfirm(false);
+  }, [isOpen, permission, form]);
 
   const onSubmit = async (values: PermissionFormValues) => {
     setError(null);

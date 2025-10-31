@@ -36,14 +36,18 @@ export function RoleModal({ isOpen, onClose, role, onDelete }: RoleModalProps) {
     },
   });
 
-  // Reset form when role changes
+  // Reset form when modal opens/closes or role changes
   useEffect(() => {
+    if (!isOpen) return;
+    
     if (role) {
       form.reset({ name: role.name });
     } else {
       form.reset({ name: '' });
     }
-  }, [role, form]);
+    setError(null);
+    setShowDeleteConfirm(false);
+  }, [isOpen, role, form]);
 
   const onSubmit = async (values: RoleFormValues) => {
     setError(null);

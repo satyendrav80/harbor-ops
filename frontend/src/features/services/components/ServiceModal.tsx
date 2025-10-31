@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getServers } from '../../../services/servers';
 import { getCredentials } from '../../../services/credentials';
 import { getGroups, getGroupsByItem } from '../../../services/groups';
+import { getDomains, getDomainsByItem } from '../../../services/domains';
 import { useAddItemToGroup, useRemoveItemFromGroup } from '../../groups/hooks/useGroupMutations';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useConstants } from '../../constants/hooks/useConstants';
@@ -19,7 +20,8 @@ const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required').max(100, 'Service name must be 100 characters or less'),
   port: z.coerce.number().int().min(1, 'Port must be between 1 and 65535').max(65535),
   serverId: z.coerce.number().int().min(1, 'Server is required'),
-  credentialId: z.coerce.number().int().optional().nullable(),
+  credentialIds: z.array(z.number()).optional(),
+  domainIds: z.array(z.number()).optional(),
   sourceRepo: z.string().optional().refine((val) => !val || val === '' || z.string().url().safeParse(val).success, {
     message: 'Invalid URL',
   }),
@@ -86,13 +88,32 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
     enabled: isOpen && isEditing && !!service?.id && hasPermission('groups:view'),
   });
 
+  // Fetch domains for multi-select
+  const { data: domainsData } = useQuery({
+    queryKey: ['domains', 'all'],
+    queryFn: () => getDomains({ limit: 1000 }),
+    staleTime: 5 * 60 * 1000,
+    enabled: isOpen && hasPermission('domains:view'),
+  });
+
+  // Fetch existing domains for this service (if editing)
+  const { data: existingDomainsData } = useQuery({
+    queryKey: ['domains', 'service', service?.id],
+    queryFn: async () => {
+      if (!service?.id) return [];
+      return getDomainsByItem('service', service.id);
+    },
+    enabled: isOpen && isEditing && !!service?.id && hasPermission('domains:view'),
+  });
+
   const form = useForm<ServiceFormValues>({
     resolver: zodResolver(serviceSchema),
     defaultValues: {
       name: service?.name || '',
       port: service?.port || 80,
       serverId: service?.serverId || 0,
-      credentialId: service?.credentialId || null,
+      credentialIds: [],
+      domainIds: [],
       sourceRepo: service?.sourceRepo || '',
       appId: service?.appId || '',
       functionName: service?.functionName || '',
@@ -117,7 +138,8 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         name: service.name,
         port: service.port,
         serverId: service.serverId,
-        credentialId: service.credentialId || null,
+        credentialIds: service.credentials?.map((sc) => sc.credential.id) || [],
+        domainIds: existingDomainsData || [],
         sourceRepo: service.sourceRepo || '',
         appId: service.appId || '',
         functionName: service.functionName || '',
@@ -129,7 +151,8 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         name: '',
         port: 80,
         serverId: 0,
-        credentialId: null,
+        credentialIds: [],
+        domainIds: [],
         sourceRepo: '',
         appId: '',
         functionName: '',
@@ -139,7 +162,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
     }
     setError(null);
     setShowDeleteConfirm(false);
-  }, [service, form, existingGroupsData]);
+  }, [isOpen, service, form, existingGroupsData, existingDomainsData]);
 
   const onSubmit = async (values: ServiceFormValues) => {
     setError(null);
@@ -153,7 +176,8 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
             name: values.name,
             port: values.port,
             serverId: values.serverId,
-            credentialId: values.credentialId || null,
+            credentialIds: values.credentialIds || [],
+            domainIds: values.domainIds || [],
             sourceRepo: values.sourceRepo || null,
             appId: values.appId || null,
             functionName: values.functionName || null,
@@ -165,7 +189,8 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
           name: values.name,
           port: values.port,
           serverId: values.serverId,
-          credentialId: values.credentialId || null,
+          credentialIds: values.credentialIds || [],
+          domainIds: values.domainIds || [],
           sourceRepo: values.sourceRepo || null,
           appId: values.appId || null,
           functionName: values.functionName || null,
@@ -203,6 +228,20 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         );
       }
 
+      // Reset form after successful submission (only for create, not update)
+      if (!isEditing) {
+        form.reset({
+          name: '',
+          port: 80,
+          serverId: 0,
+          credentialId: null,
+          sourceRepo: '',
+          appId: '',
+          functionName: '',
+          deploymentUrl: '',
+          groupIds: [],
+        });
+      }
       onClose();
     } catch (err: any) {
       setError(err?.message || `Failed to ${isEditing ? 'update' : 'create'} service`);
@@ -347,25 +386,37 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
           </>
         )}
 
-        <div>
-          <label className="flex flex-col">
-            <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Credential (Optional)</span>
-            <select
-              className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-              {...form.register('credentialId', { setValueAs: (v) => (v === '' ? null : Number(v)) })}
-            >
-              <option value="">No credential</option>
-              {credentialsList.map((credential) => (
-                <option key={credential.id} value={credential.id}>
-                  {credential.name} ({credential.type})
-                </option>
-              ))}
-            </select>
-          </label>
-          {form.formState.errors.credentialId && (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.credentialId?.message}</p>
-          )}
-        </div>
+        {credentialsList.length > 0 && (
+          <div>
+            <SearchableMultiSelect
+              options={credentialsList.map((c) => ({ id: c.id, name: `${c.name} (${c.type})` }))}
+              selectedIds={form.watch('credentialIds') || []}
+              onChange={(selectedIds) => form.setValue('credentialIds', selectedIds)}
+              placeholder="Search and select credentials..."
+              label="Credentials (Optional)"
+              disabled={isLoading}
+            />
+            {form.formState.errors.credentialIds && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.credentialIds?.message}</p>
+            )}
+          </div>
+        )}
+
+        {hasPermission('domains:view') && domainsData?.data && domainsData.data.length > 0 && (
+          <div>
+            <SearchableMultiSelect
+              options={domainsData.data.map((d) => ({ id: d.id, name: d.name }))}
+              selectedIds={form.watch('domainIds') || []}
+              onChange={(selectedIds) => form.setValue('domainIds', selectedIds)}
+              placeholder="Search and select domains..."
+              label="Domains (Optional)"
+              disabled={isLoading}
+            />
+            {form.formState.errors.domainIds && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.domainIds?.message}</p>
+            )}
+          </div>
+        )}
 
         {hasPermission('groups:update') && groups.length > 0 && (
           <div>

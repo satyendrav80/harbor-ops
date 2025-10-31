@@ -34,16 +34,17 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
     : {};
 
   const [servers, total] = await Promise.all([
-    prisma.server.findMany({
-      where: searchConditions,
-      include: {
-        tags: { include: { tag: true } },
-        credentials: { include: { credential: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      skip: offset,
-      take: limit,
-    }),
+            prisma.server.findMany({
+              where: searchConditions,
+              include: {
+                tags: { include: { tag: true } },
+                credentials: { include: { credential: true } },
+                domains: { include: { domain: true } },
+              },
+              orderBy: { createdAt: 'desc' },
+              skip: offset,
+              take: limit,
+            }),
     prisma.server.count({ where: searchConditions }),
   ]);
 
@@ -102,7 +103,7 @@ router.post('/', requirePermission('servers:create'), async (req, res) => {
     data.password = encryptedPassword;
   }
   
-  // Create server with credentials if provided
+  // Create server with credentials and domains if provided
   const created = await prisma.$transaction(async (tx) => {
     const server = await tx.server.create({ data });
     
@@ -115,12 +116,22 @@ router.post('/', requirePermission('servers:create'), async (req, res) => {
       await tx.serverCredential.createMany({ data: credentialData, skipDuplicates: true });
     }
     
-    // Return server with credentials
+    // Attach domains if provided
+    if (domainIds && Array.isArray(domainIds) && domainIds.length > 0) {
+      const domainData = domainIds.map((domainId: number) => ({
+        serverId: server.id,
+        domainId: Number(domainId),
+      }));
+      await tx.serverDomain.createMany({ data: domainData, skipDuplicates: true });
+    }
+    
+    // Return server with credentials and domains
     return await tx.server.findUnique({
       where: { id: server.id },
       include: {
         tags: { include: { tag: true } },
         credentials: { include: { credential: true } },
+        domains: { include: { domain: true } },
       },
     });
   });
@@ -135,6 +146,7 @@ router.get('/:id', requirePermission('servers:view'), async (req, res) => {
     include: {
       tags: { include: { tag: true } },
       credentials: { include: { credential: true } },
+      domains: { include: { domain: true } },
     },
   });
   if (!server) return res.status(404).json({ error: 'Not found' });
@@ -164,7 +176,7 @@ router.put('/:id', requirePermission('servers:update'), async (req, res) => {
   const server = await prisma.server.findUnique({ where: { id } });
   if (!server) return res.status(404).json({ error: 'Server not found' });
   
-  const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds } = req.body;
+  const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds, domainIds } = req.body;
   
   const updateData: any = {
     name,
@@ -210,7 +222,7 @@ router.put('/:id', requirePermission('servers:update'), async (req, res) => {
     updateData.password = encrypt(password);
   }
 
-  // Update server and credentials in a transaction
+  // Update server, credentials, and domains in a transaction
   const updated = await prisma.$transaction(async (tx) => {
     // Update server
     await tx.server.update({ where: { id }, data: updateData });
@@ -230,12 +242,28 @@ router.put('/:id', requirePermission('servers:update'), async (req, res) => {
       }
     }
     
-    // Return server with credentials
+    // Update domains if provided
+    if (domainIds !== undefined) {
+      // Remove all existing domains
+      await tx.serverDomain.deleteMany({ where: { serverId: id } });
+      
+      // Add new domains if provided
+      if (Array.isArray(domainIds) && domainIds.length > 0) {
+        const domainData = domainIds.map((domainId: number) => ({
+          serverId: id,
+          domainId: Number(domainId),
+        }));
+        await tx.serverDomain.createMany({ data: domainData, skipDuplicates: true });
+      }
+    }
+    
+    // Return server with credentials and domains
     return await tx.server.findUnique({
       where: { id },
       include: {
         tags: { include: { tag: true } },
         credentials: { include: { credential: true } },
+        domains: { include: { domain: true } },
       },
     });
   });

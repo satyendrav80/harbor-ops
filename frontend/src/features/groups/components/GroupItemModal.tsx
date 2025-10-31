@@ -81,6 +81,12 @@ export function GroupItemModal({ isOpen, onClose, groupId, existingItemIds = [] 
         itemType: values.itemType,
         itemId: values.itemId,
       });
+      
+      // Reset form after successful submission
+      form.reset({
+        itemType: selectedType,
+        itemId: 0,
+      });
       onClose();
     } catch (err: any) {
       setError(err?.message || 'Failed to add item to group');

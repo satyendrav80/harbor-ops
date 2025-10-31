@@ -188,11 +188,19 @@ export function ServicesPage() {
                         )}
                       </p>
                     </div>
-                    {service.credential && (
+                    {service.credentials && service.credentials.length > 0 && (
                       <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Credential</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Credentials</p>
                         <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {service.credential.name} ({service.credential.type})
+                          {service.credentials.map((sc) => `${sc.credential.name} (${sc.credential.type})`).join(', ')}
+                        </p>
+                      </div>
+                    )}
+                    {service.domains && service.domains.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Domains</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {service.domains.map((sd) => sd.domain.name).join(', ')}
                         </p>
                       </div>
                     )}

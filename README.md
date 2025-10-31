@@ -32,6 +32,11 @@ npm run dev
 
 ## Database (Prisma + PostgreSQL)
 
+- reset without seet(dev)
+```bash
+npm run db:reset -- --skip-seed
+```
+
 - Migrate (dev):
 ```bash
 npm run db:migrate

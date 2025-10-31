@@ -36,8 +36,10 @@ export function GroupModal({ isOpen, onClose, group, onDelete }: GroupModalProps
     },
   });
 
-  // Reset form when group changes
+  // Reset form when modal opens/closes or group changes
   useEffect(() => {
+    if (!isOpen) return;
+    
     if (group) {
       form.reset({
         name: group.name,
@@ -49,7 +51,7 @@ export function GroupModal({ isOpen, onClose, group, onDelete }: GroupModalProps
     }
     setError(null);
     setShowDeleteConfirm(false);
-  }, [group, form]);
+  }, [isOpen, group, form]);
 
   const onSubmit = async (values: GroupFormValues) => {
     setError(null);
@@ -58,6 +60,11 @@ export function GroupModal({ isOpen, onClose, group, onDelete }: GroupModalProps
         await updateGroup.mutateAsync({ id: group.id, name: values.name });
       } else {
         await createGroup.mutateAsync({ name: values.name });
+      }
+      
+      // Reset form after successful submission (only for create, not update)
+      if (!isEditing) {
+        form.reset({ name: '' });
       }
       onClose();
     } catch (err: any) {
