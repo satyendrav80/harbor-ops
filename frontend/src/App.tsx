@@ -7,6 +7,7 @@ import { ProfilePage } from './features/profile/pages/ProfilePage';
 import { UsersRolesPage } from './features/users/pages/UsersRolesPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth } from './components/common/RequireAuth';
+import { RequirePermission } from './components/common/RequirePermission';
 
 export default function App() {
   return (
@@ -18,9 +19,11 @@ export default function App() {
         path="/dashboard"
         element={
           <RequireAuth>
-            <AppLayout>
-              <DashboardPage />
-            </AppLayout>
+            <RequirePermission permission="dashboard:view">
+              <AppLayout>
+                <DashboardPage />
+              </AppLayout>
+            </RequirePermission>
           </RequireAuth>
         }
       />
@@ -38,9 +41,101 @@ export default function App() {
         path="/users"
         element={
           <RequireAuth>
-            <AppLayout>
-              <UsersRolesPage />
-            </AppLayout>
+            <RequirePermission permission="users:view">
+              <AppLayout>
+                <UsersRolesPage />
+              </AppLayout>
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/servers"
+        element={
+          <RequireAuth>
+            <RequirePermission permission="servers:view">
+              <AppLayout>
+                <div className="p-8">
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Servers</h1>
+                  <p className="text-gray-600 dark:text-gray-400">Servers page coming soon...</p>
+                </div>
+              </AppLayout>
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/services"
+        element={
+          <RequireAuth>
+            <RequirePermission permission="services:view">
+              <AppLayout>
+                <div className="p-8">
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Services</h1>
+                  <p className="text-gray-600 dark:text-gray-400">Services page coming soon...</p>
+                </div>
+              </AppLayout>
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/credentials"
+        element={
+          <RequireAuth>
+            <RequirePermission permission="credentials:view">
+              <AppLayout>
+                <div className="p-8">
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Credentials</h1>
+                  <p className="text-gray-600 dark:text-gray-400">Credentials page coming soon...</p>
+                </div>
+              </AppLayout>
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/tags"
+        element={
+          <RequireAuth>
+            <RequirePermission permission="tags:view">
+              <AppLayout>
+                <div className="p-8">
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Tags</h1>
+                  <p className="text-gray-600 dark:text-gray-400">Tags page coming soon...</p>
+                </div>
+              </AppLayout>
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/release-notes"
+        element={
+          <RequireAuth>
+            <RequirePermission permission="release-notes:view">
+              <AppLayout>
+                <div className="p-8">
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Release Notes</h1>
+                  <p className="text-gray-600 dark:text-gray-400">Release Notes page coming soon...</p>
+                </div>
+              </AppLayout>
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/groups"
+        element={
+          <RequireAuth>
+            <RequirePermission permission="groups:view">
+              <AppLayout>
+                <div className="p-8">
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Groups</h1>
+                  <p className="text-gray-600 dark:text-gray-400">Groups page coming soon...</p>
+                </div>
+              </AppLayout>
+            </RequirePermission>
           </RequireAuth>
         }
       />

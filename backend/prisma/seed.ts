@@ -28,7 +28,7 @@ async function main() {
   }
 
   // Ensure regular has only profile:update
-  const profileUpdate = await prisma.permission.findUnique({ where: { resource_action: { resource: 'profile', action: 'update' } } });
+  const profileUpdate = await prisma.permission.findUnique({ where: { resource_action: { resource: 'profile', action: 'manage' } } });
   if (profileUpdate) {
     await prisma.rolePermission.deleteMany({ where: { roleId: regularRole.id } });
     await prisma.rolePermission.upsert({

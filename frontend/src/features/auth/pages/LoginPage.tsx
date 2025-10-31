@@ -6,6 +6,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useLogin } from '../hooks/useLogin';
 import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from '../../../components/ui/ThemeToggle';
+import { usePageTitle } from '../../../hooks/usePageTitle';
 
 const schema = z.object({
   usernameOrEmail: z.string().min(1, 'Username or email is required'),
@@ -19,6 +20,8 @@ export function LoginPage() {
   const { mutate, isPending } = useLogin();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  usePageTitle();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),

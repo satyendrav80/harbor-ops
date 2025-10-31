@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { useRegister } from '../hooks/useRegister';
 import { ThemeToggle } from '../../../components/ui/ThemeToggle';
+import { usePageTitle } from '../../../hooks/usePageTitle';
 
 const schema = z
   .object({
@@ -22,6 +23,9 @@ export function SignupPage() {
   const { mutate, isPending } = useRegister();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  
+  usePageTitle();
+  
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { name: '', email: '', password: '', confirm: '' } });
 
   const onSubmit = (values: FormValues) => {

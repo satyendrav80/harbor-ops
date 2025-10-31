@@ -4,11 +4,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router-dom';
 import { ThemeToggle } from '../../../components/ui/ThemeToggle';
+import { usePageTitle } from '../../../hooks/usePageTitle';
 
 const schema = z.object({ email: z.string().email('Enter a valid email') });
 type FormValues = z.infer<typeof schema>;
 
 export function ForgotPasswordPage() {
+  usePageTitle();
+  
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { email: '' } });
   const [sent, setSent] = useState(false);
 

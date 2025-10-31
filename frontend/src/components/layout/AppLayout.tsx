@@ -1,24 +1,32 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../features/auth/context/AuthContext';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { LayoutDashboard, Server, Cloud, Lock, Tag, FileText, FolderTree, User, Menu, X, LogOut, Shield } from 'lucide-react';
 import { GlobalApiError } from '../common/GlobalApiError';
+import { usePageTitle } from '../../hooks/usePageTitle';
 
 type AppLayoutProps = {
   children: React.ReactNode;
 };
 
-const navigation = [
-  { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-  { name: 'Servers', path: '/servers', icon: Server },
-  { name: 'Services', path: '/services', icon: Cloud },
-  { name: 'Credentials', path: '/credentials', icon: Lock },
-  { name: 'Tags', path: '/tags', icon: Tag },
-  { name: 'Release Notes', path: '/release-notes', icon: FileText },
-  { name: 'Groups', path: '/groups', icon: FolderTree },
-  { name: 'Users & Roles', path: '/users', icon: Shield },
-  { name: 'Profile', path: '/profile', icon: User },
+type NavigationItem = {
+  name: string;
+  path: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permission?: string; // resource:view permission required, undefined means always visible (like profile)
+};
+
+const allNavigationItems: NavigationItem[] = [
+  { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, permission: 'dashboard:view' },
+  { name: 'Servers', path: '/servers', icon: Server, permission: 'servers:view' },
+  { name: 'Services', path: '/services', icon: Cloud, permission: 'services:view' },
+  { name: 'Credentials', path: '/credentials', icon: Lock, permission: 'credentials:view' },
+  { name: 'Tags', path: '/tags', icon: Tag, permission: 'tags:view' },
+  { name: 'Release Notes', path: '/release-notes', icon: FileText, permission: 'release-notes:view' },
+  { name: 'Groups', path: '/groups', icon: FolderTree, permission: 'groups:view' },
+  { name: 'Users & Roles', path: '/users', icon: Shield, permission: 'users:view' },
+  { name: 'Profile', path: '/profile', icon: User }, // Profile is always visible
 ];
 
 /**
@@ -27,8 +35,21 @@ const navigation = [
 export function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
+  
+  // Update page title based on current route
+  usePageTitle();
+
+  // Filter navigation items based on permissions
+  const navigation = useMemo(() => {
+    return allNavigationItems.filter((item) => {
+      // If no permission required, always show (e.g., Profile)
+      if (!item.permission) return true;
+      // Check if user has the required permission
+      return hasPermission(item.permission);
+    });
+  }, [hasPermission]);
 
   const handleLogout = () => {
     logout();

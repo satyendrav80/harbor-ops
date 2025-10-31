@@ -71,7 +71,7 @@ async function initializeDefaults() {
   }
 
   // Assign minimal permission(s) to regular role (profile:update) and remove others if any
-  const profileUpdate = await prisma.permission.findUnique({ where: { resource_action: { resource: 'profile', action: 'update' } } });
+  const profileUpdate = await prisma.permission.findUnique({ where: { resource_action: { resource: 'profile', action: 'manage' } } });
   if (profileUpdate) {
     // Clear existing role permissions for regular
     await prisma.rolePermission.deleteMany({ where: { roleId: regularRole.id } });
