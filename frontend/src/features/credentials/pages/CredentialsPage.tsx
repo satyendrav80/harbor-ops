@@ -79,17 +79,6 @@ export function CredentialsPage() {
     setSearchParams(params, { replace: true });
   }, [debouncedSearch]);
 
-  // Auto-reveal credential if credentialId is in URL
-  useEffect(() => {
-    if (credentialId && !revealedData[Number(credentialId)]) {
-      // Delay to ensure credentials are loaded
-      const timer = setTimeout(() => {
-        handleRevealData(Number(credentialId));
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [credentialId, credentialsData]);
-
   // Fetch credentials with infinite scroll (filtered by server/service if provided)
   const {
     data: credentialsData,
@@ -100,12 +89,12 @@ export function CredentialsPage() {
     isFetchingNextPage: isFetchingNextCredentialsPage,
   } = useCredentials(debouncedSearch, 20, serverId ? Number(serverId) : undefined, serviceId ? Number(serviceId) : undefined);
 
-  const deleteCredential = useDeleteCredential();
-
   // Flatten credentials from all pages
   const credentials = useMemo(() => {
     return credentialsData?.pages.flatMap((page) => page.data) ?? [];
   }, [credentialsData]);
+
+  const deleteCredential = useDeleteCredential();
 
   // Infinite scroll observer
   const credentialsObserverTarget = useInfiniteScroll({
@@ -158,6 +147,22 @@ export function CredentialsPage() {
       });
     }
   };
+
+  // Auto-reveal credential if credentialId is in URL
+  useEffect(() => {
+    if (credentialId && !revealedData[Number(credentialId)]) {
+      // Check if credential exists in the loaded list
+      const credentialExists = credentials.some((c) => c.id === Number(credentialId));
+      if (credentialExists) {
+        // Delay to ensure component is ready
+        const timer = setTimeout(() => {
+          handleRevealData(Number(credentialId));
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [credentialId, credentials]);
 
   if (credentialsLoading && credentials.length === 0) {
     return (
