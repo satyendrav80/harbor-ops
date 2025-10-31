@@ -9,10 +9,11 @@ import type { Service } from '../../../services/services';
 import { useQuery } from '@tanstack/react-query';
 import { getServers } from '../../../services/servers';
 import { getCredentials } from '../../../services/credentials';
-import { getGroups } from '../../../services/groups';
-import { useAddItemToGroup } from '../../groups/hooks/useGroupMutations';
+import { getGroups, getGroupsByItem } from '../../../services/groups';
+import { useAddItemToGroup, useRemoveItemFromGroup } from '../../groups/hooks/useGroupMutations';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useConstants } from '../../constants/hooks/useConstants';
+import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
 
 const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required').max(100, 'Service name must be 100 characters or less'),
@@ -47,6 +48,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
   const updateService = useUpdateService();
   const deleteService = useDeleteService();
   const addItemToGroup = useAddItemToGroup();
+  const removeItemFromGroup = useRemoveItemFromGroup();
 
   const [error, setError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -54,7 +56,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
   // Fetch servers and credentials for dropdowns
   const { data: serversData } = useQuery({
     queryKey: ['servers', 'all'],
-    queryFn: () => getServers(1, 1000),
+    queryFn: () => getServers(),
     staleTime: 5 * 60 * 1000,
     enabled: isOpen,
   });
@@ -79,16 +81,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
     queryKey: ['groups', 'service', service?.id],
     queryFn: async () => {
       if (!service?.id) return [];
-      const groups = await getGroups({ limit: 1000 });
-      // Filter groups that contain this service
-      const groupsWithService = await Promise.all(
-        groups.data.map(async (group) => {
-          const groupDetail = await import('../../../services/groups').then((m) => m.getGroup(group.id));
-          const hasService = groupDetail.items?.some((item) => item.itemType === 'service' && item.itemId === service.id);
-          return hasService ? group.id : null;
-        })
-      );
-      return groupsWithService.filter((id): id is number => id !== null);
+      return getGroupsByItem('service', service.id);
     },
     enabled: isOpen && isEditing && !!service?.id && hasPermission('groups:view'),
   });
@@ -180,11 +173,18 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         });
       }
 
-      // Add service to selected groups
-      if (values.groupIds && values.groupIds.length > 0 && hasPermission('groups:update')) {
+      // Update groups membership
+      if (hasPermission('groups:update')) {
         const existingGroupIds = existingGroupsData || [];
-        const groupsToAdd = values.groupIds.filter((id) => !existingGroupIds.includes(id));
+        const newGroupIds = values.groupIds || [];
         
+        // Groups to add (in new list but not in existing)
+        const groupsToAdd = newGroupIds.filter((id) => !existingGroupIds.includes(id));
+        
+        // Groups to remove (in existing but not in new list)
+        const groupsToRemove = existingGroupIds.filter((id) => !newGroupIds.includes(id));
+        
+        // Add to new groups
         await Promise.all(
           groupsToAdd.map((groupId) =>
             addItemToGroup.mutateAsync({
@@ -192,6 +192,13 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
               itemType: 'service',
               itemId: createdOrUpdatedService.id,
             })
+          )
+        );
+        
+        // Remove from groups
+        await Promise.all(
+          groupsToRemove.map((groupId) =>
+            removeItemFromGroup.mutateAsync({ groupId, itemId: createdOrUpdatedService.id })
           )
         );
       }
@@ -214,7 +221,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
     }
   };
 
-  const isLoading = createService.isPending || updateService.isPending || deleteService.isPending || addItemToGroup.isPending;
+  const isLoading = createService.isPending || updateService.isPending || deleteService.isPending || addItemToGroup.isPending || removeItemFromGroup.isPending;
   const servers = serversData?.data || [];
   const credentialsList = Array.isArray(credentials) ? credentials : [];
   const groups = groupsData?.data || [];
@@ -362,34 +369,14 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
 
         {hasPermission('groups:update') && groups.length > 0 && (
           <div>
-            <label className="flex flex-col">
-              <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Groups</span>
-              <select
-                multiple
-                className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] min-h-[100px] px-4 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-                {...form.register('groupIds', {
-                  setValueAs: (value) => {
-                    if (Array.isArray(value)) {
-                      return value.map((v) => Number(v)).filter((v) => !isNaN(v));
-                    }
-                    return [];
-                  },
-                })}
-                onChange={(e) => {
-                  const selected = Array.from(e.target.selectedOptions, (option) => Number(option.value));
-                  form.setValue('groupIds', selected);
-                }}
-              >
-                {groups.map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Hold Ctrl/Cmd to select multiple groups
-            </p>
+            <SearchableMultiSelect
+              options={groups.map((g) => ({ id: g.id, name: g.name }))}
+              selectedIds={form.watch('groupIds') || []}
+              onChange={(selectedIds) => form.setValue('groupIds', selectedIds)}
+              placeholder="Search and select groups..."
+              label="Groups"
+              disabled={isLoading}
+            />
             {form.formState.errors.groupIds && (
               <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.groupIds?.message}</p>
             )}

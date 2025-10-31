@@ -90,13 +90,15 @@ model Server {
   id         Int        @id @default(autoincrement()) @map("id")
   name       String                                   @map("name")
   type       ServerType @default(os)                 @map("type")
-  publicIp   String                                   @map("public_ip")
-  privateIp  String                                   @map("private_ip")
-  sshPort    Int                                      @map("ssh_port")
-  username   String                                   @map("username")
+  publicIp   String?                                  @map("public_ip")
+  privateIp  String?                                  @map("private_ip")
+  endpoint   String?                                  @map("endpoint")
+  sshPort    Int?                                     @map("ssh_port")
+  username   String?                                  @map("username")
   password   String?                                  @map("password")
   createdAt  DateTime   @default(now())               @map("created_at")
   services   Service[]
+  tags       ServerTag[]
 
   @@map("servers")
 }
@@ -147,10 +149,13 @@ model GroupItem {
 
 model Tag {
   id        Int       @id @default(autoincrement()) @map("id")
-  name      String    @unique                      @map("name")
+  name      String                                  @map("name")
+  value     String?                                 @map("value")
   createdAt DateTime  @default(now())              @map("created_at")
   services  ServiceTag[]
+  servers   ServerTag[]
 
+  @@unique([name, value])
   @@map("tags")
 }
 
@@ -162,6 +167,16 @@ model ServiceTag {
 
   @@id([serviceId, tagId])
   @@map("service_tags")
+}
+
+model ServerTag {
+  serverId Int @map("server_id")
+  tagId    Int @map("tag_id")
+  server   Server @relation(fields: [serverId], references: [id])
+  tag      Tag    @relation(fields: [tagId], references: [id])
+
+  @@id([serverId, tagId])
+  @@map("server_tags")
 }
 
 enum ReleaseStatus {
@@ -185,4 +200,13 @@ model ReleaseNote {
   updatedAt  DateTime       @updatedAt                   @map("updated_at")
 
   @@map("release_notes")
+}
+
+model Domain {
+  id        Int       @id @default(autoincrement()) @map("id")
+  name      String    @unique                       @map("name")
+  createdAt DateTime  @default(now())               @map("created_at")
+  updatedAt DateTime  @updatedAt                   @map("updated_at")
+
+  @@map("domains")
 }

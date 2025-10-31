@@ -118,3 +118,10 @@ export async function removeItemFromGroup(groupId: number, itemId: number): Prom
   });
 }
 
+/**
+ * Get groups containing a specific server or service
+ */
+export async function getGroupsByItem(itemType: 'server' | 'service', itemId: number): Promise<number[]> {
+  return apiFetch<number[]>(`/groups/by-item/${itemType}/${itemId}`);
+}
+

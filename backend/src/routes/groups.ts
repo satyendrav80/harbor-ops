@@ -154,6 +154,33 @@ router.get('/:id', requirePermission('groups:view'), async (req, res) => {
   });
 });
 
+// Get groups containing a specific server or service
+router.get('/by-item/:itemType/:itemId', requirePermission('groups:view'), async (req, res) => {
+  const itemType = req.params.itemType;
+  const itemId = Number(req.params.itemId);
+  
+  if (!['server', 'service'].includes(itemType) || isNaN(itemId)) {
+    return res.status(400).json({ error: 'Invalid item type or ID' });
+  }
+
+  const groups = await prisma.group.findMany({
+    where: {
+      items: {
+        some: {
+          itemType: itemType as 'server' | 'service',
+          itemId: itemId,
+        },
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+
+  res.json(groups.map((g) => g.id));
+});
+
 // Update a group
 router.put('/:id', requirePermission('groups:update'), async (req, res) => {
   const id = Number(req.params.id);
@@ -164,13 +191,14 @@ router.put('/:id', requirePermission('groups:update'), async (req, res) => {
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'Group name is required' });
   }
+
   try {
-    const updated = await prisma.group.update({ where: { id }, data: { name: name.trim() } });
+    const updated = await prisma.group.update({
+      where: { id },
+      data: { name: name.trim() },
+    });
     res.json(updated);
   } catch (error: any) {
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Group not found' });
-    }
     if (error.code === 'P2002') {
       return res.status(409).json({ error: 'Group name already exists' });
     }
@@ -184,13 +212,11 @@ router.delete('/:id', requirePermission('groups:delete'), async (req, res) => {
   if (isNaN(id)) {
     return res.status(400).json({ error: 'Invalid group ID' });
   }
+
   try {
     await prisma.group.delete({ where: { id } });
     res.status(204).end();
   } catch (error: any) {
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Group not found' });
-    }
     return res.status(400).json({ error: 'Failed to delete group' });
   }
 });
@@ -304,18 +330,18 @@ router.delete('/:id/items/:itemId', requirePermission('groups:update'), async (r
   const itemId = Number(req.params.itemId);
   
   if (isNaN(groupId) || isNaN(itemId)) {
-    return res.status(400).json({ error: 'Invalid group ID or item ID' });
+    return res.status(400).json({ error: 'Invalid group or item ID' });
   }
 
   try {
-    await prisma.groupItem.delete({
-      where: { id: itemId },
+    await prisma.groupItem.deleteMany({
+      where: {
+        groupId,
+        itemId,
+      },
     });
     res.status(204).end();
   } catch (error: any) {
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Item not found in group' });
-    }
     return res.status(400).json({ error: 'Failed to remove item from group' });
   }
 });

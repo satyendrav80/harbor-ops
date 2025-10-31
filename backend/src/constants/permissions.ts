@@ -8,6 +8,7 @@ export const PERMISSION_RESOURCES = [
   'groups',
   'tags',
   'release-notes',
+  'domains',
   'dashboard',
   'profile',
 ] as const;

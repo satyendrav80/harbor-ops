@@ -2,12 +2,17 @@ import { useEffect, useState, useMemo } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
 import { Modal } from '../../../components/common/Modal';
 import { MaskedPasswordInput } from '../../../components/common/MaskedPasswordInput';
+import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
 import { useCreateServer, useUpdateServer, useDeleteServer } from '../hooks/useServerMutations';
 import { Trash2 } from 'lucide-react';
 import type { Server } from '../../../services/servers';
 import { useConstants } from '../../constants/hooks/useConstants';
+import { getGroups, getGroupsByItem } from '../../../services/groups';
+import { useAddItemToGroup, useRemoveItemFromGroup } from '../../groups/hooks/useGroupMutations';
+import { useAuth } from '../../auth/context/AuthContext';
 
 type ServerModalProps = {
   isOpen: boolean;
@@ -26,7 +31,30 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
   const [error, setError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  const { hasPermission } = useAuth();
+  const addItemToGroup = useAddItemToGroup();
+  const removeItemFromGroup = useRemoveItemFromGroup();
+
+  // Fetch groups for multi-select
+  const { data: groupsData } = useQuery({
+    queryKey: ['groups', 'all'],
+    queryFn: () => getGroups({ limit: 1000 }),
+    staleTime: 5 * 60 * 1000,
+    enabled: isOpen && hasPermission('groups:view'),
+  });
+
+  // Fetch existing groups for this server (if editing)
+  const { data: existingGroupsData } = useQuery({
+    queryKey: ['groups', 'server', server?.id],
+    queryFn: async () => {
+      if (!server?.id) return [];
+      return getGroupsByItem('server', server.id);
+    },
+    enabled: isOpen && isEditing && !!server?.id && hasPermission('groups:view'),
+  });
+
   // Create schema dynamically based on constants from backend
+  // Make all fields optional or have conditional validation
   const serverSchema = useMemo(() => {
     const serverTypes = constants?.serverTypes || ['os'];
     return z.object({
@@ -34,9 +62,24 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
       type: z.enum(serverTypes as [string, ...string[]]).default(serverTypes[0] as string),
       publicIp: z.string().min(1, 'Public IP is required').ip('Invalid IP address'),
       privateIp: z.string().min(1, 'Private IP is required').ip('Invalid IP address'),
-      sshPort: z.coerce.number().int().min(1, 'SSH port must be between 1 and 65535').max(65535),
-      username: z.string().min(1, 'Username is required').max(100, 'Username must be 100 characters or less'),
+      sshPort: z.coerce.number().int().min(1).max(65535).optional(),
+      username: z.string().max(100).optional(),
       password: z.string().optional(),
+      groupIds: z.array(z.number()).optional(),
+    }).refine((data) => {
+      // For OS servers, require SSH-related fields
+      if (data.type === 'os') {
+        if (!data.sshPort || data.sshPort < 1 || data.sshPort > 65535) {
+          return false;
+        }
+        if (!data.username || data.username.trim().length === 0) {
+          return false;
+        }
+      }
+      return true;
+    }, {
+      message: 'SSH port and username are required for OS servers',
+      path: ['sshPort'], // This will show error on sshPort field
     });
   }, [constants]);
 
@@ -52,6 +95,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
       sshPort: server?.sshPort || 22,
       username: server?.username || '',
       password: '',
+      groupIds: [],
     },
   });
 
@@ -64,9 +108,10 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         type: server.type || defaultType,
         publicIp: server.publicIp,
         privateIp: server.privateIp,
-        sshPort: server.sshPort,
-        username: server.username,
+        sshPort: server.sshPort || 22,
+        username: server.username || '',
         password: '', // Password is not sent in response, will be revealed via API
+        groupIds: existingGroupsData || [],
       });
     } else {
       form.reset({
@@ -77,33 +122,103 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         sshPort: 22,
         username: '',
         password: '',
+        groupIds: [],
       });
     }
     setError(null);
     setShowDeleteConfirm(false);
-  }, [server, form, constants]);
+  }, [server, form, constants, existingGroupsData]);
+
+  // Watch server type for conditional fields (after form is initialized)
+  const watchedType = form.watch('type');
+  const isOsServer = watchedType === 'os';
 
   const onSubmit = async (values: ServerFormValues) => {
     setError(null);
     try {
-        if (isEditing && server) {
+      let createdOrUpdatedServer: Server;
+      
+      if (isEditing && server) {
         // Only include password if it's provided and not masked
         const updateData: any = {
           name: values.name,
           type: values.type,
           publicIp: values.publicIp,
           privateIp: values.privateIp,
-          sshPort: values.sshPort,
-          username: values.username,
         };
+        
+        // Only include SSH-related fields for OS servers or if provided
+        if (values.type === 'os') {
+          updateData.sshPort = values.sshPort;
+          updateData.username = values.username;
+        } else if (values.sshPort !== undefined) {
+          updateData.sshPort = values.sshPort;
+        }
+        if (values.username !== undefined && values.username !== '') {
+          updateData.username = values.username;
+        }
+        
         // Only send password if it's provided and not empty
         if (values.password && values.password.trim()) {
           updateData.password = values.password;
         }
-        await updateServer.mutateAsync({ id: server.id, data: updateData });
+        
+        createdOrUpdatedServer = await updateServer.mutateAsync({ id: server.id, data: updateData });
       } else {
-        await createServer.mutateAsync(values);
+        const createData: any = {
+          name: values.name,
+          type: values.type,
+          publicIp: values.publicIp,
+          privateIp: values.privateIp,
+        };
+        
+        // Only include SSH-related fields for OS servers
+        if (values.type === 'os') {
+          createData.sshPort = values.sshPort;
+          createData.username = values.username;
+        } else if (values.sshPort !== undefined) {
+          createData.sshPort = values.sshPort;
+        }
+        if (values.username !== undefined && values.username !== '') {
+          createData.username = values.username;
+        }
+        if (values.password && values.password.trim()) {
+          createData.password = values.password;
+        }
+        
+        createdOrUpdatedServer = await createServer.mutateAsync(createData);
       }
+
+      // Update groups membership
+      if (hasPermission('groups:update')) {
+        const existingGroupIds = existingGroupsData || [];
+        const newGroupIds = values.groupIds || [];
+        
+        // Groups to add (in new list but not in existing)
+        const groupsToAdd = newGroupIds.filter((id) => !existingGroupIds.includes(id));
+        
+        // Groups to remove (in existing but not in new list)
+        const groupsToRemove = existingGroupIds.filter((id) => !newGroupIds.includes(id));
+        
+        // Add to new groups
+        await Promise.all(
+          groupsToAdd.map((groupId) =>
+            addItemToGroup.mutateAsync({
+              groupId,
+              itemType: 'server',
+              itemId: createdOrUpdatedServer.id,
+            })
+          )
+        );
+        
+        // Remove from groups
+        await Promise.all(
+          groupsToRemove.map((groupId) =>
+            removeItemFromGroup.mutateAsync({ groupId, itemId: createdOrUpdatedServer.id })
+          )
+        );
+      }
+
       onClose();
     } catch (err: any) {
       setError(err?.message || `Failed to ${isEditing ? 'update' : 'create'} server`);
@@ -122,7 +237,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
     }
   };
 
-  const isLoading = createServer.isPending || updateServer.isPending || deleteServer.isPending;
+  const isLoading = createServer.isPending || updateServer.isPending || deleteServer.isPending || addItemToGroup.isPending || removeItemFromGroup.isPending;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Server' : 'Create Server'}>
@@ -200,49 +315,118 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
           )}
         </div>
 
-        <div>
-          <label className="flex flex-col">
-            <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">SSH Port</span>
-            <input
-              className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-              placeholder="22"
-              type="number"
-              autoComplete="off"
-              {...form.register('sshPort')}
-            />
-          </label>
-          {form.formState.errors.sshPort && (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.sshPort.message}</p>
-          )}
-        </div>
+                {isOsServer && (
+                  <>
+                    <div>
+                      <label className="flex flex-col">
+                        <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">SSH Port</span>
+                        <input
+                          className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                          placeholder="22"
+                          type="number"
+                          autoComplete="off"
+                          {...form.register('sshPort')}
+                        />
+                      </label>
+                      {form.formState.errors.sshPort && (
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.sshPort.message}</p>
+                      )}
+                    </div>
 
-        <div>
-          <label className="flex flex-col">
-            <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Username</span>
-            <input
-              className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-              placeholder="Enter SSH username"
-              type="text"
-              autoComplete="off"
-              {...form.register('username')}
-            />
-          </label>
-          {form.formState.errors.username && (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.username.message}</p>
-          )}
-        </div>
+                    <div>
+                      <label className="flex flex-col">
+                        <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Username</span>
+                        <input
+                          className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                          placeholder="Enter SSH username"
+                          type="text"
+                          autoComplete="off"
+                          {...form.register('username')}
+                        />
+                      </label>
+                      {form.formState.errors.username && (
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.username.message}</p>
+                      )}
+                    </div>
 
-        <div>
-          <MaskedPasswordInput
-            value={form.watch('password') || ''}
-            onChange={(value) => form.setValue('password', value, { shouldValidate: true })}
-            placeholder={isEditing ? 'Leave empty to keep current password' : 'Enter SSH password'}
-            label={`Password ${isEditing ? '(leave empty to keep current password)' : ''}`}
-            revealEndpoint={isEditing && server ? `/servers/${server.id}/reveal-password` : undefined}
-            error={form.formState.errors.password?.message}
-            disabled={isLoading}
-          />
-        </div>
+                    <div>
+                      <MaskedPasswordInput
+                        value={form.watch('password') || ''}
+                        onChange={(value) => form.setValue('password', value, { shouldValidate: true })}
+                        placeholder={isEditing ? 'Leave empty to keep current password' : 'Enter SSH password'}
+                        label={`Password ${isEditing ? '(leave empty to keep current password)' : ''}`}
+                        revealEndpoint={isEditing && server ? `/servers/${server.id}/reveal-password` : undefined}
+                        error={form.formState.errors.password?.message}
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Optional SSH fields for non-OS servers */}
+                {!isOsServer && (
+                  <>
+                    <div>
+                      <label className="flex flex-col">
+                        <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Port (Optional)</span>
+                        <input
+                          className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                          placeholder="Optional port"
+                          type="number"
+                          autoComplete="off"
+                          {...form.register('sshPort')}
+                        />
+                      </label>
+                      {form.formState.errors.sshPort && (
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.sshPort.message}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="flex flex-col">
+                        <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Username (Optional)</span>
+                        <input
+                          className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                          placeholder="Optional username"
+                          type="text"
+                          autoComplete="off"
+                          {...form.register('username')}
+                        />
+                      </label>
+                      {form.formState.errors.username && (
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.username.message}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <MaskedPasswordInput
+                        value={form.watch('password') || ''}
+                        onChange={(value) => form.setValue('password', value, { shouldValidate: true })}
+                        placeholder={isEditing ? 'Leave empty to keep current password' : 'Optional password'}
+                        label={`Password (Optional) ${isEditing ? '(leave empty to keep current password)' : ''}`}
+                        revealEndpoint={isEditing && server ? `/servers/${server.id}/reveal-password` : undefined}
+                        error={form.formState.errors.password?.message}
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {hasPermission('groups:update') && groupsData?.data && groupsData.data.length > 0 && (
+                  <div>
+                    <SearchableMultiSelect
+                      options={groupsData.data.map((g) => ({ id: g.id, name: g.name }))}
+                      selectedIds={form.watch('groupIds') || []}
+                      onChange={(selectedIds) => form.setValue('groupIds', selectedIds)}
+                      placeholder="Search and select groups..."
+                      label="Groups"
+                      disabled={isLoading}
+                    />
+                    {form.formState.errors.groupIds && (
+                      <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.groupIds?.message}</p>
+                    )}
+                  </div>
+                )}
 
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700/50">
           <div>
