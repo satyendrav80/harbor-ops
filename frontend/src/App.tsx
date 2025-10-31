@@ -10,6 +10,8 @@ import { ServersPage } from './features/servers/pages/ServersPage';
 import { ServicesPage } from './features/services/pages/ServicesPage';
 import { CredentialsPage } from './features/credentials/pages/CredentialsPage';
 import { DomainsPage } from './features/domains/pages/DomainsPage';
+import { TagsPage } from './features/tags/pages/TagsPage';
+import { ReleaseNotesPage } from './features/release-notes/pages/ReleaseNotesPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth } from './components/common/RequireAuth';
 import { RequirePermission } from './components/common/RequirePermission';
@@ -96,10 +98,7 @@ export default function App() {
           <RequireAuth>
             <RequirePermission permission="tags:view">
               <AppLayout>
-                <div className="p-8">
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Tags</h1>
-                  <p className="text-gray-600 dark:text-gray-400">Tags page coming soon...</p>
-                </div>
+                <TagsPage />
               </AppLayout>
             </RequirePermission>
           </RequireAuth>
@@ -111,10 +110,7 @@ export default function App() {
           <RequireAuth>
             <RequirePermission permission="release-notes:view">
               <AppLayout>
-                <div className="p-8">
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Release Notes</h1>
-                  <p className="text-gray-600 dark:text-gray-400">Release Notes page coming soon...</p>
-                </div>
+                <ReleaseNotesPage />
               </AppLayout>
             </RequirePermission>
           </RequireAuth>

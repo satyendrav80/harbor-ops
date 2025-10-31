@@ -40,6 +40,7 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
                 tags: { include: { tag: true } },
                 credentials: { include: { credential: true } },
                 domains: { include: { domain: true } },
+                services: { select: { id: true, name: true, port: true } },
               },
               orderBy: { createdAt: 'desc' },
               skip: offset,

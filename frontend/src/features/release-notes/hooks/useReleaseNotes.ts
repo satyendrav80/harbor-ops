@@ -1,0 +1,23 @@
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { getReleaseNotes, ReleaseNotesResponse } from '../../../services/releaseNotes';
+
+export function useReleaseNotes(
+  search?: string,
+  status?: 'pending' | 'deployed',
+  limit: number = 20
+) {
+  return useInfiniteQuery<ReleaseNotesResponse, Error>({
+    queryKey: ['release-notes', search, status],
+    queryFn: async ({ pageParam = 1 }) => {
+      return getReleaseNotes(pageParam as number, limit, search, status);
+    },
+    getNextPageParam: (lastPage) => {
+      if (lastPage.pagination.page < lastPage.pagination.totalPages) {
+        return lastPage.pagination.page + 1;
+      }
+      return undefined;
+    },
+    initialPageParam: 1,
+  });
+}
+

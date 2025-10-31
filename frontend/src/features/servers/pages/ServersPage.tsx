@@ -7,7 +7,7 @@ import { revealServerPassword } from '../../../services/servers';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ServerModal } from '../components/ServerModal';
-import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Eye, EyeOff } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Eye, EyeOff, Cloud } from 'lucide-react';
 import type { Server } from '../../../services/servers';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
@@ -370,6 +370,30 @@ export function ServersPage() {
                     )}
                   </div>
                   
+                  {/* Services */}
+                  {server.services && server.services.length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Services</p>
+                      <div className="flex flex-wrap gap-2">
+                        {server.services.map((service) => (
+                          <button
+                            key={service.id}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              window.location.href = `/services?serviceId=${service.id}&serverId=${server.id}`;
+                            }}
+                            className="inline-flex items-center gap-1 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 text-xs font-medium hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors cursor-pointer"
+                            title={`Click to view service ${service.name}`}
+                          >
+                            <Cloud className="w-3 h-3" />
+                            {service.name} (:{service.port})
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Tags */}
                   {server.tags && server.tags.length > 0 && (
                     <div className="mt-4">

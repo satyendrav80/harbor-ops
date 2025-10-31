@@ -17,6 +17,7 @@ router.get('/', async (req, res) => {
 
   const where: any = {};
   if (status === 'pending') where.status = ReleaseStatus.pending;
+  if (status === 'deployed') where.status = ReleaseStatus.deployed;
 
   // Build search conditions
   if (search) {
@@ -26,6 +27,15 @@ router.get('/', async (req, res) => {
   const [items, total] = await Promise.all([
     prisma.releaseNote.findMany({
       where,
+      include: {
+        service: {
+          select: {
+            id: true,
+            name: true,
+            port: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
       skip: offset,
       take: limit,

@@ -32,6 +32,11 @@ export type Server = {
       value: string | null;
     };
   }>;
+  services?: Array<{
+    id: number;
+    name: string;
+    port: number;
+  }>;
   createdAt: string;
 };
 

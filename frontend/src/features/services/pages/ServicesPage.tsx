@@ -212,14 +212,22 @@ export function ServicesPage() {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Server</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          window.location.href = `/servers?serverId=${service.serverId}`;
+                        }}
+                        className="text-sm font-medium text-gray-900 dark:text-white hover:text-primary transition-colors cursor-pointer text-left"
+                        title={`Click to view server ${service.server?.name || service.serverId}`}
+                      >
                         {service.server?.name || `Server #${service.serverId}`}
                         {service.server?.type && (
                           <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
                             ({constants?.serverTypeLabels[service.server.type] || service.server.type})
                           </span>
                         )}
-                      </p>
+                      </button>
                     </div>
                     {service.credentials && service.credentials.length > 0 && (
                       <div>

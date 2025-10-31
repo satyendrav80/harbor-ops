@@ -6,14 +6,43 @@ export type ReleaseNote = {
   note: string;
   status: 'pending' | 'deployed';
   createdAt: string;
+  updatedAt?: string;
+  service?: {
+    id: number;
+    name: string;
+    port: number;
+  };
+};
+
+export type ReleaseNotesResponse = {
+  data: ReleaseNote[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 };
 
 /**
- * Fetch all release notes
+ * Fetch all release notes (paginated)
  */
-export async function getReleaseNotes(status?: 'pending' | 'deployed'): Promise<ReleaseNote[]> {
-  const url = status ? `/release-notes?status=${status}` : '/release-notes';
-  return apiFetch<ReleaseNote[]>(url);
+export async function getReleaseNotes(
+  page: number = 1,
+  limit: number = 20,
+  search?: string,
+  status?: 'pending' | 'deployed'
+): Promise<ReleaseNotesResponse> {
+  const params = new URLSearchParams();
+  params.append('page', page.toString());
+  params.append('limit', limit.toString());
+  if (search) {
+    params.append('search', search);
+  }
+  if (status) {
+    params.append('status', status);
+  }
+  return apiFetch<ReleaseNotesResponse>(`/release-notes?${params.toString()}`);
 }
 
 /**
