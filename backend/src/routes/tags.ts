@@ -45,7 +45,7 @@ router.get('/', requirePermission('tags:view'), async (req, res) => {
 });
 
 router.post('/', requirePermission('tags:create'), async (req, res) => {
-  const { name, value } = req.body;
+  const { name, value, color } = req.body;
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'Tag name is required' });
   }
@@ -55,6 +55,7 @@ router.post('/', requirePermission('tags:create'), async (req, res) => {
       data: { 
         name: name.trim(),
         value: value ? value.trim() : null,
+        color: color ? color.trim() : null,
       } 
     });
     res.status(201).json(created);
@@ -75,7 +76,7 @@ router.get('/:id', requirePermission('tags:view'), async (req, res) => {
 
 router.put('/:id', requirePermission('tags:update'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, value } = req.body;
+  const { name, value, color } = req.body;
   
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'Tag name is required' });
@@ -87,6 +88,7 @@ router.put('/:id', requirePermission('tags:update'), async (req, res) => {
       data: { 
         name: name.trim(),
         value: value ? value.trim() : null,
+        color: color !== undefined ? (color ? color.trim() : null) : undefined,
       } 
     });
     res.json(updated);

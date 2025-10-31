@@ -241,23 +241,32 @@ export function ServicesPage() {
                       <p className="text-sm font-medium text-gray-900 dark:text-white">{service.port}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Server</p>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          navigate(`/servers?serverId=${service.serverId}`);
-                        }}
-                        className="text-sm font-medium text-gray-900 dark:text-white hover:text-primary transition-colors cursor-pointer text-left"
-                        title={`Click to view server ${service.server?.name || service.serverId}`}
-                      >
-                        {service.server?.name || `Server #${service.serverId}`}
-                        {service.server?.type && (
-                          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                            ({constants?.serverTypeLabels[service.server.type] || service.server.type})
-                          </span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Servers</p>
+                      <div className="flex flex-wrap gap-2">
+                        {service.servers && service.servers.length > 0 ? (
+                          service.servers.map((ss) => (
+                            <button
+                              key={ss.server.id}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                navigate(`/servers?serverId=${ss.server.id}`);
+                              }}
+                              className="text-sm font-medium text-gray-900 dark:text-white hover:text-primary transition-colors cursor-pointer text-left"
+                              title={`Click to view server ${ss.server.name}`}
+                            >
+                              {ss.server.name}
+                              {ss.server.type && (
+                                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                                  ({constants?.serverTypeLabels[ss.server.type] || ss.server.type})
+                                </span>
+                              )}
+                            </button>
+                          ))
+                        ) : (
+                          <span className="text-sm text-gray-500 dark:text-gray-400">No servers assigned</span>
                         )}
-                      </button>
+                      </div>
                     </div>
                     {service.credentials && service.credentials.length > 0 && (
                       <div>
@@ -309,6 +318,33 @@ export function ServicesPage() {
                       </div>
                     )}
                   </div>
+                  
+                  {/* Tags */}
+                  {service.tags && service.tags.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Tags</p>
+                      <div className="flex flex-wrap gap-2">
+                        {service.tags.map((st) => (
+                          <span
+                            key={st.tag.id}
+                            className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium"
+                            style={{
+                              backgroundColor: st.tag.color ? `${st.tag.color}20` : undefined,
+                              color: st.tag.color || undefined,
+                              border: st.tag.color ? `1px solid ${st.tag.color}` : undefined,
+                              ...(!st.tag.color && {
+                                backgroundColor: 'rgb(59 130 246 / 0.1)',
+                                color: 'rgb(59 130 246)',
+                              }),
+                            }}
+                          >
+                            {st.tag.name}
+                            {st.tag.value && `: ${st.tag.value}`}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Dependencies */}
                   {service.dependencies && service.dependencies.length > 0 && (

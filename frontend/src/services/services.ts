@@ -22,7 +22,6 @@ export type Service = {
   id: number;
   name: string;
   port: number;
-  serverId: number;
   sourceRepo?: string | null;
   appId?: string | null;
   functionName?: string | null;
@@ -31,7 +30,9 @@ export type Service = {
   documentation?: string | null;
   metadata?: any | null;
   createdAt: string;
-  server?: Server;
+  servers?: Array<{
+    server: Server;
+  }>;
   credentials?: Array<{
     credential: {
       id: number;
@@ -95,7 +96,7 @@ export async function getService(id: number): Promise<Service> {
 /**
  * Create a new service
  */
-export async function createService(data: Omit<Service, 'id' | 'createdAt' | 'server' | 'credentials' | 'domains'> & { credentialIds?: number[]; domainIds?: number[] }): Promise<Service> {
+export async function createService(data: Omit<Service, 'id' | 'createdAt' | 'servers' | 'credentials' | 'domains'> & { serverIds: number[]; credentialIds?: number[]; domainIds?: number[] }): Promise<Service> {
   return apiFetch<Service>('/services', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -105,7 +106,7 @@ export async function createService(data: Omit<Service, 'id' | 'createdAt' | 'se
 /**
  * Update a service
  */
-export async function updateService(id: number, data: Partial<Omit<Service, 'id' | 'createdAt' | 'server' | 'credentials' | 'domains'>> & { credentialIds?: number[]; domainIds?: number[] }): Promise<Service> {
+export async function updateService(id: number, data: Partial<Omit<Service, 'id' | 'createdAt' | 'servers' | 'credentials' | 'domains'>> & { serverIds?: number[]; credentialIds?: number[]; domainIds?: number[] }): Promise<Service> {
   return apiFetch<Service>(`/services/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),

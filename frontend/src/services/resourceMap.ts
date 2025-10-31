@@ -28,6 +28,7 @@ export type ResourceMapData = {
         id: number;
         name: string;
         value: string | null;
+        color: string | null;
       };
     }>;
   }>;
@@ -70,6 +71,7 @@ export type ResourceMapData = {
         id: number;
         name: string;
         value: string | null;
+        color: string | null;
       };
     }>;
   }>;

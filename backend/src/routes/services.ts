@@ -27,7 +27,11 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
   
   // Filter by serverId if provided
   if (serverId) {
-    searchConditions.serverId = serverId;
+    searchConditions.servers = {
+      some: {
+        serverId: serverId,
+      },
+    };
   }
   
   // Add search conditions if not filtering by exact serviceId
@@ -36,12 +40,16 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
       { name: { contains: search, mode: 'insensitive' } },
       ...(isNaN(Number(search)) ? [] : [{ port: { equals: Number(search) } }]),
       {
-        server: {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { publicIp: { contains: search, mode: 'insensitive' } },
-            { privateIp: { contains: search, mode: 'insensitive' } },
-          ],
+        servers: {
+          some: {
+            server: {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { publicIp: { contains: search, mode: 'insensitive' } },
+                { privateIp: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
         },
       },
     ];
@@ -52,7 +60,7 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
       where: searchConditions,
       include: includeRelations
         ? {
-            server: true,
+            servers: { include: { server: true } },
             credentials: { include: { credential: true } },
             domains: { include: { domain: true } },
             tags: { include: { tag: true } },
@@ -89,7 +97,12 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
 });
 
 router.post('/', requirePermission('services:create'), async (req, res) => {
-  const { name, port, serverId, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, documentationUrl, documentation, metadata } = req.body;
+  const { name, port, serverIds, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, documentationUrl, documentation, metadata } = req.body;
+  
+  // Validate serverIds
+  if (!serverIds || !Array.isArray(serverIds) || serverIds.length === 0) {
+    return res.status(400).json({ error: 'At least one server is required' });
+  }
   
   // Create service with credentials and domains in a transaction
   const created = await prisma.$transaction(async (tx) => {
@@ -97,7 +110,6 @@ router.post('/', requirePermission('services:create'), async (req, res) => {
       data: {
         name,
         port: Number(port),
-        serverId: Number(serverId),
         sourceRepo: sourceRepo || null,
         appId: appId || null,
         functionName: functionName || null,
@@ -107,6 +119,15 @@ router.post('/', requirePermission('services:create'), async (req, res) => {
         metadata: metadata || null,
       },
     });
+    
+    // Attach servers
+    if (serverIds && Array.isArray(serverIds) && serverIds.length > 0) {
+      const serverData = serverIds.map((servId: number) => ({
+        serviceId: service.id,
+        serverId: Number(servId),
+      }));
+      await tx.serviceServer.createMany({ data: serverData, skipDuplicates: true });
+    }
     
     // Attach credentials if provided
     if (credentialIds && Array.isArray(credentialIds) && credentialIds.length > 0) {
@@ -139,7 +160,7 @@ router.post('/', requirePermission('services:create'), async (req, res) => {
     return await tx.service.findUnique({
       where: { id: service.id },
       include: {
-        server: true,
+        servers: { include: { server: true } },
         credentials: { include: { credential: true } },
         domains: { include: { domain: true } },
         tags: { include: { tag: true } },
@@ -166,7 +187,7 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
   const item = await prisma.service.findUnique({
     where: { id },
     include: {
-      server: true,
+      servers: { include: { server: true } },
       credentials: { include: { credential: true } },
       domains: { include: { domain: true } },
       tags: { include: { tag: true } },
@@ -190,7 +211,12 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
 
 router.put('/:id', requirePermission('services:update'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, port, serverId, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, documentationUrl, documentation, metadata } = req.body;
+  const { name, port, serverIds, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, documentationUrl, documentation, metadata } = req.body;
+  
+  // Validate serverIds if provided
+  if (serverIds !== undefined && (!Array.isArray(serverIds) || serverIds.length === 0)) {
+    return res.status(400).json({ error: 'At least one server is required' });
+  }
   
   // Update service with credentials and domains in a transaction
   const updated = await prisma.$transaction(async (tx) => {
@@ -200,7 +226,6 @@ router.put('/:id', requirePermission('services:update'), async (req, res) => {
       data: {
         name,
         port: Number(port),
-        serverId: Number(serverId),
         sourceRepo: sourceRepo !== undefined ? (sourceRepo || null) : undefined,
         appId: appId !== undefined ? (appId || null) : undefined,
         functionName: functionName !== undefined ? (functionName || null) : undefined,
@@ -210,6 +235,21 @@ router.put('/:id', requirePermission('services:update'), async (req, res) => {
         metadata: metadata !== undefined ? (metadata || null) : undefined,
       },
     });
+    
+    // Update servers if provided
+    if (serverIds !== undefined) {
+      // Remove all existing servers
+      await tx.serviceServer.deleteMany({ where: { serviceId: id } });
+      
+      // Add new servers if provided
+      if (Array.isArray(serverIds) && serverIds.length > 0) {
+        const serverData = serverIds.map((servId: number) => ({
+          serviceId: id,
+          serverId: Number(servId),
+        }));
+        await tx.serviceServer.createMany({ data: serverData, skipDuplicates: true });
+      }
+    }
     
     // Update credentials if provided
     if (credentialIds !== undefined) {
@@ -260,7 +300,7 @@ router.put('/:id', requirePermission('services:update'), async (req, res) => {
     return await tx.service.findUnique({
       where: { id },
       include: {
-        server: true,
+        servers: { include: { server: true } },
         credentials: { include: { credential: true } },
         domains: { include: { domain: true } },
         tags: { include: { tag: true } },

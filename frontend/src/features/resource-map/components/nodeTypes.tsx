@@ -7,7 +7,7 @@ export type NodeData = {
   type: 'server' | 'service' | 'credential' | 'domain' | 'external-service' | 'group';
   resourceId?: number;
   resourceType?: string;
-  tags?: Array<{ id: number; name: string; value: string | null }>;
+  tags?: Array<{ id: number; name: string; value: string | null; color: string | null }>;
   port?: number;
   serviceType?: string;
   url?: string;
@@ -51,16 +51,27 @@ const CustomNode = memo(({ data }: { data: NodeData }) => {
   const Icon = iconMap[data.type] || Cloud;
   const isHighlighted = data.highlighted || false;
   
+  // Get the first tag with a color (for visual indication)
+  const coloredTag = data.tags?.find((tag) => tag.color);
+  const tagBorderColor = coloredTag?.color || undefined;
+  
+  // Determine border color: highlighted > tag color > default
+  const borderColor = isHighlighted ? nodeColors[data.type] : (tagBorderColor || undefined);
+  
   return (
     <div
       className={`group relative bg-white dark:bg-[#1C252E] border-2 rounded-lg p-3 min-w-[200px] shadow-lg transition-all ${
         isHighlighted
           ? 'shadow-xl scale-105'
+          : tagBorderColor
+          ? 'hover:border-gray-400'
           : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
       }`}
       style={{
-        borderColor: isHighlighted ? nodeColors[data.type] : undefined,
+        borderColor: borderColor,
         backgroundColor: isHighlighted ? `${nodeColors[data.type]}20` : undefined,
+        borderLeftWidth: tagBorderColor && !isHighlighted ? '4px' : undefined,
+        borderLeftColor: tagBorderColor && !isHighlighted ? tagBorderColor : undefined,
       }}
     >
       {/* Connection handles */}
@@ -139,7 +150,16 @@ const CustomNode = memo(({ data }: { data: NodeData }) => {
           {data.tags.map((tag) => (
             <span
               key={tag.id}
-              className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded"
+              className="text-xs px-2 py-0.5 rounded text-xs font-medium"
+              style={{
+                backgroundColor: tag.color ? `${tag.color}20` : undefined,
+                color: tag.color || undefined,
+                border: tag.color ? `1px solid ${tag.color}` : undefined,
+                ...(!tag.color && {
+                  backgroundColor: 'rgb(243 244 246)',
+                  color: 'rgb(55 65 81)',
+                }),
+              }}
             >
               {tag.name}
               {tag.value && `: ${tag.value}`}

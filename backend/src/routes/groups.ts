@@ -107,11 +107,14 @@ router.get('/:id', requirePermission('groups:view'), async (req, res) => {
         id: true,
         name: true,
         port: true,
-        serverId: true,
-        server: {
-          select: {
-            id: true,
-            name: true,
+        servers: {
+          include: {
+            server: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },
@@ -304,11 +307,14 @@ router.post('/:id/items', requirePermission('groups:update'), async (req, res) =
           id: true,
           name: true,
           port: true,
-          serverId: true,
-          server: {
-            select: {
-              id: true,
-              name: true,
+          servers: {
+            include: {
+              server: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
             },
           },
         },

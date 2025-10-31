@@ -108,7 +108,7 @@ model Server {
   username    String?                                   @map("username")
   password    String?                                   @map("password")
   createdAt   DateTime    @default(now())               @map("created_at")
-  services    Service[]
+  services    ServiceServer[]
   tags        ServerTag[]
   credentials ServerCredential[]
   domains     ServerDomain[]
@@ -128,8 +128,7 @@ model Service {
   documentation String?                                  @db.Text @map("documentation")
   metadata       Json?                                    @map("metadata")
   createdAt      DateTime    @default(now())              @map("created_at")
-  serverId       Int                                      @map("server_id")
-  server         Server      @relation(fields: [serverId], references: [id])
+  servers        ServiceServer[]
   tags           ServiceTag[]
   releaseNotes   ReleaseNote[]
   credentials    ServiceCredential[]
@@ -168,6 +167,7 @@ model Tag {
   id        Int       @id @default(autoincrement()) @map("id")
   name      String                                  @map("name")
   value     String?                                 @map("value")
+  color     String?                                 @map("color")
   createdAt DateTime  @default(now())              @map("created_at")
   services  ServiceTag[]
   servers   ServerTag[]
@@ -259,6 +259,16 @@ model ServiceDomain {
 
   @@id([serviceId, domainId])
   @@map("service_domains")
+}
+
+model ServiceServer {
+  serviceId Int @map("service_id")
+  serverId  Int @map("server_id")
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  server    Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@id([serviceId, serverId])
+  @@map("service_servers")
 }
 
 model ServiceDependency {

@@ -393,19 +393,19 @@ export function ServersPage() {
                     <div className="mt-4">
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Services</p>
                       <div className="flex flex-wrap gap-2">
-                        {server.services.map((service) => (
+                        {server.services.map((ss) => (
                           <button
-                            key={service.id}
+                            key={ss.service.id}
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              navigate(`/services?serviceId=${service.id}&serverId=${server.id}`);
+                              navigate(`/services?serviceId=${ss.service.id}&serverId=${server.id}`);
                             }}
                             className="inline-flex items-center gap-1 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 text-xs font-medium hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors cursor-pointer"
-                            title={`Click to view service ${service.name}`}
+                            title={`Click to view service ${ss.service.name}`}
                           >
                             <Cloud className="w-3 h-3" />
-                            {service.name} (:{service.port})
+                            {ss.service.name} (:{ss.service.port})
                           </button>
                         ))}
                       </div>
@@ -420,7 +420,16 @@ export function ServersPage() {
                         {server.tags.map((serverTag) => (
                           <span
                             key={serverTag.tag.id}
-                            className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-1 text-xs font-medium"
+                            className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium"
+                            style={{
+                              backgroundColor: serverTag.tag.color ? `${serverTag.tag.color}20` : undefined,
+                              color: serverTag.tag.color || undefined,
+                              border: serverTag.tag.color ? `1px solid ${serverTag.tag.color}` : undefined,
+                              ...(!serverTag.tag.color && {
+                                backgroundColor: 'rgb(59 130 246 / 0.1)',
+                                color: 'rgb(59 130 246)',
+                              }),
+                            }}
                           >
                             {serverTag.tag.name}
                             {serverTag.tag.value && `: ${serverTag.tag.value}`}

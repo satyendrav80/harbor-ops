@@ -140,7 +140,7 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
       where: searchConditions,
       include: {
         servers: { include: { server: { select: { id: true, name: true, type: true } } } },
-        services: { include: { service: { select: { id: true, name: true, port: true, serverId: true } } } },
+        services: { include: { service: { select: { id: true, name: true, port: true } } } },
       },
       orderBy: { createdAt: 'desc' },
       skip: offset,
@@ -229,7 +229,7 @@ router.get('/:id', requirePermission('credentials:view'), async (req: AuthReques
     where: { id },
     include: {
       servers: { include: { server: { select: { id: true, name: true, type: true } } } },
-      services: { include: { service: { select: { id: true, name: true, port: true, serverId: true } } } },
+      services: { include: { service: { select: { id: true, name: true, port: true } } } },
     },
   });
   if (!item) return res.status(404).json({ error: 'Not found' });

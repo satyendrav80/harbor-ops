@@ -4,6 +4,7 @@ export type Tag = {
   id: number;
   name: string;
   value: string | null;
+  color: string | null;
   createdAt: string;
 };
 

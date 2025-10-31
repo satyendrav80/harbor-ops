@@ -50,7 +50,9 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
     // Process each server
     data.servers.forEach((server) => {
       const serverNodeId = `server-${server.id}`;
-      const serverServices = data.services.filter((s) => s.server?.id === server.id);
+      const serverServices = data.services.filter((s) => 
+        s.servers?.some((ss) => ss.server.id === server.id)
+      );
 
       if (serverServices.length === 0) {
         return; // Skip servers with no services

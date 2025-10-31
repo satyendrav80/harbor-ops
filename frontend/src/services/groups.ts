@@ -15,11 +15,12 @@ export type GroupItem = {
     id: number;
     name: string;
     port: number;
-    serverId: number;
-    server: {
-      id: number;
-      name: string;
-    };
+    servers?: Array<{
+      server: {
+        id: number;
+        name: string;
+      };
+    }>;
   } | null;
 };
 

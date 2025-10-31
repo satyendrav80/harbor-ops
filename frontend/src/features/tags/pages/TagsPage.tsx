@@ -84,6 +84,13 @@ const TagItem = memo(({
           <div className="flex items-center gap-3 mb-2">
             <TagIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{tag.name}</h3>
+            {tag.color && (
+              <div
+                className="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-600"
+                style={{ backgroundColor: tag.color }}
+                title={`Tag color: ${tag.color}`}
+              />
+            )}
             {tag.value && (
               <span className="inline-flex items-center rounded-md bg-gray-50 dark:bg-gray-700 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 ring-1 ring-inset ring-gray-500/10">
                 {tag.value}
@@ -125,6 +132,7 @@ const TagItem = memo(({
     prevProps.tag.id === nextProps.tag.id &&
     prevProps.tag.name === nextProps.tag.name &&
     prevProps.tag.value === nextProps.tag.value &&
+    prevProps.tag.color === nextProps.tag.color &&
     prevProps.tag.createdAt === nextProps.tag.createdAt &&
     prevProps.deletePending === nextProps.deletePending &&
     prevProps.hasPermission === nextProps.hasPermission

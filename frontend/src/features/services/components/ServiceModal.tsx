@@ -26,7 +26,7 @@ import { Highlight } from '@tiptap/extension-highlight';
 const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required').max(100, 'Service name must be 100 characters or less'),
   port: z.coerce.number().int().min(1, 'Port must be between 1 and 65535').max(65535),
-  serverId: z.coerce.number().int().min(1, 'Server is required'),
+  serverIds: z.array(z.number()).min(1, 'At least one server is required'),
   credentialIds: z.array(z.number()).optional(),
   domainIds: z.array(z.number()).optional(),
   tagIds: z.array(z.number()).optional(),
@@ -134,7 +134,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
     defaultValues: {
       name: service?.name || '',
       port: service?.port || 80,
-      serverId: service?.serverId || 0,
+      serverIds: service?.servers?.map((ss) => ss.server.id) || [],
       credentialIds: [],
       domainIds: [],
       tagIds: [],
@@ -173,33 +173,43 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
     },
   });
 
-  // Get selected server to show type-specific fields
-  const selectedServerId = form.watch('serverId');
-  const selectedServer = useMemo(() => {
-    if (!selectedServerId || selectedServerId === 0 || !serversData?.data) return null;
-    // Ensure we compare with the correct type (number)
-    const serverIdNum = Number(selectedServerId);
-    return serversData.data.find((s) => s.id === serverIdNum);
-  }, [selectedServerId, serversData]);
+  // Get selected servers to show type-specific fields
+  const selectedServerIds = form.watch('serverIds');
+  const selectedServers = useMemo(() => {
+    if (!selectedServerIds || selectedServerIds.length === 0 || !serversData?.data) return [];
+    return serversData.data.filter((s) => selectedServerIds.includes(s.id));
+  }, [selectedServerIds, serversData]);
 
-  const serverType = selectedServer?.type;
-  const showAmplifyLambdaFields = serverType === 'amplify' || serverType === 'lambda';
+  // Show amplify/lambda fields if ANY selected server is amplify or lambda
+  const showAmplifyLambdaFields = useMemo(() => {
+    return selectedServers.some((s) => s.type === 'amplify' || s.type === 'lambda');
+  }, [selectedServers]);
 
-  // Reset type-specific fields when server type changes
+  // Check if any selected server is amplify
+  const hasAmplifyServer = useMemo(() => {
+    return selectedServers.some((s) => s.type === 'amplify');
+  }, [selectedServers]);
+
+  // Check if any selected server is lambda
+  const hasLambdaServer = useMemo(() => {
+    return selectedServers.some((s) => s.type === 'lambda');
+  }, [selectedServers]);
+
+  // Reset type-specific fields when server types change
   useEffect(() => {
-    if (!selectedServerId || selectedServerId === 0) {
+    if (!selectedServerIds || selectedServerIds.length === 0) {
       // Reset type-specific fields when no server is selected
       form.setValue('appId', '');
       form.setValue('functionName', '');
       return;
     }
 
-    if (serverType !== 'amplify' && serverType !== 'lambda') {
-      // Clear amplify/lambda specific fields when server type doesn't support them
+    if (!showAmplifyLambdaFields) {
+      // Clear amplify/lambda specific fields when no selected server supports them
       form.setValue('appId', '');
       form.setValue('functionName', '');
     }
-  }, [selectedServerId, serverType, form]);
+  }, [selectedServerIds, showAmplifyLambdaFields, form]);
 
   // Reset form when service changes
   useEffect(() => {
@@ -207,7 +217,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
       form.reset({
         name: service.name,
         port: service.port,
-        serverId: service.serverId,
+        serverIds: service.servers?.map((ss) => ss.server.id) || [],
         credentialIds: service.credentials?.map((sc) => sc.credential.id) || [],
         domainIds: existingDomainsData || [],
         tagIds: service.tags?.map((st) => st.tag.id) || [],
@@ -227,7 +237,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
       form.reset({
         name: '',
         port: 80,
-        serverId: 0,
+        serverIds: [],
         credentialIds: [],
         domainIds: [],
         tagIds: [],
@@ -259,7 +269,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
           data: {
             name: values.name,
             port: values.port,
-            serverId: values.serverId,
+            serverIds: values.serverIds,
             credentialIds: values.credentialIds || [],
             domainIds: values.domainIds || [],
             tagIds: values.tagIds || [],
@@ -275,7 +285,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         createdOrUpdatedService = await createService.mutateAsync({
           name: values.name,
           port: values.port,
-          serverId: values.serverId,
+          serverIds: values.serverIds,
           credentialIds: values.credentialIds || [],
           domainIds: values.domainIds || [],
           tagIds: values.tagIds || [],
@@ -323,7 +333,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         form.reset({
           name: '',
           port: 80,
-          serverId: 0,
+          serverIds: [],
           credentialIds: [],
           domainIds: [],
           tagIds: [],
@@ -401,44 +411,24 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         </div>
 
         <div>
-          <label className="flex flex-col">
-            <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Server</span>
-            <select
-              className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-              {...form.register('serverId', {
-                onChange: (e) => {
-                  // Force update by triggering form watch
-                  const newServerId = Number(e.target.value);
-                  form.setValue('serverId', newServerId, { shouldDirty: true });
-                  
-                  // Clear type-specific fields when server changes
-                  if (newServerId === 0) {
-                    form.setValue('appId', '');
-                    form.setValue('functionName', '');
-                  } else {
-                    // Find the new server and clear fields if needed
-                    const newServer = servers.find((s) => s.id === newServerId);
-                    if (newServer && newServer.type !== 'amplify' && newServer.type !== 'lambda') {
-                      form.setValue('appId', '');
-                      form.setValue('functionName', '');
-                    }
-                  }
-                },
-              })}
-            >
-              <option value={0}>Select a server</option>
-              {servers.map((server) => {
+          <SearchableMultiSelect
+            options={
+              serversData?.data?.map((server) => {
                 const serverTypeLabel = constants?.serverTypeLabels[server.type] || server.type;
-                return (
-                  <option key={server.id} value={server.id}>
-                    {server.name} ({serverTypeLabel}) - {server.publicIp || server.endpoint || 'N/A'}
-                  </option>
-                );
-              })}
-            </select>
-          </label>
-          {form.formState.errors.serverId && (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.serverId.message}</p>
+                const displayName = `${server.name} (${serverTypeLabel}) - ${server.publicIp || server.endpoint || 'N/A'}`;
+                return { id: server.id, name: displayName };
+              }) || []
+            }
+            selectedIds={form.watch('serverIds')}
+            onChange={(selectedIds) => {
+              form.setValue('serverIds', selectedIds, { shouldDirty: true });
+            }}
+            label="Servers *"
+            placeholder="Select one or more servers..."
+            disabled={isLoading || !serversData?.data}
+          />
+          {form.formState.errors.serverIds && (
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.serverIds.message}</p>
           )}
         </div>
 
@@ -459,7 +449,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         </div>
 
         {/* Amplify-specific fields */}
-        {serverType === 'amplify' && (
+        {hasAmplifyServer && (
           <div>
             <label className="flex flex-col">
               <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">App ID</span>
@@ -478,7 +468,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         )}
 
         {/* Lambda-specific fields */}
-        {serverType === 'lambda' && (
+        {hasLambdaServer && (
           <div>
             <label className="flex flex-col">
               <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Function Name</span>

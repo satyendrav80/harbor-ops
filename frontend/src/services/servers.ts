@@ -30,12 +30,15 @@ export type Server = {
       id: number;
       name: string;
       value: string | null;
+      color: string | null;
     };
   }>;
   services?: Array<{
-    id: number;
-    name: string;
-    port: number;
+    service: {
+      id: number;
+      name: string;
+      port: number;
+    };
   }>;
   createdAt: string;
 };

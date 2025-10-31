@@ -298,7 +298,9 @@ export function GroupsPage() {
                                       ? `${item.server.publicIp} • ${item.server.privateIp}`
                                       : 'Server details unavailable'
                                     : item.service
-                                      ? `Port ${item.service.port} • ${item.service.server.name}`
+                                      ? `Port ${item.service.port} • ${item.service.servers && item.service.servers.length > 0 
+                                          ? item.service.servers.map((ss) => ss.server.name).join(', ')
+                                          : 'No servers'}`
                                       : 'Service details unavailable'}
                                 </p>
                               </div>

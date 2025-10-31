@@ -16,6 +16,8 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
   const [showAddForm, setShowAddForm] = useState(false);
   const [dependencyType, setDependencyType] = useState<'internal' | 'external'>('internal');
   const [selectedServiceId, setSelectedServiceId] = useState<number>(0);
+  const [externalServiceMode, setExternalServiceMode] = useState<'existing' | 'new'>('existing'); // For external: select existing or type new
+  const [selectedExternalServiceId, setSelectedExternalServiceId] = useState<number>(0);
   const [externalServiceName, setExternalServiceName] = useState('');
   const [externalServiceType, setExternalServiceType] = useState('');
   const [externalServiceUrl, setExternalServiceUrl] = useState('');
@@ -66,6 +68,8 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
 
   const resetForm = () => {
     setSelectedServiceId(0);
+    setExternalServiceMode('existing');
+    setSelectedExternalServiceId(0);
     setExternalServiceName('');
     setExternalServiceType('');
     setExternalServiceUrl('');
@@ -83,15 +87,26 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
         description: description || undefined,
       });
     } else {
-      if (!externalServiceName) {
-        return;
+      // External dependency: either select existing service or type new name
+      if (externalServiceMode === 'existing') {
+        if (!selectedExternalServiceId) {
+          return;
+        }
+        addDependency.mutate({
+          dependencyServiceId: selectedExternalServiceId,
+          description: description || undefined,
+        });
+      } else {
+        if (!externalServiceName) {
+          return;
+        }
+        addDependency.mutate({
+          externalServiceName,
+          externalServiceType: externalServiceType || undefined,
+          externalServiceUrl: externalServiceUrl || undefined,
+          description: description || undefined,
+        });
       }
-      addDependency.mutate({
-        externalServiceName,
-        externalServiceType: externalServiceType || undefined,
-        externalServiceUrl: externalServiceUrl || undefined,
-        description: description || undefined,
-      });
     }
   };
 
@@ -272,43 +287,105 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
 
           {dependencyType === 'external' && (
             <>
-              <div>
-                <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
-                  Service Name *
-                </label>
-                <input
-                  type="text"
-                  value={externalServiceName}
-                  onChange={(e) => setExternalServiceName(e.target.value)}
-                  placeholder="e.g., OpenAI, AWS S3, Stripe"
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  required
-                />
+              <div className="flex items-center gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExternalServiceMode('existing');
+                    setExternalServiceName('');
+                    setExternalServiceType('');
+                    setExternalServiceUrl('');
+                    setSelectedExternalServiceId(0);
+                  }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                    externalServiceMode === 'existing'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  Select Existing Service
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExternalServiceMode('new');
+                    setSelectedExternalServiceId(0);
+                  }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                    externalServiceMode === 'new'
+                      ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  Type New Name
+                </button>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
-                  Service Type (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={externalServiceType}
-                  onChange={(e) => setExternalServiceType(e.target.value)}
-                  placeholder="e.g., API, Database, Payment Gateway"
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
-                  Service URL (Optional)
-                </label>
-                <input
-                  type="url"
-                  value={externalServiceUrl}
-                  onChange={(e) => setExternalServiceUrl(e.target.value)}
-                  placeholder="https://api.example.com"
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
-              </div>
+
+              {externalServiceMode === 'existing' ? (
+                <div>
+                  <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
+                    Service *
+                  </label>
+                  <select
+                    value={selectedExternalServiceId}
+                    onChange={(e) => setSelectedExternalServiceId(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    required
+                  >
+                    <option value={0}>Select a service</option>
+                    {availableServices.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} (:{s.port})
+                      </option>
+                    ))}
+                  </select>
+                  {availableServices.length === 0 && (
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      No other services available. Select "Type New Name" to add an external service.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
+                      Service Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={externalServiceName}
+                      onChange={(e) => setExternalServiceName(e.target.value)}
+                      placeholder="e.g., OpenAI, AWS S3, Stripe"
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
+                      Service Type (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={externalServiceType}
+                      onChange={(e) => setExternalServiceType(e.target.value)}
+                      placeholder="e.g., API, Database, Payment Gateway"
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
+                      Service URL (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      value={externalServiceUrl}
+                      onChange={(e) => setExternalServiceUrl(e.target.value)}
+                      placeholder="https://api.example.com"
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
+                </>
+              )}
             </>
           )}
 

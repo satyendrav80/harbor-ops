@@ -17,6 +17,7 @@ type TagModalProps = {
 const tagSchema = z.object({
   name: z.string().min(1, 'Tag name is required').max(100, 'Tag name must be 100 characters or less'),
   value: z.string().max(500, 'Tag value must be 500 characters or less').optional().nullable(),
+  color: z.string().max(7).optional().nullable(), // Hex color code
 });
 
 type TagFormValues = z.infer<typeof tagSchema>;
@@ -35,6 +36,7 @@ export function TagModal({ isOpen, onClose, tag, onDelete }: TagModalProps) {
     defaultValues: {
       name: tag?.name || '',
       value: tag?.value || null,
+      color: tag?.color || null,
     },
   });
 
@@ -46,11 +48,13 @@ export function TagModal({ isOpen, onClose, tag, onDelete }: TagModalProps) {
       form.reset({
         name: tag.name,
         value: tag.value || null,
+        color: tag.color || null,
       });
     } else {
       form.reset({
         name: '',
         value: null,
+        color: null,
       });
     }
     setError(null);
@@ -66,12 +70,14 @@ export function TagModal({ isOpen, onClose, tag, onDelete }: TagModalProps) {
           data: {
             name: values.name,
             value: values.value || null,
+            color: values.color || null,
           },
         });
       } else {
         await createTag.mutateAsync({
           name: values.name,
           value: values.value || null,
+          color: values.color || null,
         });
       }
       
@@ -80,6 +86,7 @@ export function TagModal({ isOpen, onClose, tag, onDelete }: TagModalProps) {
         form.reset({
           name: '',
           value: null,
+          color: null,
         });
       }
       onClose();
@@ -147,6 +154,43 @@ export function TagModal({ isOpen, onClose, tag, onDelete }: TagModalProps) {
             />
             {form.formState.errors.value && (
               <p className="mt-1 text-xs text-red-600 dark:text-red-400">{form.formState.errors.value.message}</p>
+            )}
+          </div>
+
+          {/* Tag Color */}
+          <div>
+            <label htmlFor="tag-color" className="block text-sm font-medium text-gray-900 dark:text-white mb-1">
+              Tag Color (Optional)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id="tag-color"
+                type="color"
+                {...form.register('color')}
+                className="h-10 w-20 cursor-pointer rounded border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] focus:outline-none focus:ring-2 focus:ring-primary/50"
+                disabled={isLoading}
+              />
+              <input
+                type="text"
+                {...form.register('color')}
+                className="flex-1 px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                placeholder="#FF0000 or leave empty"
+                disabled={isLoading}
+              />
+              <button
+                type="button"
+                onClick={() => form.setValue('color', null, { shouldDirty: true })}
+                disabled={isLoading}
+                className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
+              >
+                None
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Select a color to visually identify resources with this tag (e.g., yellow for deprecated)
+            </p>
+            {form.formState.errors.color && (
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{form.formState.errors.color.message}</p>
             )}
           </div>
         </div>

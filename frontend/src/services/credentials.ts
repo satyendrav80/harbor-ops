@@ -18,7 +18,6 @@ export type Credential = {
       id: number;
       name: string;
       port: number;
-      serverId: number;
     };
   }>;
 };

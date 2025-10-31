@@ -16,16 +16,9 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
   try {
     // Fetch all resources with their relationships in parallel
     const [servers, services, credentials, domains] = await Promise.all([
-      // Servers with their services (direct relation), credentials, domains, and tags
+      // Servers with their credentials, domains, and tags
       prisma.server.findMany({
         include: {
-          services: {
-            select: {
-              id: true,
-              name: true,
-              port: true,
-            },
-          },
           credentials: {
             include: {
               credential: {
@@ -54,20 +47,25 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
                   id: true,
                   name: true,
                   value: true,
+                  color: true,
                 },
               },
             },
           },
         },
       }),
-      // Services with their credentials, domains, dependencies, and tags
+      // Services with their servers, credentials, domains, dependencies, and tags
       prisma.service.findMany({
         include: {
-          server: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
+          servers: {
+            include: {
+              server: {
+                select: {
+                  id: true,
+                  name: true,
+                  type: true,
+                },
+              },
             },
           },
           credentials: {
@@ -109,6 +107,7 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
                   id: true,
                   name: true,
                   value: true,
+                  color: true,
                 },
               },
             },
