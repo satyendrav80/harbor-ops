@@ -4,14 +4,16 @@ import { Server, Cloud, Lock, Globe, ExternalLink } from 'lucide-react';
 
 export type NodeData = {
   label: string;
-  type: 'server' | 'service' | 'credential' | 'domain' | 'external-service';
-  resourceId: number;
-  resourceType: string;
+  type: 'server' | 'service' | 'credential' | 'domain' | 'external-service' | 'group';
+  resourceId?: number;
+  resourceType?: string;
   tags?: Array<{ id: number; name: string; value: string | null }>;
   port?: number;
   serviceType?: string;
   url?: string;
   highlighted?: boolean;
+  groupType?: 'credentials' | 'domains' | 'dependencies';
+  childCount?: number;
 };
 
 export const nodeColors = {
@@ -61,13 +63,37 @@ const CustomNode = memo(({ data }: { data: NodeData }) => {
         backgroundColor: isHighlighted ? `${nodeColors[data.type]}20` : undefined,
       }}
     >
-      {/* Connection handles - multiple handles to avoid overlapping edges */}
-      <Handle type="target" position={Position.Left} id="top" style={{ background: 'transparent', border: '2px solid #9ca3af', width: '12px', height: '12px', top: '25%' }} />
-      <Handle type="target" position={Position.Left} id="middle" style={{ background: 'transparent', border: '2px solid #9ca3af', width: '12px', height: '12px', top: '50%' }} />
-      <Handle type="target" position={Position.Left} id="bottom" style={{ background: 'transparent', border: '2px solid #9ca3af', width: '12px', height: '12px', top: '75%' }} />
-      <Handle type="source" position={Position.Right} id="top" style={{ background: 'transparent', border: '2px solid #9ca3af', width: '12px', height: '12px', top: '25%' }} />
-      <Handle type="source" position={Position.Right} id="middle" style={{ background: 'transparent', border: '2px solid #9ca3af', width: '12px', height: '12px', top: '50%' }} />
-      <Handle type="source" position={Position.Right} id="bottom" style={{ background: 'transparent', border: '2px solid #9ca3af', width: '12px', height: '12px', top: '75%' }} />
+      {/* Connection handles */}
+      <Handle 
+        type="target" 
+        position={Position.Left} 
+        id="left" 
+        style={{ 
+          background: 'white',
+          border: '2px solid #9ca3af', 
+          width: '10px', 
+          height: '10px',
+          borderRadius: '50%',
+          left: '-5px',
+          top: '50%',
+          transform: 'translateY(-50%)'
+        }} 
+      />
+      <Handle 
+        type="source" 
+        position={Position.Right} 
+        id="right" 
+        style={{ 
+          background: 'white',
+          border: '2px solid #9ca3af', 
+          width: '10px', 
+          height: '10px',
+          borderRadius: '50%',
+          right: '-5px',
+          top: '50%',
+          transform: 'translateY(-50%)'
+        }} 
+      />
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <Icon
@@ -127,8 +153,93 @@ const CustomNode = memo(({ data }: { data: NodeData }) => {
 
 CustomNode.displayName = 'CustomNode';
 
+// Group node component - displays as a labeled box container
+const GroupNode = memo(({ data }: { data: NodeData }) => {
+  const isHighlighted = data.highlighted || false;
+  
+  const groupColors = {
+    credentials: '#f59e0b', // amber
+    domains: '#8b5cf6', // purple
+    dependencies: '#10b981', // green
+  };
+
+  const groupLabels = {
+    credentials: 'Credentials',
+    domains: 'Domains',
+    dependencies: 'Dependencies',
+  };
+
+  // Check if this is a services group
+  const isServicesGroup = data.label === 'Services';
+  const groupColor = isServicesGroup ? '#10b981' : (data.groupType ? groupColors[data.groupType] : '#6b7280');
+  const groupLabel = data.label || (data.groupType ? groupLabels[data.groupType] : 'Group');
+
+  return (
+    <div
+      className={`bg-white dark:bg-[#1C252E] border-2 rounded-lg p-4 shadow-lg transition-all w-full h-full ${
+        isHighlighted
+          ? 'shadow-xl scale-105'
+          : 'border-gray-300 dark:border-gray-600'
+      }`}
+      style={{
+        borderColor: groupColor,
+        borderStyle: 'dashed',
+        borderWidth: '2px',
+      }}
+    >
+      {/* Connection handles for groups */}
+      <Handle 
+        type="target" 
+        position={Position.Left} 
+        id="middle" 
+        style={{ 
+          background: 'white',
+          border: `2px solid ${groupColor}`, 
+          width: '10px', 
+          height: '10px',
+          borderRadius: '50%',
+          left: '-5px',
+          top: '50%',
+          transform: 'translateY(-50%)'
+        }} 
+      />
+      <Handle 
+        type="source" 
+        position={Position.Right} 
+        id="right" 
+        style={{ 
+          background: 'white',
+          border: `2px solid ${groupColor}`, 
+          width: '10px', 
+          height: '10px',
+          borderRadius: '50%',
+          right: '-5px',
+          top: '50%',
+          transform: 'translateY(-50%)'
+        }} 
+      />
+      
+      <div
+        className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 pb-2 border-b border-gray-200 dark:border-gray-600"
+        style={{ color: groupColor }}
+      >
+        {groupLabel}
+        {data.childCount !== undefined && (
+          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+            ({data.childCount})
+          </span>
+        )}
+      </div>
+      {/* Children will be rendered inside this group node by React Flow */}
+    </div>
+  );
+});
+
+GroupNode.displayName = 'GroupNode';
+
 // Export nodeTypes - this ensures it's a stable reference that React Flow recognizes
 export const nodeTypes = {
   custom: CustomNode,
+  group: GroupNode,
 };
 

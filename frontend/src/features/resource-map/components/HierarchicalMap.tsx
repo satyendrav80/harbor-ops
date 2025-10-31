@@ -19,7 +19,7 @@ type HierarchicalMapProps = {
 
 /**
  * HierarchicalMap component - renders an interactive flow diagram
- * using React Flow for better visualization
+ * Structure: Server → Services Group → Resource Groups (stacked vertically)
  */
 export function HierarchicalMap({ data }: HierarchicalMapProps) {
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
@@ -30,20 +30,38 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
     const nodes: Node<NodeData>[] = [];
     const edges: Edge[] = [];
-    const nodeIdMap = new Map<string, string>(); // Map resource to node ID
-    const nodePositions = new Map<string, { x: number; y: number }>(); // Track node positions
-    const edgeCountMap = new Map<string, number>(); // Track number of edges between same source/target pairs
+    const nodePositions = new Map<string, { x: number; y: number }>();
 
-    // Add server nodes
-    data.servers.forEach((server, idx) => {
-      const nodeId = `server-${server.id}`;
-      nodeIdMap.set(`server-${server.id}`, nodeId);
-      const yPos = idx * 150;
-      nodePositions.set(nodeId, { x: 0, y: yPos });
+    // Layout constants
+    const serverX = 0;
+    const servicesGroupX = 300;
+    const resourceGroupsX = 650;
+    const serverVerticalSpacing = 400;
+    const serviceNodeHeight = 80;
+    const serviceVerticalSpacing = 10;
+    const groupPadding = 12;
+    const groupHeaderHeight = 42;
+    const groupSpacing = 30;
+    const resourceNodeHeight = 60;
+    const resourceVerticalSpacing = 8;
+
+    let currentServerY = 0;
+
+    // Process each server
+    data.servers.forEach((server) => {
+      const serverNodeId = `server-${server.id}`;
+      const serverServices = data.services.filter((s) => s.server?.id === server.id);
+
+      if (serverServices.length === 0) {
+        return; // Skip servers with no services
+      }
+
+      // Position server
+      const serverY = currentServerY;
       nodes.push({
-        id: nodeId,
+        id: serverNodeId,
         type: 'custom',
-        position: { x: 0, y: yPos },
+        position: { x: serverX, y: serverY },
         data: {
           label: server.name,
           type: 'server',
@@ -53,25 +71,40 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
           highlighted: false,
         },
       });
-    });
 
-    // Add service nodes (connected to servers)
-    let serviceY = 0;
-    data.servers.forEach((server) => {
-      const serverNodeId = `server-${server.id}`;
-      const serverServices = data.services.filter((s) => s.server?.id === server.id);
+      // Create Services Group containing all services for this server
+      const servicesGroupId = `services-group-${server.id}`;
+      const servicesGroupHeight = groupHeaderHeight + groupPadding + 
+        (serverServices.length * (serviceNodeHeight + serviceVerticalSpacing)) - serviceVerticalSpacing + groupPadding;
       
+      nodes.push({
+        id: servicesGroupId,
+        type: 'group',
+        position: { x: servicesGroupX, y: serverY },
+        data: {
+          label: 'Services',
+          type: 'group',
+          groupType: 'dependencies', // Use dependencies styling (green) for services group
+          childCount: serverServices.length,
+          highlighted: false,
+        },
+        style: {
+          width: 280,
+          height: servicesGroupHeight,
+        },
+      });
+
+      // Add service nodes inside the services group
       serverServices.forEach((service, idx) => {
-        const nodeId = `service-${service.id}`;
-        nodeIdMap.set(`service-${service.id}`, nodeId);
-        const yPos = serviceY * 150;
-        serviceY++;
-        nodePositions.set(nodeId, { x: 300, y: yPos });
+        const serviceNodeId = `service-${service.id}`;
+        const serviceY = groupHeaderHeight + groupPadding + idx * (serviceNodeHeight + serviceVerticalSpacing);
         
         nodes.push({
-          id: nodeId,
+          id: serviceNodeId,
           type: 'custom',
-          position: { x: 300, y: yPos },
+          position: { x: groupPadding, y: serviceY },
+          parentId: servicesGroupId,
+          extent: 'parent',
           data: {
             label: `${service.name}:${service.port}`,
             type: 'service',
@@ -82,241 +115,294 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
             highlighted: false,
           },
         });
+      });
 
-        // Connect service to server
-        const edgeKey = `${serverNodeId}-${nodeId}`;
-        const edgeCount = edgeCountMap.get(edgeKey) || 0;
-        edgeCountMap.set(edgeKey, edgeCount + 1);
+      // Connect server to services group
+      edges.push({
+        id: `edge-${serverNodeId}-${servicesGroupId}`,
+        source: serverNodeId,
+        target: servicesGroupId,
+        sourceHandle: 'right',
+        targetHandle: 'middle',
+        type: 'smoothstep',
+        animated: false,
+        style: { 
+          stroke: '#94a3b8', 
+          strokeWidth: 2,
+          opacity: 0.7,
+        },
+        markerEnd: { 
+          type: 'arrowclosed', 
+          color: '#94a3b8',
+          width: 20,
+          height: 20,
+        },
+      });
+
+      // Aggregate all resources from all services
+      const allCredentials = new Map<number, typeof serverServices[0]['credentials'][0]>();
+      const allDomains = new Map<number, typeof serverServices[0]['domains'][0]>();
+      const allDependencies: typeof serverServices[0]['dependencies'] = [];
+
+      serverServices.forEach((service) => {
+        service.credentials.forEach((sc) => {
+          if (!allCredentials.has(sc.credential.id)) {
+            allCredentials.set(sc.credential.id, sc);
+          }
+        });
+        service.domains.forEach((sd) => {
+          if (!allDomains.has(sd.domain.id)) {
+            allDomains.set(sd.domain.id, sd);
+          }
+        });
+        allDependencies.push(...service.dependencies);
+      });
+
+      // Position resource groups vertically (stacked)
+      let resourceGroupY = serverY;
+      let resourceGroupYOffset = 0;
+
+      // Dependencies Group (first, at top)
+      if (allDependencies.length > 0) {
+        const depsGroupId = `deps-group-${server.id}`;
+        const depsGroupHeight = groupHeaderHeight + groupPadding + 
+          (allDependencies.length * (resourceNodeHeight + resourceVerticalSpacing)) - resourceVerticalSpacing + groupPadding;
         
-        // Use different handles for overlapping edges
-        const handlePositions = ['middle', 'top', 'bottom'];
-        const sourceHandle = handlePositions[edgeCount % 3];
-        const targetHandle = handlePositions[edgeCount % 3];
-        
+        nodes.push({
+          id: depsGroupId,
+          type: 'group',
+          position: { x: resourceGroupsX, y: resourceGroupY + resourceGroupYOffset },
+          data: {
+            label: 'Dependencies',
+            type: 'group',
+            groupType: 'dependencies',
+            childCount: allDependencies.length,
+            highlighted: false,
+          },
+          style: {
+            width: 280,
+            height: depsGroupHeight,
+          },
+        });
+
+        // Add dependency nodes
+        allDependencies.forEach((dep, idx) => {
+          const depY = groupHeaderHeight + groupPadding + idx * (resourceNodeHeight + resourceVerticalSpacing);
+          let depNodeId: string;
+          let depLabel: string;
+          let depType: NodeData['type'];
+
+          if (dep.dependencyService) {
+            depNodeId = `dep-service-${server.id}-${dep.dependencyService.id}`;
+            depLabel = `${dep.dependencyService.name}:${dep.dependencyService.port}`;
+            depType = 'service';
+          } else if (dep.externalServiceName) {
+            depNodeId = `dep-external-${server.id}-${dep.id}`;
+            depLabel = dep.externalServiceName;
+            depType = 'external-service';
+          } else {
+            return;
+          }
+
+          nodes.push({
+            id: depNodeId,
+            type: 'custom',
+            position: { x: groupPadding, y: depY },
+            parentId: depsGroupId,
+            extent: 'parent',
+            data: {
+              label: depLabel,
+              type: depType,
+              resourceId: dep.dependencyService?.id || dep.id,
+              resourceType: depType,
+              serviceType: dep.externalServiceType || undefined,
+              url: dep.externalServiceUrl || undefined,
+              highlighted: false,
+            },
+          });
+        });
+
+        // Connect services group to dependencies group
         edges.push({
-          id: `edge-${serverNodeId}-${nodeId}-${edgeCount}`,
-          source: serverNodeId,
-          target: nodeId,
-          sourceHandle: sourceHandle,
-          targetHandle: targetHandle,
+          id: `edge-${servicesGroupId}-${depsGroupId}`,
+          source: servicesGroupId,
+          target: depsGroupId,
+          sourceHandle: 'right',
+          targetHandle: 'middle',
           type: 'smoothstep',
           animated: false,
-          style: { stroke: '#6b7280', strokeWidth: 2 },
-          markerEnd: { type: 'arrowclosed', color: '#6b7280' },
+          style: { 
+            stroke: '#10b981', 
+            strokeWidth: 2,
+            strokeDasharray: '5,5',
+            opacity: 0.8,
+          },
+          markerEnd: { 
+            type: 'arrowclosed', 
+            color: '#10b981',
+            width: 18,
+            height: 18,
+          },
         });
 
-        // Calculate positions for children
-        let childYOffset = 0;
-        const childrenPerRow = 100; // Spacing between children
+        resourceGroupYOffset += depsGroupHeight + groupSpacing;
+      }
 
-        // Add credential nodes (connected to services)
-        service.credentials.forEach((sc, credIdx) => {
-          const credNodeId = `credential-${sc.credential.id}`;
-          if (!nodeIdMap.has(`credential-${sc.credential.id}`)) {
-            nodeIdMap.set(`credential-${sc.credential.id}`, credNodeId);
-            const credYPos = yPos + childYOffset;
-            nodePositions.set(credNodeId, { x: 600, y: credYPos });
-            nodes.push({
-              id: credNodeId,
-              type: 'custom',
-              position: { x: 600, y: credYPos },
-              data: {
-                label: sc.credential.name,
-                type: 'credential',
-                resourceId: sc.credential.id,
-                resourceType: 'credential',
-                serviceType: sc.credential.type,
-                highlighted: false,
-              },
-            });
-            childYOffset += childrenPerRow;
-          } else {
-            // If credential already exists, use its position
-            const existingPos = nodePositions.get(credNodeId);
-            if (existingPos) {
-              childYOffset = existingPos.y - yPos + childrenPerRow;
-            }
-          }
+      // Credentials Group
+      if (allCredentials.size > 0) {
+        const credsGroupId = `creds-group-${server.id}`;
+        const credsGroupHeight = groupHeaderHeight + groupPadding + 
+          (allCredentials.size * (resourceNodeHeight + resourceVerticalSpacing)) - resourceVerticalSpacing + groupPadding;
+        
+        nodes.push({
+          id: credsGroupId,
+          type: 'group',
+          position: { x: resourceGroupsX, y: resourceGroupY + resourceGroupYOffset },
+          data: {
+            label: 'Credentials',
+            type: 'group',
+            groupType: 'credentials',
+            childCount: allCredentials.size,
+            highlighted: false,
+          },
+          style: {
+            width: 280,
+            height: credsGroupHeight,
+          },
+        });
 
-          const edgeKey = `${nodeId}-${credNodeId}`;
-          const edgeCount = edgeCountMap.get(edgeKey) || 0;
-          edgeCountMap.set(edgeKey, edgeCount + 1);
+        // Add credential nodes
+        Array.from(allCredentials.values()).forEach((cred, idx) => {
+          const credY = groupHeaderHeight + groupPadding + idx * (resourceNodeHeight + resourceVerticalSpacing);
+          const credential = data.credentials.find((c) => c.id === cred.credential.id);
           
-          // Use different handles for overlapping edges
-          const handlePositions = ['middle', 'top', 'bottom'];
-          const sourceHandle = handlePositions[edgeCount % 3];
-          const targetHandle = handlePositions[edgeCount % 3];
-          
-          edges.push({
-            id: `edge-${nodeId}-${credNodeId}-${edgeCount}`,
-            source: nodeId,
-            target: credNodeId,
-            sourceHandle: sourceHandle,
-            targetHandle: targetHandle,
-            type: 'smoothstep',
-            animated: false,
-            style: { stroke: '#f59e0b', strokeWidth: 2 },
-            markerEnd: { type: 'arrowclosed', color: '#f59e0b' },
-            labelStyle: { fill: '#f59e0b', fontWeight: 600 },
+          nodes.push({
+            id: `cred-${server.id}-${cred.credential.id}`,
+            type: 'custom',
+            position: { x: groupPadding, y: credY },
+            parentId: credsGroupId,
+            extent: 'parent',
+            data: {
+              label: credential?.name || cred.credential.name,
+              type: 'credential',
+              resourceId: cred.credential.id,
+              resourceType: 'credential',
+              serviceType: credential?.type,
+              highlighted: false,
+            },
           });
         });
 
-        // Add domain nodes (connected to services) - BEFORE dependencies
-        service.domains.forEach((sd, domIdx) => {
-          const domainNodeId = `domain-${sd.domain.id}`;
-          if (!nodeIdMap.has(`domain-${sd.domain.id}`)) {
-            nodeIdMap.set(`domain-${sd.domain.id}`, domainNodeId);
-            const domainYPos = yPos + childYOffset;
-            nodePositions.set(domainNodeId, { x: 600, y: domainYPos });
-            nodes.push({
-              id: domainNodeId,
-              type: 'custom',
-              position: { x: 600, y: domainYPos },
-              data: {
-                label: sd.domain.name,
-                type: 'domain',
-                resourceId: sd.domain.id,
-                resourceType: 'domain',
-                highlighted: false,
-              },
-            });
-            childYOffset += childrenPerRow;
-          } else {
-            const existingPos = nodePositions.get(domainNodeId);
-            if (existingPos) {
-              childYOffset = existingPos.y - yPos + childrenPerRow;
-            }
-          }
+        // Connect services group to credentials group
+        edges.push({
+          id: `edge-${servicesGroupId}-${credsGroupId}`,
+          source: servicesGroupId,
+          target: credsGroupId,
+          sourceHandle: 'right',
+          targetHandle: 'middle',
+          type: 'smoothstep',
+          animated: false,
+          style: { 
+            stroke: '#f59e0b', 
+            strokeWidth: 2,
+            opacity: 0.8,
+          },
+          markerEnd: { 
+            type: 'arrowclosed', 
+            color: '#f59e0b',
+            width: 18,
+            height: 18,
+          },
+        });
 
-          const edgeKey = `${nodeId}-${domainNodeId}`;
-          const edgeCount = edgeCountMap.get(edgeKey) || 0;
-          edgeCountMap.set(edgeKey, edgeCount + 1);
+        resourceGroupYOffset += credsGroupHeight + groupSpacing;
+      }
+
+      // Domains Group (last, at bottom)
+      if (allDomains.size > 0) {
+        const domainsGroupId = `domains-group-${server.id}`;
+        const domainsGroupHeight = groupHeaderHeight + groupPadding + 
+          (allDomains.size * (resourceNodeHeight + resourceVerticalSpacing)) - resourceVerticalSpacing + groupPadding;
+        
+        nodes.push({
+          id: domainsGroupId,
+          type: 'group',
+          position: { x: resourceGroupsX, y: resourceGroupY + resourceGroupYOffset },
+          data: {
+            label: 'Domains',
+            type: 'group',
+            groupType: 'domains',
+            childCount: allDomains.size,
+            highlighted: false,
+          },
+          style: {
+            width: 280,
+            height: domainsGroupHeight,
+          },
+        });
+
+        // Add domain nodes
+        Array.from(allDomains.values()).forEach((dom, idx) => {
+          const domY = groupHeaderHeight + groupPadding + idx * (resourceNodeHeight + resourceVerticalSpacing);
+          const domain = data.domains.find((d) => d.id === dom.domain.id);
           
-          // Use different handles for overlapping edges
-          const handlePositions = ['middle', 'top', 'bottom'];
-          const sourceHandle = handlePositions[edgeCount % 3];
-          const targetHandle = handlePositions[edgeCount % 3];
-          
-          edges.push({
-            id: `edge-${nodeId}-${domainNodeId}-${edgeCount}`,
-            source: nodeId,
-            target: domainNodeId,
-            sourceHandle: sourceHandle,
-            targetHandle: targetHandle,
-            type: 'smoothstep',
-            animated: false,
-            style: { stroke: '#8b5cf6', strokeWidth: 2 },
-            markerEnd: { type: 'arrowclosed', color: '#8b5cf6' },
-            labelStyle: { fill: '#8b5cf6', fontWeight: 600 },
+          nodes.push({
+            id: `domain-${server.id}-${dom.domain.id}`,
+            type: 'custom',
+            position: { x: groupPadding, y: domY },
+            parentId: domainsGroupId,
+            extent: 'parent',
+            data: {
+              label: domain?.name || dom.domain.name,
+              type: 'domain',
+              resourceId: dom.domain.id,
+              resourceType: 'domain',
+              highlighted: false,
+            },
           });
         });
 
-        // Add dependency nodes (connected to services) - AFTER domains
-        // Internal dependencies (other services)
-        const internalDeps = service.dependencies.filter((d) => d.dependencyService);
-        internalDeps.forEach((dep, depIdx) => {
-          if (dep.dependencyService) {
-            const depServiceNodeId = `service-${dep.dependencyService.id}`;
-            
-            // If dependency service node doesn't exist yet, add it
-            if (!nodeIdMap.has(`service-${dep.dependencyService.id}`)) {
-              nodeIdMap.set(`service-${dep.dependencyService.id}`, depServiceNodeId);
-              const depYPos = yPos + childYOffset;
-              nodePositions.set(depServiceNodeId, { x: 600, y: depYPos });
-              const depService = data.services.find((s) => s.id === dep.dependencyService!.id);
-              
-              nodes.push({
-                id: depServiceNodeId,
-                type: 'custom',
-                position: { x: 600, y: depYPos },
-                data: {
-                  label: `${dep.dependencyService.name}:${dep.dependencyService.port}`,
-                  type: 'service',
-                  resourceId: dep.dependencyService.id,
-                  resourceType: 'service',
-                  port: dep.dependencyService.port,
-                  tags: depService?.tags?.map((st) => st.tag),
-                  highlighted: false,
-                },
-              });
-              childYOffset += childrenPerRow;
-            }
-
-            const edgeKey = `${nodeId}-${depServiceNodeId}`;
-            const edgeCount = edgeCountMap.get(edgeKey) || 0;
-            edgeCountMap.set(edgeKey, edgeCount + 1);
-            
-            // Use different handles for overlapping edges
-            const handlePositions = ['middle', 'top', 'bottom'];
-            const sourceHandle = handlePositions[edgeCount % 3];
-            const targetHandle = handlePositions[edgeCount % 3];
-            
-            edges.push({
-              id: `edge-${nodeId}-${depServiceNodeId}-dep-${edgeCount}`,
-              source: nodeId,
-              target: depServiceNodeId,
-              sourceHandle: sourceHandle,
-              targetHandle: targetHandle,
-              type: 'smoothstep',
-              animated: false,
-              style: { stroke: '#10b981', strokeWidth: 2, strokeDasharray: '5,5' },
-              markerEnd: { type: 'arrowclosed', color: '#10b981' },
-              labelStyle: { fill: '#10b981', fontWeight: 600 },
-            });
-          }
+        // Connect services group to domains group
+        edges.push({
+          id: `edge-${servicesGroupId}-${domainsGroupId}`,
+          source: servicesGroupId,
+          target: domainsGroupId,
+          sourceHandle: 'right',
+          targetHandle: 'middle',
+          type: 'smoothstep',
+          animated: false,
+          style: { 
+            stroke: '#8b5cf6', 
+            strokeWidth: 2,
+            opacity: 0.8,
+          },
+          markerEnd: { 
+            type: 'arrowclosed', 
+            color: '#8b5cf6',
+            width: 18,
+            height: 18,
+          },
         });
 
-        // External dependencies - AFTER internal dependencies
-        const externalDeps = service.dependencies.filter((d) => d.externalServiceName);
-        externalDeps.forEach((dep, depIdx) => {
-          if (dep.externalServiceName) {
-            const extDepNodeId = `external-${service.id}-${dep.id}`;
-            const extDepYPos = yPos + childYOffset;
-            nodePositions.set(extDepNodeId, { x: 600, y: extDepYPos });
-            
-            nodes.push({
-              id: extDepNodeId,
-              type: 'custom',
-              position: { x: 600, y: extDepYPos },
-              data: {
-                label: dep.externalServiceName,
-                type: 'external-service',
-                resourceId: dep.id,
-                resourceType: 'external-service',
-                serviceType: dep.externalServiceType || undefined,
-                url: dep.externalServiceUrl || undefined,
-                highlighted: false,
-              },
-            });
-            childYOffset += childrenPerRow;
+        resourceGroupYOffset += domainsGroupHeight + groupSpacing;
+      }
 
-            const edgeKey = `${nodeId}-${extDepNodeId}`;
-            const edgeCount = edgeCountMap.get(edgeKey) || 0;
-            edgeCountMap.set(edgeKey, edgeCount + 1);
-            
-            // Use different handles for overlapping edges
-            const handlePositions = ['middle', 'top', 'bottom'];
-            const sourceHandle = handlePositions[edgeCount % 3];
-            const targetHandle = handlePositions[edgeCount % 3];
-            
-            edges.push({
-              id: `edge-${nodeId}-${extDepNodeId}-${edgeCount}`,
-              source: nodeId,
-              target: extDepNodeId,
-              sourceHandle: sourceHandle,
-              targetHandle: targetHandle,
-              type: 'smoothstep',
-              animated: false,
-              style: { stroke: '#ec4899', strokeWidth: 2, strokeDasharray: '5,5' },
-              markerEnd: { type: 'arrowclosed', color: '#ec4899' },
-              labelStyle: { fill: '#ec4899', fontWeight: 600 },
-            });
-          }
-        });
-      });
+      // Update current server Y position for next server
+      const totalServerHeight = Math.max(
+        servicesGroupHeight,
+        resourceGroupYOffset > 0 ? resourceGroupYOffset - groupSpacing : 0
+      );
+      currentServerY += totalServerHeight + serverVerticalSpacing;
     });
 
-    return { nodes, edges };
+    // Sort nodes so parent nodes come before their children
+    const sortedNodes = nodes.sort((a, b) => {
+      if (a.parentId && !b.parentId) return 1;
+      if (!a.parentId && b.parentId) return -1;
+      return 0;
+    });
+
+    return { nodes: sortedNodes, edges };
   }, [data]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -373,7 +459,7 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
         }))
       );
 
-      // Update edge styles - only highlight connected edges, keep others at full opacity
+      // Update edge styles
       setEdges((eds) =>
         eds.map((edge) => {
           const sourceNode = initialNodes.find((n) => n.id === edge.source);
@@ -386,7 +472,7 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
               ...edge.style,
               strokeWidth: isHighlighted ? 4 : 2,
               stroke: isHighlighted ? sourceColor : edge.style?.stroke || '#6b7280',
-              opacity: isHighlighted ? 1 : 0.5, // Dim non-highlighted edges slightly
+              opacity: isHighlighted ? 1 : 0.5,
             },
           };
         })
@@ -424,14 +510,14 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
   // Handle node hover - highlight only directly connected resources (one hop)
   const handleNodeMouseEnter = useCallback(
     (event: React.MouseEvent, node: Node<NodeData>) => {
-      if (hoveredNodeId === node.id) return; // Already processing this node
+      if (hoveredNodeId === node.id) return;
       
       setHoveredNodeId(node.id);
       
       const connectedNodeIds = new Set<string>([node.id]);
       const connectedEdgeIds = new Set<string>();
 
-      // Find only directly connected nodes (one hop - no recursive traversal)
+      // Find only directly connected nodes (one hop)
       initialEdges.forEach((edge) => {
         if (edge.source === node.id) {
           connectedNodeIds.add(edge.target);
@@ -478,7 +564,6 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
   // Handle node mouse leave - clear hover highlighting
   const handleNodeMouseLeave = useCallback(() => {
     setHoveredNodeId(null);
-    // Only clear hover highlighting if no node is clicked (highlighted)
     if (highlightedNodes.size === 0) {
       setNodes((nds) =>
         nds.map((node) => ({
@@ -514,10 +599,23 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
         onNodeMouseLeave={handleNodeMouseLeave}
         onPaneClick={handlePaneClick}
         nodeTypes={nodeTypes}
+        defaultEdgeOptions={{
+          type: 'smoothstep',
+          animated: false,
+        }}
         fitView
         attributionPosition="top-right"
+        nodesDraggable={true}
+        nodesConnectable={true}
+        elementsSelectable={true}
       >
-        <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+        <Background 
+          variant={BackgroundVariant.Dots} 
+          gap={16} 
+          size={1}
+          color="#e5e7eb"
+          className="dark:opacity-20"
+        />
         <Controls />
         {nodes.length > 0 && (
           <MiniMap
