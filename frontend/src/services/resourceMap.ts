@@ -36,11 +36,13 @@ export type ResourceMapData = {
     id: number;
     name: string;
     port: number;
-    server: {
-      id: number;
-      name: string;
-      type: string;
-    };
+    servers?: Array<{
+      server: {
+        id: number;
+        name: string;
+        type: string;
+      };
+    }>;
     credentials: Array<{
       credential: {
         id: number;
@@ -54,7 +56,7 @@ export type ResourceMapData = {
         name: string;
       };
     }>;
-    dependencies: Array<{
+    dependencies?: Array<{
       id: number;
       dependencyServiceId: number | null;
       dependencyService: {

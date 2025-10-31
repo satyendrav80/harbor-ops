@@ -1,10 +1,14 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getResourceMap } from '../../../services/resourceMap';
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { HierarchicalMap } from '../components/HierarchicalMap';
+import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
+import { getServers } from '../../../services/servers';
+import { useConstants } from '../../constants/hooks/useConstants';
+import type { ResourceMapData } from '../../../services/resourceMap';
 
 /**
  * ResourceMapPage component - displays an interactive hierarchical visualization
@@ -12,6 +16,8 @@ import { HierarchicalMap } from '../components/HierarchicalMap';
  */
 export function ResourceMapPage() {
   usePageTitle('Resource Map');
+  const { data: constants } = useConstants();
+  const [selectedServerIds, setSelectedServerIds] = useState<number[]>([]);
 
   const { data: resourceMapData, isLoading, error } = useQuery({
     queryKey: ['resource-map'],
@@ -19,17 +25,81 @@ export function ResourceMapPage() {
     staleTime: 30 * 1000, // Cache for 30 seconds
   });
 
-  // Calculate stats for display
+  // Fetch servers for filter
+  const { data: serversData } = useQuery({
+    queryKey: ['servers', 'filter'],
+    queryFn: () => getServers(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Filter resource map data based on selected servers
+  const filteredData = useMemo(() => {
+    if (!resourceMapData) return null;
+    
+    // If no servers selected, show all
+    if (selectedServerIds.length === 0) {
+      return resourceMapData;
+    }
+
+    // Filter servers
+    const filteredServers = resourceMapData.servers.filter((server) =>
+      selectedServerIds.includes(server.id)
+    );
+
+    // Get server IDs for filtering
+    const serverIdsSet = new Set(selectedServerIds);
+
+    // Filter services that belong to selected servers
+    const filteredServices = resourceMapData.services.filter((service) =>
+      service.servers?.some((ss) => serverIdsSet.has(ss.server.id))
+    );
+
+    // Filter credentials that belong to selected servers or their services
+    const filteredServiceIdsSet = new Set(filteredServices.map((s) => s.id));
+    const filteredCredentials = resourceMapData.credentials.filter((credential) => {
+      // Include if used by selected servers
+      if (credential.servers?.some((sc) => serverIdsSet.has(sc.server.id))) {
+        return true;
+      }
+      // Include if used by filtered services
+      if (credential.services?.some((ssc) => filteredServiceIdsSet.has(ssc.service.id))) {
+        return true;
+      }
+      return false;
+    });
+
+    // Filter domains that belong to selected servers or their services
+    const filteredDomains = resourceMapData.domains.filter((domain) => {
+      // Include if used by selected servers
+      if (domain.servers?.some((ds) => serverIdsSet.has(ds.server.id))) {
+        return true;
+      }
+      // Include if used by filtered services
+      if (domain.services?.some((dsc) => filteredServiceIdsSet.has(dsc.service.id))) {
+        return true;
+      }
+      return false;
+    });
+
+    return {
+      servers: filteredServers,
+      services: filteredServices,
+      credentials: filteredCredentials,
+      domains: filteredDomains,
+    } as ResourceMapData;
+  }, [resourceMapData, selectedServerIds]);
+
+  // Calculate stats for display (from filtered data)
   const stats = useMemo(() => {
-    if (!resourceMapData) return { servers: 0, services: 0, credentials: 0, domains: 0 };
+    if (!filteredData) return { servers: 0, services: 0, credentials: 0, domains: 0 };
     
     return {
-      servers: resourceMapData.servers.length,
-      services: resourceMapData.services.length,
-      credentials: resourceMapData.credentials.length,
-      domains: resourceMapData.domains.length,
+      servers: filteredData.servers.length,
+      services: filteredData.services.length,
+      credentials: filteredData.credentials.length,
+      domains: filteredData.domains.length,
     };
-  }, [resourceMapData]);
+  }, [filteredData]);
 
   if (isLoading) {
     return <Loading />;
@@ -50,8 +120,12 @@ export function ResourceMapPage() {
     return (
       <div className="p-6">
         <EmptyState
-          title="No resources found"
-          description="There are no resources to display in the map. Create servers, services, credentials, or domains to see them here."
+          title={selectedServerIds.length > 0 ? "No resources found for selected servers" : "No resources found"}
+          description={
+            selectedServerIds.length > 0
+              ? "No resources match the selected server filter. Try selecting different servers or clear the filter."
+              : "There are no resources to display in the map. Create servers, services, credentials, or domains to see them here."
+          }
         />
       </div>
     );
@@ -59,12 +133,28 @@ export function ResourceMapPage() {
 
   return (
     <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Resource Map</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             Interactive visualization of all resources and their relationships
           </p>
+        </div>
+        <div className="w-full sm:w-auto min-w-[300px]">
+          <SearchableMultiSelect
+            options={
+              serversData?.data?.map((server) => {
+                const serverTypeLabel = constants?.serverTypeLabels[server.type] || server.type;
+                const displayName = `${server.name} (${serverTypeLabel}) - ${server.publicIp || server.endpoint || 'N/A'}`;
+                return { id: server.id, name: displayName };
+              }) || []
+            }
+            selectedIds={selectedServerIds}
+            onChange={setSelectedServerIds}
+            label="Filter by Servers"
+            placeholder="Select servers to filter (leave empty for all)..."
+            disabled={isLoading || !serversData?.data}
+          />
         </div>
       </div>
 
@@ -93,7 +183,7 @@ export function ResourceMapPage() {
 
       {/* Visualization */}
       <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg overflow-hidden" style={{ height: 'calc(100vh - 300px)', minHeight: '600px' }}>
-        {resourceMapData && <HierarchicalMap data={resourceMapData} />}
+        {filteredData && <HierarchicalMap data={filteredData} />}
       </div>
 
       {/* Stats */}

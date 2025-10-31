@@ -54,8 +54,13 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
         s.servers?.some((ss) => ss.server.id === server.id)
       );
 
-      if (serverServices.length === 0) {
-        return; // Skip servers with no services
+      // Check if server has any resources (services, credentials, or domains)
+      const hasServerCredentials = server.credentials && server.credentials.length > 0;
+      const hasServerDomains = server.domains && server.domains.length > 0;
+      const hasResources = serverServices.length > 0 || hasServerCredentials || hasServerDomains;
+
+      if (!hasResources) {
+        return; // Skip servers with no resources at all
       }
 
       // Position server
@@ -74,101 +79,160 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
         },
       });
 
-      // Create Services Group containing all services for this server
-      const servicesGroupId = `services-group-${server.id}`;
-      const servicesGroupHeight = groupHeaderHeight + groupPadding + 
-        (serverServices.length * (serviceNodeHeight + serviceVerticalSpacing)) - serviceVerticalSpacing + groupPadding;
-      
-      nodes.push({
-        id: servicesGroupId,
-        type: 'group',
-        position: { x: servicesGroupX, y: serverY },
-        data: {
-          label: 'Services',
-          type: 'group',
-          groupType: 'dependencies', // Use dependencies styling (green) for services group
-          childCount: serverServices.length,
-          highlighted: false,
-        },
-        style: {
-          width: 280,
-          height: servicesGroupHeight,
-        },
-      });
-
-      // Add service nodes inside the services group
-      serverServices.forEach((service, idx) => {
-        const serviceNodeId = `service-${service.id}`;
-        const serviceY = groupHeaderHeight + groupPadding + idx * (serviceNodeHeight + serviceVerticalSpacing);
+      // Create Services Group containing all services for this server (if any)
+      let servicesGroupId: string | null = null;
+      let servicesGroupHeight = 0;
+      if (serverServices.length > 0) {
+        servicesGroupId = `services-group-${server.id}`;
+        servicesGroupHeight = groupHeaderHeight + groupPadding + 
+          (serverServices.length * (serviceNodeHeight + serviceVerticalSpacing)) - serviceVerticalSpacing + groupPadding;
         
         nodes.push({
-          id: serviceNodeId,
-          type: 'custom',
-          position: { x: groupPadding, y: serviceY },
-          parentId: servicesGroupId,
-          extent: 'parent',
+          id: servicesGroupId,
+          type: 'group',
+          position: { x: servicesGroupX, y: serverY },
           data: {
-            label: `${service.name}:${service.port}`,
-            type: 'service',
-            resourceId: service.id,
-            resourceType: 'service',
-            port: service.port,
-            tags: service.tags?.map((st) => st.tag),
+            label: 'Services',
+            type: 'group',
+            groupType: 'dependencies', // Use dependencies styling (green) for services group
+            childCount: serverServices.length,
             highlighted: false,
           },
+          style: {
+            width: 280,
+            height: servicesGroupHeight,
+          },
         });
+
+        // Add service nodes inside the services group
+        // Use unique IDs per server to handle services on multiple servers
+        serverServices.forEach((service, idx) => {
+          const serviceNodeId = `service-${server.id}-${service.id}`;
+          const serviceY = groupHeaderHeight + groupPadding + idx * (serviceNodeHeight + serviceVerticalSpacing);
+          
+          nodes.push({
+            id: serviceNodeId,
+            type: 'custom',
+            position: { x: groupPadding, y: serviceY },
+            parentId: servicesGroupId,
+            extent: 'parent',
+            data: {
+              label: `${service.name}:${service.port}`,
+              type: 'service',
+              resourceId: service.id,
+              resourceType: 'service',
+              port: service.port,
+              tags: service.tags?.map((st) => st.tag),
+              highlighted: false,
+            },
+          });
+        });
+
+        // Connect server to services group
+        edges.push({
+          id: `edge-${serverNodeId}-${servicesGroupId}`,
+          source: serverNodeId,
+          target: servicesGroupId!,
+          sourceHandle: 'right',
+          targetHandle: 'middle',
+          type: 'smoothstep',
+          animated: false,
+          style: { 
+            stroke: '#94a3b8', 
+            strokeWidth: 2,
+            opacity: 0.7,
+          },
+          markerEnd: { 
+            type: 'arrowclosed', 
+            color: '#94a3b8',
+            width: 20,
+            height: 20,
+          },
+        });
+      }
+
+      // Aggregate all resources from server and its services
+      // First, get credentials and domains directly associated with the server
+      const allCredentials = new Map<number, { credential: { id: number; name: string; type: string } }>();
+      const allDomains = new Map<number, { domain: { id: number; name: string } }>();
+      const allDependencies: Array<{
+        id: number;
+        dependencyServiceId: number | null;
+        dependencyService: {
+          id: number;
+          name: string;
+          port: number;
+        } | null;
+        externalServiceName: string | null;
+        externalServiceType: string | null;
+        externalServiceUrl: string | null;
+      }> = [];
+
+      // Add server-level credentials
+      server.credentials?.forEach((sc) => {
+        if (!allCredentials.has(sc.credential.id)) {
+          allCredentials.set(sc.credential.id, sc);
+        }
       });
 
-      // Connect server to services group
-      edges.push({
-        id: `edge-${serverNodeId}-${servicesGroupId}`,
-        source: serverNodeId,
-        target: servicesGroupId,
-        sourceHandle: 'right',
-        targetHandle: 'middle',
-        type: 'smoothstep',
-        animated: false,
-        style: { 
-          stroke: '#94a3b8', 
-          strokeWidth: 2,
-          opacity: 0.7,
-        },
-        markerEnd: { 
-          type: 'arrowclosed', 
-          color: '#94a3b8',
-          width: 20,
-          height: 20,
-        },
+      // Add server-level domains
+      server.domains?.forEach((sd) => {
+        if (!allDomains.has(sd.domain.id)) {
+          allDomains.set(sd.domain.id, sd);
+        }
       });
 
-      // Aggregate all resources from all services
-      const allCredentials = new Map<number, typeof serverServices[0]['credentials'][0]>();
-      const allDomains = new Map<number, typeof serverServices[0]['domains'][0]>();
-      const allDependencies: typeof serverServices[0]['dependencies'] = [];
-
+      // Add credentials, domains, and dependencies from all services on this server
       serverServices.forEach((service) => {
-        service.credentials.forEach((sc) => {
-          if (!allCredentials.has(sc.credential.id)) {
-            allCredentials.set(sc.credential.id, sc);
-          }
-        });
-        service.domains.forEach((sd) => {
-          if (!allDomains.has(sd.domain.id)) {
-            allDomains.set(sd.domain.id, sd);
-          }
-        });
-        allDependencies.push(...service.dependencies);
+        // Handle credentials
+        if (service.credentials && Array.isArray(service.credentials)) {
+          service.credentials.forEach((sc) => {
+            if (sc?.credential && !allCredentials.has(sc.credential.id)) {
+              allCredentials.set(sc.credential.id, sc);
+            }
+          });
+        }
+        
+        // Handle domains
+        if (service.domains && Array.isArray(service.domains)) {
+          service.domains.forEach((sd) => {
+            if (sd?.domain && !allDomains.has(sd.domain.id)) {
+              allDomains.set(sd.domain.id, sd);
+            }
+          });
+        }
+        
+        // Handle dependencies
+        if (service.dependencies && Array.isArray(service.dependencies)) {
+          service.dependencies.forEach((dep) => {
+            // Only add if it's a valid dependency (has dependencyService or externalServiceName)
+            // Check for dependencyService (internal dependency) or externalServiceName (external dependency)
+            const hasInternalDep = dep?.dependencyService && dep.dependencyService.id;
+            const hasExternalDep = dep?.externalServiceName && dep.externalServiceName.trim().length > 0;
+            
+            if (dep && (hasInternalDep || hasExternalDep)) {
+              allDependencies.push(dep);
+            }
+          });
+        }
       });
-
       // Position resource groups vertically (stacked)
       let resourceGroupY = serverY;
       let resourceGroupYOffset = 0;
 
       // Dependencies Group (first, at top)
-      if (allDependencies.length > 0) {
+      // Filter out invalid dependencies (must have valid dependencyService or externalServiceName)
+      // Note: allDependencies should already be filtered, but filter again to be safe
+      const validDependencies = allDependencies.filter((dep) => {
+        if (!dep) return false;
+        const hasInternalDep = dep.dependencyService && dep.dependencyService.id;
+        const hasExternalDep = dep.externalServiceName && dep.externalServiceName.trim().length > 0;
+        return hasInternalDep || hasExternalDep;
+      });
+      if (validDependencies.length > 0) {
         const depsGroupId = `deps-group-${server.id}`;
         const depsGroupHeight = groupHeaderHeight + groupPadding + 
-          (allDependencies.length * (resourceNodeHeight + resourceVerticalSpacing)) - resourceVerticalSpacing + groupPadding;
+          (validDependencies.length * (resourceNodeHeight + resourceVerticalSpacing)) - resourceVerticalSpacing + groupPadding;
         
         nodes.push({
           id: depsGroupId,
@@ -178,7 +242,7 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
             label: 'Dependencies',
             type: 'group',
             groupType: 'dependencies',
-            childCount: allDependencies.length,
+            childCount: validDependencies.length,
             highlighted: false,
           },
           style: {
@@ -188,7 +252,7 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
         });
 
         // Add dependency nodes
-        allDependencies.forEach((dep, idx) => {
+        validDependencies.forEach((dep, idx) => {
           const depY = groupHeaderHeight + groupPadding + idx * (resourceNodeHeight + resourceVerticalSpacing);
           let depNodeId: string;
           let depLabel: string;
@@ -200,9 +264,10 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
             depType = 'service';
           } else if (dep.externalServiceName) {
             depNodeId = `dep-external-${server.id}-${dep.id}`;
-            depLabel = dep.externalServiceName;
+            depLabel = dep.externalServiceName || 'Unknown External Service';
             depType = 'external-service';
           } else {
+            // This shouldn't happen since we filtered, but handle it just in case
             return;
           }
 
@@ -224,12 +289,12 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
           });
         });
 
-        // Connect services group to dependencies group
+        // Connect services group (or server if no services) to dependencies group
         edges.push({
-          id: `edge-${servicesGroupId}-${depsGroupId}`,
-          source: servicesGroupId,
+          id: `edge-${servicesGroupId || serverNodeId}-${depsGroupId}`,
+          source: servicesGroupId || serverNodeId,
           target: depsGroupId,
-          sourceHandle: 'right',
+          sourceHandle: servicesGroupId ? 'right' : 'right',
           targetHandle: 'middle',
           type: 'smoothstep',
           animated: false,
@@ -295,12 +360,12 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
           });
         });
 
-        // Connect services group to credentials group
+        // Connect services group (or server if no services) to credentials group
         edges.push({
-          id: `edge-${servicesGroupId}-${credsGroupId}`,
-          source: servicesGroupId,
+          id: `edge-${servicesGroupId || serverNodeId}-${credsGroupId}`,
+          source: servicesGroupId || serverNodeId,
           target: credsGroupId,
-          sourceHandle: 'right',
+          sourceHandle: servicesGroupId ? 'right' : 'right',
           targetHandle: 'middle',
           type: 'smoothstep',
           animated: false,
@@ -364,12 +429,12 @@ export function HierarchicalMap({ data }: HierarchicalMapProps) {
           });
         });
 
-        // Connect services group to domains group
+        // Connect services group (or server if no services) to domains group
         edges.push({
-          id: `edge-${servicesGroupId}-${domainsGroupId}`,
-          source: servicesGroupId,
+          id: `edge-${servicesGroupId || serverNodeId}-${domainsGroupId}`,
+          source: servicesGroupId || serverNodeId,
           target: domainsGroupId,
-          sourceHandle: 'right',
+          sourceHandle: servicesGroupId ? 'right' : 'right',
           targetHandle: 'middle',
           type: 'smoothstep',
           animated: false,
