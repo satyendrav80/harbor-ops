@@ -12,7 +12,7 @@ import { usePageTitle } from '../../../hooks/usePageTitle';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { useQuery } from '@tanstack/react-query';
 import { getServices } from '../../../services/services';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 // Memoized header component - doesn't re-render when data changes
 const ReleaseNotesHeader = memo(({
@@ -99,6 +99,7 @@ const ReleaseNoteItem = memo(({
   hasPermission: (permission: string) => boolean;
   markDeployedPending: boolean;
 }) => {
+  const navigate = useNavigate();
   return (
     <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6">
       <div className="flex items-start justify-between">
@@ -131,7 +132,7 @@ const ReleaseNoteItem = memo(({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  window.location.href = `/services?serviceId=${releaseNote.serviceId}`;
+                  navigate(`/services?serviceId=${releaseNote.serviceId}`);
                 }}
                 className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer"
                 title={`Click to view service ${releaseNote.service.name}`}
@@ -283,8 +284,13 @@ ReleaseNotesList.displayName = 'ReleaseNotesList';
 export function ReleaseNotesPage() {
   usePageTitle('Release Notes');
   const { hasPermission } = useAuth();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Read filters from URL params
+  const serviceIdParam = searchParams.get('serviceId');
+  const serviceId = serviceIdParam ? Number(serviceIdParam) : undefined;
   
   // Initialize status filter from URL params
   const initialStatusFilter = (searchParams.get('status') as 'pending' | 'deployed' | 'all') || 'all';
@@ -328,7 +334,8 @@ export function ReleaseNotesPage() {
   } = useReleaseNotes(
     debouncedSearch,
     statusFilter === 'all' ? undefined : statusFilter,
-    20
+    20,
+    serviceId
   );
 
   const createReleaseNote = useCreateReleaseNote();

@@ -59,11 +59,20 @@ export type ServicesResponse = {
 /**
  * Fetch all services (returns paginated response)
  */
-export async function getServices(page?: number, limit?: number, search?: string): Promise<ServicesResponse> {
+export async function getServices(
+  page?: number,
+  limit?: number,
+  search?: string,
+  serviceId?: number,
+  serverId?: number
+): Promise<ServicesResponse> {
   const params = new URLSearchParams();
   if (page) params.append('page', page.toString());
   if (limit) params.append('limit', limit.toString());
   if (search) params.append('search', search);
+  if (serviceId) params.append('serviceId', serviceId.toString());
+  if (serverId) params.append('serverId', serverId.toString());
+  params.append('include', 'relations');
   return apiFetch<ServicesResponse>(`/services?${params.toString()}`);
 }
 

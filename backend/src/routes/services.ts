@@ -12,27 +12,40 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
   const limit = parseInt(req.query.limit as string) || 20;
   const search = (req.query.search as string) || '';
   const include = (req.query.include as string | undefined) ?? '';
+  const serviceId = req.query.serviceId ? Number(req.query.serviceId) : undefined;
+  const serverId = req.query.serverId ? Number(req.query.serverId) : undefined;
   const offset = (page - 1) * limit;
   const includeRelations = include.split(',').includes('relations');
 
   // Build search conditions
-  const searchConditions: any = search
-    ? {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          ...(isNaN(Number(search)) ? [] : [{ port: { equals: Number(search) } }]),
-          {
-            server: {
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { publicIp: { contains: search, mode: 'insensitive' } },
-                { privateIp: { contains: search, mode: 'insensitive' } },
-              ],
-            },
-          },
-        ],
-      }
-    : {};
+  const searchConditions: any = {};
+  
+  // Filter by serviceId if provided (exact match)
+  if (serviceId) {
+    searchConditions.id = serviceId;
+  }
+  
+  // Filter by serverId if provided
+  if (serverId) {
+    searchConditions.serverId = serverId;
+  }
+  
+  // Add search conditions if not filtering by exact serviceId
+  if (search && !serviceId) {
+    searchConditions.OR = [
+      { name: { contains: search, mode: 'insensitive' } },
+      ...(isNaN(Number(search)) ? [] : [{ port: { equals: Number(search) } }]),
+      {
+        server: {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { publicIp: { contains: search, mode: 'insensitive' } },
+            { privateIp: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+      },
+    ];
+  }
 
   const [services, total] = await Promise.all([
     prisma.service.findMany({

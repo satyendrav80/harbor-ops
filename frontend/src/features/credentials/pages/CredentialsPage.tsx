@@ -84,7 +84,8 @@ export function CredentialsPage() {
     setSearchParams(params, { replace: true });
   }, [debouncedSearch]);
 
-  // Fetch credentials with infinite scroll (filtered by server/service if provided)
+  // Fetch credentials with infinite scroll (filtered by server/service/credentialId if provided)
+  const credentialIdNum = credentialId ? Number(credentialId) : undefined;
   const {
     data: credentialsData,
     isLoading: credentialsLoading,
@@ -92,7 +93,7 @@ export function CredentialsPage() {
     fetchNextPage: fetchNextCredentialsPage,
     hasNextPage: hasNextCredentialsPage,
     isFetchingNextPage: isFetchingNextCredentialsPage,
-  } = useCredentials(debouncedSearch, 20, serverId ? Number(serverId) : undefined, serviceId ? Number(serviceId) : undefined);
+  } = useCredentials(debouncedSearch, 20, serverId ? Number(serverId) : undefined, serviceId ? Number(serviceId) : undefined, credentialIdNum);
 
   // Keep previous data during refetches to prevent flicker
   const previousDataRef = useRef<Credential[]>([]);
@@ -109,6 +110,32 @@ export function CredentialsPage() {
     previousDataRef.current = flattened;
     return flattened;
   }, [credentialsData]);
+
+  // Auto-scroll to credential if credentialId is in URL (wait for data to load)
+  useEffect(() => {
+    if (credentialIdNum && credentialsData?.pages) {
+      // Check if credential exists in loaded pages
+      const allCredentials = credentialsData.pages.flatMap((page) => page.data);
+      const foundCredential = allCredentials.find((c) => c.id === credentialIdNum);
+      
+      if (foundCredential) {
+        // Wait a bit for DOM to update
+        setTimeout(() => {
+          const element = document.getElementById(`credential-${credentialIdNum}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.classList.add('ring-2', 'ring-primary', 'ring-opacity-50');
+            setTimeout(() => {
+              element.classList.remove('ring-2', 'ring-primary', 'ring-opacity-50');
+            }, 3000);
+          }
+        }, 500);
+      } else if (hasNextCredentialsPage && !isFetchingNextCredentialsPage) {
+        // Credential might be on next page, try to fetch it
+        fetchNextCredentialsPage();
+      }
+    }
+  }, [credentialIdNum, credentialsData, hasNextCredentialsPage, isFetchingNextCredentialsPage, fetchNextCredentialsPage]);
 
   const deleteCredential = useDeleteCredential();
 
@@ -268,6 +295,7 @@ export function CredentialsPage() {
             return (
               <div
                 key={credential.id}
+                id={`credential-${credential.id}`}
                 className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6"
               >
                 <div className="flex items-start justify-between">
@@ -348,7 +376,7 @@ export function CredentialsPage() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                window.location.href = `/servers?serverId=${sc.server.id}`;
+                                navigate(`/servers?serverId=${sc.server.id}`);
                               }}
                               className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer"
                               title={`Click to view server ${sc.server.name}`}
@@ -372,7 +400,7 @@ export function CredentialsPage() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                window.location.href = `/services?serviceId=${sc.service.id}`;
+                                navigate(`/services?serviceId=${sc.service.id}`);
                               }}
                               className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded border border-green-200 dark:border-green-800 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors cursor-pointer"
                               title={`Click to view service ${sc.service.name}`}

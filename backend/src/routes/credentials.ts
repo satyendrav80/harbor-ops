@@ -99,31 +99,40 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
   const search = (req.query.search as string) || '';
   const serverId = req.query.serverId ? Number(req.query.serverId) : undefined;
   const serviceId = req.query.serviceId ? Number(req.query.serviceId) : undefined;
+  const credentialId = req.query.credentialId ? Number(req.query.credentialId) : undefined;
   const offset = (page - 1) * limit;
 
   // Build search conditions
-  const searchConditions: any = search
-    ? {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { type: { contains: search, mode: 'insensitive' } },
-        ],
-      }
-    : {};
+  const searchConditions: any = {};
+  
+  // Filter by credentialId if provided (exact match)
+  if (credentialId) {
+    searchConditions.id = credentialId;
+  }
+  
+  // Add search conditions if not filtering by exact credentialId
+  if (search && !credentialId) {
+    searchConditions.OR = [
+      { name: { contains: search, mode: 'insensitive' } },
+      { type: { contains: search, mode: 'insensitive' } },
+    ];
+  }
 
-  // Filter by server or service if provided
-  if (serverId) {
-    searchConditions.servers = {
-      some: {
-        serverId: Number(serverId),
-      },
-    };
-  } else if (serviceId) {
-    searchConditions.services = {
-      some: {
-        serviceId: Number(serviceId),
-      },
-    };
+  // Filter by server or service if provided (and not filtering by exact credentialId)
+  if (!credentialId) {
+    if (serverId) {
+      searchConditions.servers = {
+        some: {
+          serverId: Number(serverId),
+        },
+      };
+    } else if (serviceId) {
+      searchConditions.services = {
+        some: {
+          serviceId: Number(serviceId),
+        },
+      };
+    }
   }
 
   const [items, total] = await Promise.all([

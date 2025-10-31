@@ -32,7 +32,8 @@ export async function getReleaseNotes(
   page: number = 1,
   limit: number = 20,
   search?: string,
-  status?: 'pending' | 'deployed'
+  status?: 'pending' | 'deployed',
+  serviceId?: number
 ): Promise<ReleaseNotesResponse> {
   const params = new URLSearchParams();
   params.append('page', page.toString());
@@ -42,6 +43,9 @@ export async function getReleaseNotes(
   }
   if (status) {
     params.append('status', status);
+  }
+  if (serviceId) {
+    params.append('serviceId', serviceId.toString());
   }
   return apiFetch<ReleaseNotesResponse>(`/release-notes?${params.toString()}`);
 }

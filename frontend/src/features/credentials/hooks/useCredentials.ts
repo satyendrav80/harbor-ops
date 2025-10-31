@@ -2,9 +2,9 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { apiFetch } from '../../../services/apiClient';
 import type { CredentialsResponse } from '../../../services/credentials';
 
-export function useCredentials(search?: string, limit: number = 20, serverId?: number, serviceId?: number) {
+export function useCredentials(search?: string, limit: number = 20, serverId?: number, serviceId?: number, credentialId?: number) {
   return useInfiniteQuery<CredentialsResponse, Error>({
-    queryKey: ['credentials', search, serverId, serviceId],
+    queryKey: ['credentials', search, serverId, serviceId, credentialId],
     queryFn: async ({ pageParam = 1 }) => {
       const params = new URLSearchParams();
       params.append('page', pageParam.toString());
@@ -17,6 +17,9 @@ export function useCredentials(search?: string, limit: number = 20, serverId?: n
       }
       if (serviceId) {
         params.append('serviceId', serviceId.toString());
+      }
+      if (credentialId) {
+        params.append('credentialId', credentialId.toString());
       }
       return apiFetch<CredentialsResponse>(`/credentials?${params.toString()}`);
     },

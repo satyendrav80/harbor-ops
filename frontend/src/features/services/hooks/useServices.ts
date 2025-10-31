@@ -2,13 +2,18 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { getServices, getService, type ServicesResponse } from '../../../services/services';
 import { apiFetch } from '../../../services/apiClient';
 
-export function useServices(search: string = '', limit: number = 20) {
+export function useServices(search: string = '', limit: number = 20, serviceId?: number, serverId?: number) {
   return useInfiniteQuery({
-    queryKey: ['services', search, limit],
+    queryKey: ['services', search, limit, serviceId, serverId],
     queryFn: async ({ pageParam = 1 }) => {
-      return apiFetch<ServicesResponse>(
-        `/services?page=${pageParam}&limit=${limit}${search ? `&search=${encodeURIComponent(search)}` : ''}&include=relations`
-      );
+      const params = new URLSearchParams();
+      params.append('page', pageParam.toString());
+      params.append('limit', limit.toString());
+      if (search) params.append('search', search);
+      if (serviceId) params.append('serviceId', serviceId.toString());
+      if (serverId) params.append('serverId', serverId.toString());
+      params.append('include', 'relations');
+      return apiFetch<ServicesResponse>(`/services?${params.toString()}`);
     },
     getNextPageParam: (lastPage) => {
       if (lastPage.pagination.page < lastPage.pagination.totalPages) {

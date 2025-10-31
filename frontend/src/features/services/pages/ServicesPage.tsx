@@ -10,7 +10,7 @@ import type { Service } from '../../../services/services';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import { useConstants } from '../../constants/hooks/useConstants';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getServers } from '../../../services/servers';
 
@@ -39,10 +39,13 @@ function useDebounce<T>(value: T, delay: number = 500): T {
 export function ServicesPage() {
   usePageTitle('Services');
   const { hasPermission } = useAuth();
+  const navigate = useNavigate();
   const { data: constants } = useConstants();
   const [searchParams] = useSearchParams();
-  const serverId = searchParams.get('serverId');
-  const serviceId = searchParams.get('serviceId');
+  const serverIdParam = searchParams.get('serverId');
+  const serviceIdParam = searchParams.get('serviceId');
+  const serverId = serverIdParam ? Number(serverIdParam) : undefined;
+  const serviceId = serviceIdParam ? Number(serviceIdParam) : undefined;
   
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   
@@ -63,22 +66,6 @@ export function ServicesPage() {
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
 
-  // Auto-scroll to service if serviceId is in URL
-  useEffect(() => {
-    if (serviceId) {
-      setTimeout(() => {
-        const element = document.getElementById(`service-${serviceId}`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          element.classList.add('ring-2', 'ring-primary', 'ring-opacity-50');
-          setTimeout(() => {
-            element.classList.remove('ring-2', 'ring-primary', 'ring-opacity-50');
-          }, 3000);
-        }
-      }, 500);
-    }
-  }, [serviceId]);
-
   // Fetch services with infinite scroll
   const {
     data: servicesData,
@@ -87,7 +74,33 @@ export function ServicesPage() {
     fetchNextPage: fetchNextServicesPage,
     hasNextPage: hasNextServicesPage,
     isFetchingNextPage: isFetchingNextServicesPage,
-  } = useServices(debouncedSearch, 20);
+  } = useServices(debouncedSearch, 20, serviceId, serverId);
+
+  // Auto-scroll to service if serviceId is in URL (wait for data to load)
+  useEffect(() => {
+    if (serviceId && servicesData?.pages) {
+      // Check if service exists in loaded pages
+      const allServices = servicesData.pages.flatMap((page) => page.data);
+      const foundService = allServices.find((s) => s.id === serviceId);
+      
+      if (foundService) {
+        // Wait a bit for DOM to update
+        setTimeout(() => {
+          const element = document.getElementById(`service-${serviceId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.classList.add('ring-2', 'ring-primary', 'ring-opacity-50');
+            setTimeout(() => {
+              element.classList.remove('ring-2', 'ring-primary', 'ring-opacity-50');
+            }, 3000);
+          }
+        }, 500);
+      } else if (hasNextServicesPage && !isFetchingNextServicesPage) {
+        // Service might be on next page, try to fetch it
+        fetchNextServicesPage();
+      }
+    }
+  }, [serviceId, servicesData, hasNextServicesPage, isFetchingNextServicesPage, fetchNextServicesPage]);
 
   const deleteService = useDeleteService();
 
@@ -233,7 +246,7 @@ export function ServicesPage() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          window.location.href = `/servers?serverId=${service.serverId}`;
+                          navigate(`/servers?serverId=${service.serverId}`);
                         }}
                         className="text-sm font-medium text-gray-900 dark:text-white hover:text-primary transition-colors cursor-pointer text-left"
                         title={`Click to view server ${service.server?.name || service.serverId}`}
@@ -256,7 +269,7 @@ export function ServicesPage() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                window.location.href = `/credentials?serviceId=${service.id}&credentialId=${sc.credential.id}`;
+                                navigate(`/credentials?serviceId=${service.id}&credentialId=${sc.credential.id}`);
                               }}
                               className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-1 text-xs font-medium hover:bg-primary/20 transition-colors cursor-pointer"
                               title={`Click to view credential ${sc.credential.name} on credentials page`}

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useServers } from '../hooks/useServers';
 import { useCreateServer, useUpdateServer, useDeleteServer } from '../hooks/useServerMutations';
@@ -37,6 +37,7 @@ function useDebounce<T>(value: T, delay: number = 500): T {
 export function ServersPage() {
   usePageTitle('Servers');
   const { hasPermission } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const serverId = searchParams.get('serverId');
   
@@ -352,7 +353,7 @@ export function ServersPage() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                window.location.href = `/credentials?serverId=${server.id}&credentialId=${sc.credential.id}`;
+                                navigate(`/credentials?serverId=${server.id}&credentialId=${sc.credential.id}`);
                               }}
                               className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-1 text-xs font-medium hover:bg-primary/20 transition-colors cursor-pointer"
                               title={`Click to view credential ${sc.credential.name} on credentials page`}
@@ -398,7 +399,7 @@ export function ServersPage() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              window.location.href = `/services?serviceId=${service.id}&serverId=${server.id}`;
+                              navigate(`/services?serviceId=${service.id}&serverId=${server.id}`);
                             }}
                             className="inline-flex items-center gap-1 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 text-xs font-medium hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors cursor-pointer"
                             title={`Click to view service ${service.name}`}

@@ -4,12 +4,13 @@ import { getReleaseNotes, ReleaseNotesResponse } from '../../../services/release
 export function useReleaseNotes(
   search?: string,
   status?: 'pending' | 'deployed',
-  limit: number = 20
+  limit: number = 20,
+  serviceId?: number
 ) {
   return useInfiniteQuery<ReleaseNotesResponse, Error>({
-    queryKey: ['release-notes', search, status],
+    queryKey: ['release-notes', search, status, serviceId],
     queryFn: async ({ pageParam = 1 }) => {
-      return getReleaseNotes(pageParam as number, limit, search, status);
+      return getReleaseNotes(pageParam as number, limit, search, status, serviceId);
     },
     getNextPageParam: (lastPage) => {
       if (lastPage.pagination.page < lastPage.pagination.totalPages) {

@@ -7,17 +7,22 @@ const router = Router();
 
 router.use(requireAuth);
 
-// GET /release-notes?status=pending
+// GET /release-notes?status=pending&serviceId=123
 router.get('/', async (req, res) => {
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 20;
   const search = (req.query.search as string) || '';
-  const { status } = req.query as { status?: string };
+  const { status, serviceId } = req.query as { status?: string; serviceId?: string };
   const offset = (page - 1) * limit;
 
   const where: any = {};
   if (status === 'pending') where.status = ReleaseStatus.pending;
   if (status === 'deployed') where.status = ReleaseStatus.deployed;
+  
+  // Filter by serviceId if provided
+  if (serviceId) {
+    where.serviceId = Number(serviceId);
+  }
 
   // Build search conditions
   if (search) {
