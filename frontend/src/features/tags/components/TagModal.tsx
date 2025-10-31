@@ -6,6 +6,7 @@ import { Modal } from '../../../components/common/Modal';
 import { useCreateTag, useUpdateTag, useDeleteTag } from '../hooks/useTagMutations';
 import { Trash2 } from 'lucide-react';
 import type { Tag } from '../../../services/tags';
+import { useWatch } from 'react-hook-form';
 
 type TagModalProps = {
   isOpen: boolean;
@@ -40,6 +41,13 @@ export function TagModal({ isOpen, onClose, tag, onDelete }: TagModalProps) {
     },
   });
 
+  // Watch color value to sync between inputs
+  const colorValue = useWatch({
+    control: form.control,
+    name: 'color',
+    defaultValue: tag?.color || null,
+  });
+
   // Reset form when modal opens/closes or tag changes
   useEffect(() => {
     if (!isOpen) return;
@@ -64,20 +72,23 @@ export function TagModal({ isOpen, onClose, tag, onDelete }: TagModalProps) {
   const onSubmit = async (values: TagFormValues) => {
     setError(null);
     try {
+      // Normalize color: trim and convert empty strings to null
+      const normalizedColor = values.color && values.color.trim() ? values.color.trim() : null;
+      
       if (isEditing && tag) {
         await updateTag.mutateAsync({
           id: tag.id,
           data: {
             name: values.name,
             value: values.value || null,
-            color: values.color || null,
+            color: normalizedColor,
           },
         });
       } else {
         await createTag.mutateAsync({
           name: values.name,
           value: values.value || null,
-          color: values.color || null,
+          color: normalizedColor,
         });
       }
       
@@ -166,20 +177,39 @@ export function TagModal({ isOpen, onClose, tag, onDelete }: TagModalProps) {
               <input
                 id="tag-color"
                 type="color"
-                {...form.register('color')}
+                value={colorValue && /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/i.test(colorValue) ? colorValue : '#000000'}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Always set the value from color picker (it always returns a valid hex)
+                  form.setValue('color', value, { shouldDirty: true, shouldValidate: true });
+                }}
                 className="h-10 w-20 cursor-pointer rounded border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] focus:outline-none focus:ring-2 focus:ring-primary/50"
                 disabled={isLoading}
               />
               <input
                 type="text"
-                {...form.register('color')}
+                value={colorValue || ''}
+                onChange={(e) => {
+                  const value = e.target.value.trim();
+                  form.setValue('color', value === '' ? null : value, { shouldDirty: true, shouldValidate: true });
+                }}
+                onBlur={(e) => {
+                  // Validate hex color format on blur
+                  const value = e.target.value.trim();
+                  if (value && !/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/i.test(value)) {
+                    // Invalid format, clear it
+                    form.setValue('color', null, { shouldDirty: true, shouldValidate: true });
+                  }
+                }}
                 className="flex-1 px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
                 placeholder="#FF0000 or leave empty"
                 disabled={isLoading}
               />
               <button
                 type="button"
-                onClick={() => form.setValue('color', null, { shouldDirty: true })}
+                onClick={() => {
+                  form.setValue('color', null, { shouldDirty: true, shouldValidate: true });
+                }}
                 disabled={isLoading}
                 className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
               >

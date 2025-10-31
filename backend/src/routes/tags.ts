@@ -51,11 +51,14 @@ router.post('/', requirePermission('tags:create'), async (req, res) => {
   }
   
   try {
+    // Normalize color: trim and convert empty/whitespace strings to null
+    const normalizedColor = color && typeof color === 'string' && color.trim() ? color.trim() : null;
+    
     const created = await prisma.tag.create({ 
       data: { 
         name: name.trim(),
         value: value ? value.trim() : null,
-        color: color ? color.trim() : null,
+        color: normalizedColor,
       } 
     });
     res.status(201).json(created);
@@ -83,12 +86,18 @@ router.put('/:id', requirePermission('tags:update'), async (req, res) => {
   }
   
   try {
+    // Normalize color: if provided, trim and convert empty/whitespace strings to null
+    // If not provided (undefined), don't update the field
+    const normalizedColor = color !== undefined 
+      ? (color && typeof color === 'string' && color.trim() ? color.trim() : null)
+      : undefined;
+    
     const updated = await prisma.tag.update({ 
       where: { id }, 
       data: { 
         name: name.trim(),
         value: value ? value.trim() : null,
-        color: color !== undefined ? (color ? color.trim() : null) : undefined,
+        color: normalizedColor,
       } 
     });
     res.json(updated);
