@@ -13,11 +13,14 @@ router.use(requireAuth);
  */
 router.get('/stats', requirePermission('dashboard:view'), async (_req, res) => {
   try {
-    const [totalServers, totalServices, totalCredentials, totalTags] = await Promise.all([
+    const [totalServers, totalServices, totalCredentials, totalTags, pendingReleaseNotes] = await Promise.all([
       prisma.server.count(),
       prisma.service.count(),
       prisma.credential.count(),
       prisma.tag.count(),
+      prisma.releaseNote.count({
+        where: { status: ReleaseStatus.pending },
+      }),
     ]);
 
     res.json({
@@ -25,6 +28,7 @@ router.get('/stats', requirePermission('dashboard:view'), async (_req, res) => {
       activeServices: totalServices,
       totalCredentials,
       totalTags,
+      pendingReleaseNotes,
     });
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);

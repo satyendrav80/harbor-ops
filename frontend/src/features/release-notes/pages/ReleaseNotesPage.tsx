@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, memo, useRef } from 'react';
+import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useReleaseNotes } from '../hooks/useReleaseNotes';
 import { useCreateReleaseNote, useUpdateReleaseNote, useMarkReleaseNoteDeployed } from '../hooks/useReleaseNoteMutations';
@@ -12,6 +12,7 @@ import { usePageTitle } from '../../../hooks/usePageTitle';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { useQuery } from '@tanstack/react-query';
 import { getServices } from '../../../services/services';
+import { useSearchParams } from 'react-router-dom';
 
 // Memoized header component - doesn't re-render when data changes
 const ReleaseNotesHeader = memo(({
@@ -282,10 +283,24 @@ ReleaseNotesList.displayName = 'ReleaseNotesList';
 export function ReleaseNotesPage() {
   usePageTitle('Release Notes');
   const { hasPermission } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'pending' | 'deployed' | 'all'>('all');
+  
+  // Initialize status filter from URL params
+  const initialStatusFilter = (searchParams.get('status') as 'pending' | 'deployed' | 'all') || 'all';
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'deployed' | 'all'>(initialStatusFilter);
   const [releaseNoteModalOpen, setReleaseNoteModalOpen] = useState(false);
   const [selectedReleaseNoteForEdit, setSelectedReleaseNoteForEdit] = useState<ReleaseNote | null>(null);
+
+  // Update status filter when URL params change
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    if (statusParam === 'pending' || statusParam === 'deployed') {
+      setStatusFilter(statusParam);
+    } else {
+      setStatusFilter('all');
+    }
+  }, [searchParams]);
 
   // Memoize search handler to prevent input from losing focus
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -346,7 +361,13 @@ export function ReleaseNotesPage() {
   // Memoize handlers to prevent re-renders - MUST be called before any conditional returns
   const handleStatusFilterChange = useCallback((value: 'pending' | 'deployed' | 'all') => {
     setStatusFilter(value);
-  }, []);
+    // Update URL params
+    if (value === 'all') {
+      setSearchParams({}, { replace: true });
+    } else {
+      setSearchParams({ status: value }, { replace: true });
+    }
+  }, [setSearchParams]);
 
   const handleCreateReleaseNote = useCallback(() => {
     setSelectedReleaseNoteForEdit(null);

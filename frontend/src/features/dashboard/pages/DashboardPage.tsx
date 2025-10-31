@@ -10,7 +10,7 @@ import { RecentAlertsTable } from '../components/RecentAlertsTable';
 import { QuickActions } from '../components/QuickActions';
 import { useAuth } from '../../auth/context/AuthContext';
 import { Search, Server, Cloud, Key, Globe, X } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { usePageTitle } from '../../../hooks/usePageTitle';
 
@@ -66,10 +66,7 @@ export function DashboardPage() {
   const { data: alerts, isLoading: alertsLoading } = useRecentAlerts();
   const { data: searchResults, isLoading: searchLoading } = useDashboardSearch(searchQuery);
 
-  const pendingReleases = useMemo(
-    () => alerts?.filter((a) => a.status !== 'recovered').length || 0,
-    [alerts]
-  );
+  const pendingReleases = stats?.pendingReleaseNotes || 0;
 
   const handleSearchResultClick = useCallback((type: string, id: number) => {
     const routes: Record<string, string> = {
@@ -238,22 +235,22 @@ export function DashboardPage() {
         </button>
       </div>
 
-      {/* Pending Redeploys Card */}
+      {/* Pending Release Notes Card */}
       {pendingReleases > 0 && (
         <div className="mb-8 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-yellow-900 dark:text-yellow-100">Pending Redeploys</h3>
+              <h3 className="text-lg font-semibold text-yellow-900 dark:text-yellow-100">Pending Release Notes</h3>
               <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
                 You have {pendingReleases} release note{pendingReleases !== 1 ? 's' : ''} pending deployment.
               </p>
             </div>
-            <Link
-              to="/release-notes?status=pending"
+            <button
+              onClick={() => navigate('/release-notes?status=pending')}
               className="px-4 py-2 text-sm font-semibold text-yellow-900 dark:text-yellow-100 bg-yellow-100 dark:bg-yellow-900/40 rounded-lg hover:bg-yellow-200 dark:hover:bg-yellow-900/60 transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-500/50"
             >
               View Release Notes
-            </Link>
+            </button>
           </div>
         </div>
       )}

@@ -5,6 +5,7 @@ export type DashboardStats = {
   activeServices: number;
   totalCredentials: number;
   totalTags: number;
+  pendingReleaseNotes: number;
 };
 
 export type ServerStatus = {
