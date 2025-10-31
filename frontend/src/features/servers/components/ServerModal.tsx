@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -7,17 +7,7 @@ import { MaskedPasswordInput } from '../../../components/common/MaskedPasswordIn
 import { useCreateServer, useUpdateServer, useDeleteServer } from '../hooks/useServerMutations';
 import { Trash2 } from 'lucide-react';
 import type { Server } from '../../../services/servers';
-
-const serverSchema = z.object({
-  name: z.string().min(1, 'Server name is required').max(100, 'Server name must be 100 characters or less'),
-  publicIp: z.string().min(1, 'Public IP is required').ip('Invalid IP address'),
-  privateIp: z.string().min(1, 'Private IP is required').ip('Invalid IP address'),
-  sshPort: z.coerce.number().int().min(1, 'SSH port must be between 1 and 65535').max(65535),
-  username: z.string().min(1, 'Username is required').max(100, 'Username must be 100 characters or less'),
-  password: z.string().optional(),
-});
-
-type ServerFormValues = z.infer<typeof serverSchema>;
+import { useConstants } from '../../constants/hooks/useConstants';
 
 type ServerModalProps = {
   isOpen: boolean;
@@ -31,14 +21,32 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
   const createServer = useCreateServer();
   const updateServer = useUpdateServer();
   const deleteServer = useDeleteServer();
+  const { data: constants } = useConstants();
 
   const [error, setError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Create schema dynamically based on constants from backend
+  const serverSchema = useMemo(() => {
+    const serverTypes = constants?.serverTypes || ['os'];
+    return z.object({
+      name: z.string().min(1, 'Server name is required').max(100, 'Server name must be 100 characters or less'),
+      type: z.enum(serverTypes as [string, ...string[]]).default(serverTypes[0] as string),
+      publicIp: z.string().min(1, 'Public IP is required').ip('Invalid IP address'),
+      privateIp: z.string().min(1, 'Private IP is required').ip('Invalid IP address'),
+      sshPort: z.coerce.number().int().min(1, 'SSH port must be between 1 and 65535').max(65535),
+      username: z.string().min(1, 'Username is required').max(100, 'Username must be 100 characters or less'),
+      password: z.string().optional(),
+    });
+  }, [constants]);
+
+  type ServerFormValues = z.infer<typeof serverSchema>;
 
   const form = useForm<ServerFormValues>({
     resolver: zodResolver(serverSchema),
     defaultValues: {
       name: server?.name || '',
+      type: server?.type || (constants?.serverTypes[0] as string) || 'os',
       publicIp: server?.publicIp || '',
       privateIp: server?.privateIp || '',
       sshPort: server?.sshPort || 22,
@@ -49,9 +57,11 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
 
   // Reset form when server changes
   useEffect(() => {
+    const defaultType = (constants?.serverTypes[0] as string) || 'os';
     if (server) {
       form.reset({
         name: server.name,
+        type: server.type || defaultType,
         publicIp: server.publicIp,
         privateIp: server.privateIp,
         sshPort: server.sshPort,
@@ -61,6 +71,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
     } else {
       form.reset({
         name: '',
+        type: defaultType,
         publicIp: '',
         privateIp: '',
         sshPort: 22,
@@ -70,15 +81,16 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
     }
     setError(null);
     setShowDeleteConfirm(false);
-  }, [server, form]);
+  }, [server, form, constants]);
 
   const onSubmit = async (values: ServerFormValues) => {
     setError(null);
     try {
-      if (isEditing && server) {
+        if (isEditing && server) {
         // Only include password if it's provided and not masked
         const updateData: any = {
           name: values.name,
+          type: values.type,
           publicIp: values.publicIp,
           privateIp: values.privateIp,
           sshPort: values.sshPort,
@@ -134,6 +146,25 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
           </label>
           {form.formState.errors.name && (
             <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.name.message}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="flex flex-col">
+            <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Server Type</span>
+            <select
+              className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+              {...form.register('type')}
+            >
+              {constants?.serverTypes.map((type) => (
+                <option key={type} value={type}>
+                  {constants?.serverTypeLabels[type] || type}
+                </option>
+              ))}
+            </select>
+          </label>
+          {form.formState.errors.type && (
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.type.message}</p>
           )}
         </div>
 

@@ -11,6 +11,7 @@ import groupsRouter from './routes/groups';
 import tagsRouter from './routes/tags';
 import releaseNotesRouter from './routes/releaseNotes';
 import usersRouter from './routes/users';
+import constantsRouter from './routes/constants';
 import { requireApprovedUser } from './middleware/auth';
 
 const app = express();
@@ -22,7 +23,9 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/auth', authRouter);
-// Protect all app routes (except /auth) with approval middleware
+// Constants endpoint (public, no auth required)
+app.use('/constants', constantsRouter);
+// Protect all app routes (except /auth and /constants) with approval middleware
 app.use('/servers', requireApprovedUser, serversRouter);
 app.use('/services', requireApprovedUser, servicesRouter);
 app.use('/credentials', requireApprovedUser, credentialsRouter);

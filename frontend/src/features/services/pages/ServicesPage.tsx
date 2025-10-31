@@ -9,6 +9,7 @@ import { Search, Plus, Edit, Trash2, Server as ServerIcon, X } from 'lucide-reac
 import type { Service } from '../../../services/services';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
+import { useConstants } from '../../constants/hooks/useConstants';
 
 /**
  * Debounce hook to delay search input
@@ -35,6 +36,7 @@ function useDebounce<T>(value: T, delay: number = 500): T {
 export function ServicesPage() {
   usePageTitle('Services');
   const { hasPermission } = useAuth();
+  const { data: constants } = useConstants();
   const [searchQuery, setSearchQuery] = useState('');
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
   const [selectedServiceForEdit, setSelectedServiceForEdit] = useState<Service | null>(null);
@@ -179,6 +181,11 @@ export function ServicesPage() {
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Server</p>
                       <p className="text-sm font-medium text-gray-900 dark:text-white">
                         {service.server?.name || `Server #${service.serverId}`}
+                        {service.server?.type && (
+                          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                            ({constants?.serverTypeLabels[service.server.type] || service.server.type})
+                          </span>
+                        )}
                       </p>
                     </div>
                     {service.credential && (
@@ -198,6 +205,50 @@ export function ServicesPage() {
                       </div>
                     )}
                   </div>
+                  
+                  {/* Additional service fields */}
+                  {(service.sourceRepo || service.appId || service.functionName || service.deploymentUrl) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+                      {service.sourceRepo && (
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Source/Repo</p>
+                          <a
+                            href={service.sourceRepo}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium text-primary hover:underline break-all"
+                          >
+                            {service.sourceRepo}
+                          </a>
+                        </div>
+                      )}
+                      {service.appId && (
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">App ID</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{service.appId}</p>
+                        </div>
+                      )}
+                      {service.functionName && (
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Function Name</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{service.functionName}</p>
+                        </div>
+                      )}
+                      {service.deploymentUrl && (
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Deployment URL</p>
+                          <a
+                            href={service.deploymentUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium text-primary hover:underline break-all"
+                          >
+                            {service.deploymentUrl}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 ml-4">
                   {hasPermission('services:update') && (

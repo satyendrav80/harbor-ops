@@ -58,11 +58,12 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
 });
 
 router.post('/', requirePermission('servers:create'), async (req, res) => {
-  const { name, publicIp, privateIp, sshPort, username, password } = req.body;
+  const { name, type, publicIp, privateIp, sshPort, username, password } = req.body;
   const encryptedPassword = password ? encrypt(password) : null;
   const created = await prisma.server.create({ 
     data: { 
-      name, 
+      name,
+      type: type || 'os',
       publicIp, 
       privateIp, 
       sshPort: Number(sshPort), 
@@ -100,7 +101,7 @@ router.get('/:id/reveal-password', requirePermission('credentials:reveal'), asyn
 
 router.put('/:id', requirePermission('servers:update'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, publicIp, privateIp, sshPort, username, password } = req.body;
+  const { name, type, publicIp, privateIp, sshPort, username, password } = req.body;
   
   const updateData: any = {
     name,
@@ -109,6 +110,11 @@ router.put('/:id', requirePermission('servers:update'), async (req, res) => {
     sshPort: Number(sshPort),
     username,
   };
+
+  // Update type if provided
+  if (type !== undefined) {
+    updateData.type = type;
+  }
 
   // Only update password if provided
   if (password !== undefined && password !== null && password !== '') {

@@ -1,8 +1,10 @@
 import { apiFetch } from './apiClient';
+import type { ServerType } from './constants';
 
 export type Server = {
   id: number;
   name: string;
+  type: ServerType;
   publicIp: string;
   privateIp: string;
   sshPort: number;

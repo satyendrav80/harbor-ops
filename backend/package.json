@@ -9,7 +9,7 @@
     "dev": "tsx watch src/index.ts",
     "test": "vitest run --dir test",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
-    "db:migrate": "prisma migrate dev --name init --schema prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma --name",
     "db:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
     "db:seed": "prisma db seed --schema prisma/schema.prisma"
   },

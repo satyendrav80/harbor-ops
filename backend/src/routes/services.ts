@@ -64,13 +64,18 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
 });
 
 router.post('/', requirePermission('services:create'), async (req, res) => {
-  const { name, port, serverId, credentialId } = req.body;
+  const { name, port, serverId, credentialId, sourceRepo, appId, functionName, deploymentUrl, metadata } = req.body;
   const created = await prisma.service.create({
     data: {
       name,
       port: Number(port),
       serverId: Number(serverId),
       credentialId: credentialId ? Number(credentialId) : null,
+      sourceRepo: sourceRepo || null,
+      appId: appId || null,
+      functionName: functionName || null,
+      deploymentUrl: deploymentUrl || null,
+      metadata: metadata || null,
     },
     include: {
       server: true,
@@ -97,7 +102,7 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
 
 router.put('/:id', requirePermission('services:update'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, port, serverId, credentialId } = req.body;
+  const { name, port, serverId, credentialId, sourceRepo, appId, functionName, deploymentUrl, metadata } = req.body;
   const updated = await prisma.service.update({
     where: { id },
     data: {
@@ -105,6 +110,11 @@ router.put('/:id', requirePermission('services:update'), async (req, res) => {
       port: Number(port),
       serverId: Number(serverId),
       credentialId: credentialId ? Number(credentialId) : null,
+      sourceRepo: sourceRepo !== undefined ? (sourceRepo || null) : undefined,
+      appId: appId !== undefined ? (appId || null) : undefined,
+      functionName: functionName !== undefined ? (functionName || null) : undefined,
+      deploymentUrl: deploymentUrl !== undefined ? (deploymentUrl || null) : undefined,
+      metadata: metadata !== undefined ? (metadata || null) : undefined,
     },
     include: {
       server: true,

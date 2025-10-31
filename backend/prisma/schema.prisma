@@ -76,31 +76,47 @@ model Credential {
   @@map("credentials")
 }
 
+enum ServerType {
+  os
+  rds
+  amplify
+  lambda
+  ec2
+  ecs
+  other
+}
+
 model Server {
-  id         Int      @id @default(autoincrement()) @map("id")
-  name       String                               @map("name")
-  publicIp   String                               @map("public_ip")
-  privateIp  String                               @map("private_ip")
-  sshPort    Int                                  @map("ssh_port")
-  username   String                               @map("username")
-  password   String?                              @map("password")
-  createdAt  DateTime @default(now())             @map("created_at")
+  id         Int        @id @default(autoincrement()) @map("id")
+  name       String                                   @map("name")
+  type       ServerType @default(os)                 @map("type")
+  publicIp   String                                   @map("public_ip")
+  privateIp  String                                   @map("private_ip")
+  sshPort    Int                                      @map("ssh_port")
+  username   String                                   @map("username")
+  password   String?                                  @map("password")
+  createdAt  DateTime   @default(now())               @map("created_at")
   services   Service[]
 
   @@map("servers")
 }
 
 model Service {
-  id            Int         @id @default(autoincrement()) @map("id")
-  name          String                                   @map("name")
-  port          Int                                      @map("port")
-  createdAt     DateTime    @default(now())              @map("created_at")
-  serverId      Int                                      @map("server_id")
-  server        Server      @relation(fields: [serverId], references: [id])
-  credentialId  Int?                                     @map("credential_id")
-  credential    Credential? @relation(fields: [credentialId], references: [id])
-  tags          ServiceTag[]
-  releaseNotes  ReleaseNote[]
+  id             Int         @id @default(autoincrement()) @map("id")
+  name           String                                   @map("name")
+  port           Int                                      @map("port")
+  sourceRepo     String?                                  @map("source_repo")
+  appId          String?                                  @map("app_id")
+  functionName   String?                                  @map("function_name")
+  deploymentUrl  String?                                  @map("deployment_url")
+  metadata       Json?                                    @map("metadata")
+  createdAt      DateTime    @default(now())              @map("created_at")
+  serverId       Int                                      @map("server_id")
+  server         Server      @relation(fields: [serverId], references: [id])
+  credentialId   Int?                                     @map("credential_id")
+  credential     Credential? @relation(fields: [credentialId], references: [id])
+  tags           ServiceTag[]
+  releaseNotes   ReleaseNote[]
 
   @@map("services")
 }

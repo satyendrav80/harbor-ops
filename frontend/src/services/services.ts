@@ -8,6 +8,11 @@ export type Service = {
   port: number;
   serverId: number;
   credentialId?: number | null;
+  sourceRepo?: string | null;
+  appId?: string | null;
+  functionName?: string | null;
+  deploymentUrl?: string | null;
+  metadata?: any | null;
   createdAt: string;
   server?: Server;
   credential?: Credential | null;
