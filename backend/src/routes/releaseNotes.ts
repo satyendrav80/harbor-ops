@@ -18,6 +18,7 @@ router.get('/', async (req, res) => {
   const where: any = {};
   if (status === 'pending') where.status = ReleaseStatus.pending;
   if (status === 'deployed') where.status = ReleaseStatus.deployed;
+  if (status === 'deployment_started') where.status = ReleaseStatus.deployment_started;
   
   // Filter by serviceId if provided
   if (serviceId) {
@@ -91,7 +92,9 @@ router.put('/:id', requirePermission('release-notes:update'), async (req, res) =
   const id = Number(req.params.id);
   const existing = await prisma.releaseNote.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'Not found' });
-  if (existing.status !== ReleaseStatus.pending) return res.status(400).json({ error: 'Cannot edit deployed note' });
+  if (existing.status !== ReleaseStatus.pending) {
+    return res.status(400).json({ error: 'Can only edit pending release notes' });
+  }
   const { note, publishDate } = req.body as { note?: string; publishDate?: string };
   const updateData: any = {};
   if (note !== undefined) updateData.note = note;
@@ -101,10 +104,34 @@ router.put('/:id', requirePermission('release-notes:update'), async (req, res) =
 });
 
 // POST /release-notes/:id/mark-deployed
-router.post('/:id/mark-deployed', requirePermission('release-notes:update'), async (req, res) => {
+router.post('/:id/mark-deployed', requirePermission('release-notes:deploy'), async (req, res) => {
   const id = Number(req.params.id);
   const updated = await prisma.releaseNote.update({ where: { id }, data: { status: ReleaseStatus.deployed } });
   res.json(updated);
+});
+
+// POST /release-notes/:id/mark-deployment-started
+router.post('/:id/mark-deployment-started', requirePermission('release-notes:deploy'), async (req, res) => {
+  const id = Number(req.params.id);
+  const existing = await prisma.releaseNote.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  if (existing.status !== ReleaseStatus.pending) {
+    return res.status(400).json({ error: 'Can only mark pending notes as deployment started' });
+  }
+  const updated = await prisma.releaseNote.update({ where: { id }, data: { status: ReleaseStatus.deployment_started } });
+  res.json(updated);
+});
+
+// DELETE /release-notes/:id (only if pending)
+router.delete('/:id', requirePermission('release-notes:delete'), async (req, res) => {
+  const id = Number(req.params.id);
+  const existing = await prisma.releaseNote.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  if (existing.status !== ReleaseStatus.pending) {
+    return res.status(400).json({ error: 'Can only delete pending release notes' });
+  }
+  await prisma.releaseNote.delete({ where: { id } });
+  res.status(204).end();
 });
 
 export default router;

@@ -198,6 +198,7 @@ model ServerTag {
 
 enum ReleaseStatus {
   pending
+  deployment_started
   deployed
 }
 
