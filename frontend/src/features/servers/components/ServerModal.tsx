@@ -320,7 +320,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
   const isLoading = createServer.isPending || updateServer.isPending || deleteServer.isPending || addItemToGroup.isPending || removeItemFromGroup.isPending;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Server' : 'Create Server'}>
+    <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Server' : 'Create Server'} size="xl">
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {error && (
           <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">

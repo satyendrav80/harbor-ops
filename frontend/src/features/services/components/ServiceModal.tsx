@@ -168,7 +168,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
     editorProps: {
       attributes: {
         class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[200px] px-4 py-2 text-sm text-gray-900 dark:text-white',
-        style: 'white-space: pre-wrap;',
+        style: 'white-space: pre-wrap; overflow-y: auto;',
       },
     },
     onUpdate: ({ editor }) => {
@@ -390,7 +390,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
   const groups = groupsData?.data || [];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Service' : 'Create Service'}>
+    <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Service' : 'Create Service'} size="full">
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-[90vh] overflow-y-auto">
         {error && (
           <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
@@ -632,10 +632,10 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
               <label className="block text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">
                 Inline Documentation (Optional)
               </label>
-              <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg overflow-hidden">
+              <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg overflow-hidden flex flex-col" style={{ maxHeight: '400px' }}>
                 {/* Toolbar */}
                 {editor && (
-                  <div className="border-b border-gray-200 dark:border-gray-700/50 p-2 flex flex-wrap gap-1">
+                  <div className="border-b border-gray-200 dark:border-gray-700/50 p-2 flex flex-wrap gap-1 flex-shrink-0">
                     <button
                       type="button"
                       onClick={() => editor.chain().focus().toggleBold().run()}
@@ -757,7 +757,9 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
                   </div>
                 )}
                 {/* Editor Content */}
-                <EditorContent editor={editor} className="min-h-[200px]" />
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  <EditorContent editor={editor} className="min-h-[200px]" />
+                </div>
               </div>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Use the editor above to write documentation, rules, or guidelines directly

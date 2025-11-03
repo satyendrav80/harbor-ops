@@ -203,7 +203,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
   const isLoading = createCredential.isPending || updateCredential.isPending || deleteCredential.isPending;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Credential' : 'Create Credential'}>
+    <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Credential' : 'Create Credential'} size="full">
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {error && (
           <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">

@@ -66,8 +66,26 @@ export function SearchableMultiSelect({
     onChange(selectedIds.filter((id) => id !== optionId));
   };
 
+  // Handle ESC key to close dropdown
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+        setSearchQuery('');
+        event.stopPropagation(); // Prevent modal from closing
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
   return (
-    <div className={`relative ${className}`} ref={containerRef}>
+    <div className={`relative ${className}`} ref={containerRef} data-dropdown-open={isOpen}>
       {label && (
         <label className="flex flex-col mb-2">
           <span className="text-sm font-medium leading-normal text-gray-900 dark:text-white">{label}</span>

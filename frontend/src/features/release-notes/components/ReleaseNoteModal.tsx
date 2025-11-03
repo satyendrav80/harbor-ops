@@ -96,75 +96,76 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
   const isLoading = createReleaseNote.isPending || updateReleaseNote.isPending;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Release Note' : 'Create Release Note'}>
+    <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Release Note' : 'Create Release Note'} size="full">
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {error && (
-            <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
-              <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
-            </div>
-          )}
+        <div className="flex-1 flex flex-col overflow-hidden p-6">
+          <div className="space-y-4 flex-shrink-0">
+            {error && (
+              <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+                <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+              </div>
+            )}
 
-          {/* Service Selection (only on create) */}
-          {!isEditing && (
+            {/* Service Selection (only on create) */}
+            {!isEditing && (
+              <div>
+                <label htmlFor="service-id" className="block text-sm font-medium text-gray-900 dark:text-white mb-1">
+                  Service *
+                </label>
+                <select
+                  id="service-id"
+                  {...form.register('serviceId', { valueAsNumber: true })}
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  disabled={isLoading}
+                >
+                  <option value={0}>Select a service</option>
+                  {services.map((service) => (
+                    <option key={service.id} value={service.id}>
+                      {service.name} (:{service.port})
+                    </option>
+                  ))}
+                </select>
+                {form.formState.errors.serviceId && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                    {form.formState.errors.serviceId.message}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Publish Date */}
             <div>
-              <label htmlFor="service-id" className="block text-sm font-medium text-gray-900 dark:text-white mb-1">
-                Service *
+              <label htmlFor="publish-date" className="block text-sm font-medium text-gray-900 dark:text-white mb-1">
+                Publish Date *
               </label>
-              <select
-                id="service-id"
-                {...form.register('serviceId', { valueAsNumber: true })}
+              <input
+                id="publish-date"
+                type="datetime-local"
+                {...form.register('publishDate')}
                 className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
                 disabled={isLoading}
-              >
-                <option value={0}>Select a service</option>
-                {services.map((service) => (
-                  <option key={service.id} value={service.id}>
-                    {service.name} (:{service.port})
-                  </option>
-                ))}
-              </select>
-              {form.formState.errors.serviceId && (
-                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                  {form.formState.errors.serviceId.message}
-                </p>
+              />
+              {form.formState.errors.publishDate && (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{form.formState.errors.publishDate.message}</p>
               )}
             </div>
-          )}
-
-          {/* Publish Date */}
-          <div>
-            <label htmlFor="publish-date" className="block text-sm font-medium text-gray-900 dark:text-white mb-1">
-              Publish Date *
-            </label>
-            <input
-              id="publish-date"
-              type="datetime-local"
-              {...form.register('publishDate')}
-              className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-              disabled={isLoading}
-            />
-            {form.formState.errors.publishDate && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{form.formState.errors.publishDate.message}</p>
-            )}
           </div>
 
-          {/* Release Note */}
-          <div>
-            <label htmlFor="release-note" className="block text-sm font-medium text-gray-900 dark:text-white mb-1">
+          {/* Release Note - Expands to fill remaining space */}
+          <div className="flex-1 flex flex-col min-h-0 mt-4">
+            <label htmlFor="release-note" className="block text-sm font-medium text-gray-900 dark:text-white mb-1 flex-shrink-0">
               Release Note *
             </label>
             <textarea
               id="release-note"
               {...form.register('note')}
-              rows={8}
-              className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+              className="flex-1 w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none min-h-0"
               placeholder="Enter release note description..."
               disabled={isLoading}
             />
             {form.formState.errors.note && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{form.formState.errors.note.message}</p>
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400 flex-shrink-0">{form.formState.errors.note.message}</p>
             )}
           </div>
         </div>

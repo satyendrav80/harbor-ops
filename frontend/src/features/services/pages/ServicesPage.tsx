@@ -234,6 +234,11 @@ export function ServicesPage() {
                   <div className="flex items-center gap-3 mb-2">
                     <ServerIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{service.name}</h3>
+                    {service.external && (
+                      <span className="inline-flex items-center rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 text-xs font-medium">
+                        External
+                      </span>
+                    )}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
                     <div>
