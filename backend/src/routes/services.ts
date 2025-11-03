@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { requireAuth, requirePermission } from '../middleware/auth';
+import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -58,8 +58,8 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
   const [services, total] = await Promise.all([
     prisma.service.findMany({
       where: searchConditions,
-      include: includeRelations
-        ? {
+      include: {
+        ...(includeRelations ? {
             servers: { include: { server: true } },
             credentials: { include: { credential: true } },
             domains: { include: { domain: true } },
@@ -76,8 +76,10 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
                 },
               },
             },
-          }
-        : undefined,
+          } : {}),
+        createdByUser: { select: { id: true, name: true, email: true } },
+        updatedByUser: { select: { id: true, name: true, email: true } },
+      },
       orderBy: { createdAt: 'desc' },
       skip: offset,
       take: limit,
@@ -96,7 +98,7 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
   });
 });
 
-router.post('/', requirePermission('services:create'), async (req, res) => {
+router.post('/', requirePermission('services:create'), async (req: AuthRequest, res) => {
   const { name, port, serverIds, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, documentationUrl, documentation, metadata } = req.body;
   
   // Validate serverIds
@@ -117,6 +119,7 @@ router.post('/', requirePermission('services:create'), async (req, res) => {
         documentationUrl: documentationUrl || null,
         documentation: documentation || null,
         metadata: metadata || null,
+        createdBy: req.user?.id || null,
       },
     });
     
@@ -203,13 +206,15 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
           },
         },
       },
+      createdByUser: { select: { id: true, name: true, email: true } },
+      updatedByUser: { select: { id: true, name: true, email: true } },
     },
   });
   if (!item) return res.status(404).json({ error: 'Not found' });
   res.json(item);
 });
 
-router.put('/:id', requirePermission('services:update'), async (req, res) => {
+router.put('/:id', requirePermission('services:update'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
   const { name, port, serverIds, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, documentationUrl, documentation, metadata } = req.body;
   
@@ -233,6 +238,7 @@ router.put('/:id', requirePermission('services:update'), async (req, res) => {
         documentationUrl: documentationUrl !== undefined ? (documentationUrl || null) : undefined,
         documentation: documentation !== undefined ? (documentation || null) : undefined,
         metadata: metadata !== undefined ? (metadata || null) : undefined,
+        updatedBy: req.user?.id || null,
       },
     });
     
@@ -315,6 +321,8 @@ router.put('/:id', requirePermission('services:update'), async (req, res) => {
             },
           },
         },
+        createdByUser: { select: { id: true, name: true, email: true } },
+        updatedByUser: { select: { id: true, name: true, email: true } },
       },
     });
   });

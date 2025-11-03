@@ -97,11 +97,35 @@ const TagItem = memo(({
               </span>
             )}
           </div>
-          {tag.createdAt && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
-              Created {new Date(tag.createdAt).toLocaleDateString()}
-            </p>
-          )}
+          {/* Audit Fields */}
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+            <div className="grid grid-cols-2 gap-4 text-xs text-gray-500 dark:text-gray-400">
+              <div>
+                <p className="mb-1">Created</p>
+                <p className="text-gray-900 dark:text-white font-medium">
+                  {tag.createdAt ? new Date(tag.createdAt).toLocaleString() : '-'}
+                </p>
+                {tag.createdByUser && (
+                  <p className="text-gray-500 dark:text-gray-400 mt-1">
+                    by {tag.createdByUser.name || tag.createdByUser.email}
+                  </p>
+                )}
+              </div>
+              {tag.updatedAt && (
+                <div>
+                  <p className="mb-1">Updated</p>
+                  <p className="text-gray-900 dark:text-white font-medium">
+                    {new Date(tag.updatedAt).toLocaleString()}
+                  </p>
+                  {tag.updatedByUser && (
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">
+                      by {tag.updatedByUser.name || tag.updatedByUser.email}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-2 ml-4">
           {hasPermission('tags:update') && (

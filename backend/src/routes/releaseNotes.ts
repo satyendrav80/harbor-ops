@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient, ReleaseStatus } from '@prisma/client';
-import { requireAuth, requirePermission } from '../middleware/auth';
+import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -41,6 +41,8 @@ router.get('/', async (req, res) => {
             port: true,
           },
         },
+        createdByUser: { select: { id: true, name: true, email: true } },
+        updatedByUser: { select: { id: true, name: true, email: true } },
       },
       orderBy: { createdAt: 'desc' },
       skip: offset,
@@ -61,7 +63,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /services/:id/release-notes
-router.post('/services/:id/release-notes', requirePermission('release-notes:create'), async (req, res) => {
+router.post('/services/:id/release-notes', requirePermission('release-notes:create'), async (req: AuthRequest, res) => {
   const serviceId = Number(req.params.id);
   const { note, publishDate } = req.body as { note: string; publishDate?: string };
   const created = await prisma.releaseNote.create({
@@ -69,26 +71,28 @@ router.post('/services/:id/release-notes', requirePermission('release-notes:crea
       serviceId,
       note,
       publishDate: publishDate ? new Date(publishDate) : new Date(),
+      createdBy: req.user?.id || null,
     },
   });
   res.status(201).json(created);
 });
 
 // POST /release-notes (create new release note)
-router.post('/', requirePermission('release-notes:create'), async (req, res) => {
+router.post('/', requirePermission('release-notes:create'), async (req: AuthRequest, res) => {
   const { serviceId, note, publishDate } = req.body as { serviceId: number; note: string; publishDate?: string };
   const created = await prisma.releaseNote.create({
     data: {
       serviceId: Number(serviceId),
       note,
       publishDate: publishDate ? new Date(publishDate) : new Date(),
+      createdBy: req.user?.id || null,
     },
   });
   res.status(201).json(created);
 });
 
 // PUT /release-notes/:id (only if pending)
-router.put('/:id', requirePermission('release-notes:update'), async (req, res) => {
+router.put('/:id', requirePermission('release-notes:update'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
   const existing = await prisma.releaseNote.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'Not found' });
@@ -96,7 +100,9 @@ router.put('/:id', requirePermission('release-notes:update'), async (req, res) =
     return res.status(400).json({ error: 'Can only edit pending release notes' });
   }
   const { note, publishDate } = req.body as { note?: string; publishDate?: string };
-  const updateData: any = {};
+  const updateData: any = {
+    updatedBy: req.user?.id || null,
+  };
   if (note !== undefined) updateData.note = note;
   if (publishDate !== undefined) updateData.publishDate = new Date(publishDate);
   const updated = await prisma.releaseNote.update({ where: { id }, data: updateData });

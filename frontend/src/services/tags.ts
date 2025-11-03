@@ -6,6 +6,19 @@ export type Tag = {
   value: string | null;
   color: string | null;
   createdAt: string;
+  updatedAt?: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdByUser?: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+  updatedByUser?: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
 };
 
 export type TagsResponse = {

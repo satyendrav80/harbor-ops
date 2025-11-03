@@ -231,6 +231,20 @@ export function GroupsPage() {
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                           {itemCount} {itemCount === 1 ? 'item' : 'items'}
                         </p>
+                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          <p>Created {new Date(group.createdAt).toLocaleString()}</p>
+                          {group.createdByUser && (
+                            <p className="text-gray-400 dark:text-gray-500">by {group.createdByUser.name || group.createdByUser.email}</p>
+                          )}
+                          {group.updatedAt && (
+                            <>
+                              <p className="mt-1">Updated {new Date(group.updatedAt).toLocaleString()}</p>
+                              {group.updatedByUser && (
+                                <p className="text-gray-400 dark:text-gray-500">by {group.updatedByUser.name || group.updatedByUser.email}</p>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

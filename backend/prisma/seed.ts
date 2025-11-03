@@ -43,11 +43,10 @@ async function main() {
   const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@example.com';
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'Admin@123';
   const passwordHash = await bcrypt.hash(adminPassword, 10);
-  const admin = await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: { passwordHash, name: 'Admin', username: 'admin', status: 'approved' },
-    create: { email: adminEmail, passwordHash, name: 'Admin', username: 'admin', status: 'approved' },
-  });
+  let admin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  if(!admin) {
+    admin = await prisma.user.create({data: { email: adminEmail, passwordHash, name: 'Admin', username: 'admin', status: 'approved' }});
+  }
   await prisma.userRole.upsert({
     where: { userId_roleId: { userId: admin.id, roleId: adminRole.id } },
     update: {},

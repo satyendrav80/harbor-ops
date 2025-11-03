@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { requireAuth, requirePermission } from '../middleware/auth';
+import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 import { encrypt, decrypt } from '../utils/encryption';
 
 const prisma = new PrismaClient();
@@ -47,6 +47,8 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
                     } 
                   } 
                 },
+                createdByUser: { select: { id: true, name: true, email: true } },
+                updatedByUser: { select: { id: true, name: true, email: true } },
               },
               orderBy: { createdAt: 'desc' },
               skip: offset,
@@ -69,7 +71,7 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
   });
 });
 
-router.post('/', requirePermission('servers:create'), async (req, res) => {
+router.post('/', requirePermission('servers:create'), async (req: AuthRequest, res) => {
   const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds, domainIds, tagIds } = req.body;
   const encryptedPassword = password ? encrypt(password) : null;
   
@@ -110,6 +112,11 @@ router.post('/', requirePermission('servers:create'), async (req, res) => {
     data.password = encryptedPassword;
   }
   
+  // Set created_by from authenticated user
+  if (req.user?.id) {
+    data.createdBy = req.user.id;
+  }
+  
   // Create server with credentials and domains if provided
   const created = await prisma.$transaction(async (tx) => {
     const server = await tx.server.create({ data });
@@ -148,6 +155,8 @@ router.post('/', requirePermission('servers:create'), async (req, res) => {
         tags: { include: { tag: true } },
         credentials: { include: { credential: true } },
         domains: { include: { domain: true } },
+        createdByUser: { select: { id: true, name: true, email: true } },
+        updatedByUser: { select: { id: true, name: true, email: true } },
       },
     });
   });
@@ -163,6 +172,8 @@ router.get('/:id', requirePermission('servers:view'), async (req, res) => {
       tags: { include: { tag: true } },
       credentials: { include: { credential: true } },
       domains: { include: { domain: true } },
+      createdByUser: { select: { id: true, name: true, email: true } },
+      updatedByUser: { select: { id: true, name: true, email: true } },
     },
   });
   if (!server) return res.status(404).json({ error: 'Not found' });
@@ -187,7 +198,7 @@ router.get('/:id/reveal-password', requirePermission('credentials:reveal'), asyn
   }
 });
 
-router.put('/:id', requirePermission('servers:update'), async (req, res) => {
+router.put('/:id', requirePermission('servers:update'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
   const server = await prisma.server.findUnique({ where: { id } });
   if (!server) return res.status(404).json({ error: 'Server not found' });
@@ -236,6 +247,11 @@ router.put('/:id', requirePermission('servers:update'), async (req, res) => {
   // Only update password if provided
   if (password !== undefined && password !== null && password !== '') {
     updateData.password = encrypt(password);
+  }
+
+  // Set updated_by from authenticated user
+  if (req.user?.id) {
+    updateData.updatedBy = req.user.id;
   }
 
   // Update server, credentials, and domains in a transaction
@@ -295,6 +311,8 @@ router.put('/:id', requirePermission('servers:update'), async (req, res) => {
         tags: { include: { tag: true } },
         credentials: { include: { credential: true } },
         domains: { include: { domain: true } },
+        createdByUser: { select: { id: true, name: true, email: true } },
+        updatedByUser: { select: { id: true, name: true, email: true } },
       },
     });
   });

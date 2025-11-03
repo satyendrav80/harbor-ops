@@ -309,14 +309,35 @@ export function ServicesPage() {
                         </div>
                       </div>
                     )}
-                    {service.createdAt && (
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Created</p>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {new Date(service.createdAt).toLocaleDateString()}
-                        </p>
+                    {/* Audit Fields */}
+                    <div className="col-span-full">
+                      <div className="grid grid-cols-2 gap-4 text-xs text-gray-500 dark:text-gray-400 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+                        <div>
+                          <p className="mb-1">Created</p>
+                          <p className="text-gray-900 dark:text-white font-medium">
+                            {service.createdAt ? new Date(service.createdAt).toLocaleString() : '-'}
+                          </p>
+                          {service.createdByUser && (
+                            <p className="text-gray-500 dark:text-gray-400 mt-1">
+                              by {service.createdByUser.name || service.createdByUser.email}
+                            </p>
+                          )}
+                        </div>
+                        {service.updatedAt && (
+                          <div>
+                            <p className="mb-1">Updated</p>
+                            <p className="text-gray-900 dark:text-white font-medium">
+                              {new Date(service.updatedAt).toLocaleString()}
+                            </p>
+                            {service.updatedByUser && (
+                              <p className="text-gray-500 dark:text-gray-400 mt-1">
+                                by {service.updatedByUser.name || service.updatedByUser.email}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                   
                   {/* Tags */}

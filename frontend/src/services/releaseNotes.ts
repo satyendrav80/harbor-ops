@@ -8,6 +8,18 @@ export type ReleaseNote = {
   publishDate: string;
   createdAt: string;
   updatedAt?: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdByUser?: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+  updatedByUser?: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
   service?: {
     id: number;
     name: string;

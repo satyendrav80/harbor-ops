@@ -28,6 +28,19 @@ export type Group = {
   id: number;
   name: string;
   createdAt: string;
+  updatedAt?: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdByUser?: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+  updatedByUser?: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
   items?: GroupItem[];
   _count?: {
     items: number;

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { requireAuth, requirePermission } from '../middleware/auth';
+import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -28,6 +28,11 @@ router.get('/', requirePermission('groups:view'), async (req, res) => {
         id: true,
         name: true,
         createdAt: true,
+        updatedAt: true,
+        createdBy: true,
+        updatedBy: true,
+        createdByUser: { select: { id: true, name: true, email: true } },
+        updatedByUser: { select: { id: true, name: true, email: true } },
         items: true,
         _count: {
           select: {
@@ -54,13 +59,18 @@ router.get('/', requirePermission('groups:view'), async (req, res) => {
 });
 
 // Create a new group
-router.post('/', requirePermission('groups:create'), async (req, res) => {
+router.post('/', requirePermission('groups:create'), async (req: AuthRequest, res) => {
   const { name } = req.body;
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'Group name is required' });
   }
   try {
-    const created = await prisma.group.create({ data: { name: name.trim() } });
+    const created = await prisma.group.create({ 
+      data: { 
+        name: name.trim(),
+        createdBy: req.user?.id || null,
+      } 
+    });
     res.status(201).json(created);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -81,6 +91,8 @@ router.get('/:id', requirePermission('groups:view'), async (req, res) => {
     where: { id },
     include: {
       items: true,
+      createdByUser: { select: { id: true, name: true, email: true } },
+      updatedByUser: { select: { id: true, name: true, email: true } },
     },
   });
   
@@ -185,7 +197,7 @@ router.get('/by-item/:itemType/:itemId', requirePermission('groups:view'), async
 });
 
 // Update a group
-router.put('/:id', requirePermission('groups:update'), async (req, res) => {
+router.put('/:id', requirePermission('groups:update'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
   if (isNaN(id)) {
     return res.status(400).json({ error: 'Invalid group ID' });
@@ -198,7 +210,10 @@ router.put('/:id', requirePermission('groups:update'), async (req, res) => {
   try {
     const updated = await prisma.group.update({
       where: { id },
-      data: { name: name.trim() },
+      data: { 
+        name: name.trim(),
+        updatedBy: req.user?.id || null,
+      },
     });
     res.json(updated);
   } catch (error: any) {

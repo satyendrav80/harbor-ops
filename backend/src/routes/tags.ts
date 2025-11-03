@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { requireAuth, requirePermission } from '../middleware/auth';
+import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -26,6 +26,10 @@ router.get('/', requirePermission('tags:view'), async (req, res) => {
   const [items, total] = await Promise.all([
     prisma.tag.findMany({
       where: searchConditions,
+      include: {
+        createdByUser: { select: { id: true, name: true, email: true } },
+        updatedByUser: { select: { id: true, name: true, email: true } },
+      },
       orderBy: { createdAt: 'desc' },
       skip: offset,
       take: limit,
@@ -44,7 +48,7 @@ router.get('/', requirePermission('tags:view'), async (req, res) => {
   });
 });
 
-router.post('/', requirePermission('tags:create'), async (req, res) => {
+router.post('/', requirePermission('tags:create'), async (req: AuthRequest, res) => {
   const { name, value, color } = req.body;
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'Tag name is required' });
@@ -59,6 +63,7 @@ router.post('/', requirePermission('tags:create'), async (req, res) => {
         name: name.trim(),
         value: value ? value.trim() : null,
         color: normalizedColor,
+        createdBy: req.user?.id || null,
       } 
     });
     res.status(201).json(created);
@@ -72,12 +77,18 @@ router.post('/', requirePermission('tags:create'), async (req, res) => {
 
 router.get('/:id', requirePermission('tags:view'), async (req, res) => {
   const id = Number(req.params.id);
-  const item = await prisma.tag.findUnique({ where: { id } });
+  const item = await prisma.tag.findUnique({ 
+    where: { id },
+    include: {
+      createdByUser: { select: { id: true, name: true, email: true } },
+      updatedByUser: { select: { id: true, name: true, email: true } },
+    },
+  });
   if (!item) return res.status(404).json({ error: 'Not found' });
   res.json(item);
 });
 
-router.put('/:id', requirePermission('tags:update'), async (req, res) => {
+router.put('/:id', requirePermission('tags:update'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
   const { name, value, color } = req.body;
   
@@ -98,6 +109,7 @@ router.put('/:id', requirePermission('tags:update'), async (req, res) => {
         name: name.trim(),
         value: value ? value.trim() : null,
         color: normalizedColor,
+        updatedBy: req.user?.id || null,
       } 
     });
     res.json(updated);

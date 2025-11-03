@@ -172,10 +172,16 @@ const ReleaseNoteItem = memo(({
               </span>
             )}
             {releaseNote.createdAt && (
-              <span>Created {new Date(releaseNote.createdAt).toLocaleDateString()}</span>
+              <span>
+                Created {new Date(releaseNote.createdAt).toLocaleString()}
+                {releaseNote.createdByUser && ` by ${releaseNote.createdByUser.name || releaseNote.createdByUser.email}`}
+              </span>
             )}
             {releaseNote.updatedAt && (
-              <span>Updated {new Date(releaseNote.updatedAt).toLocaleDateString()}</span>
+              <span>
+                Updated {new Date(releaseNote.updatedAt).toLocaleString()}
+                {releaseNote.updatedByUser && ` by ${releaseNote.updatedByUser.name || releaseNote.updatedByUser.email}`}
+              </span>
             )}
           </div>
         </div>

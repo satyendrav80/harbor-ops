@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { requireAuth, requirePermission } from '../middleware/auth';
+import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -24,6 +24,10 @@ router.get('/', requirePermission('domains:view'), async (req, res) => {
   const [items, total] = await Promise.all([
     prisma.domain.findMany({
       where: searchConditions,
+      include: {
+        createdByUser: { select: { id: true, name: true, email: true } },
+        updatedByUser: { select: { id: true, name: true, email: true } },
+      },
       orderBy: { createdAt: 'desc' },
       skip: offset,
       take: limit,
@@ -43,7 +47,7 @@ router.get('/', requirePermission('domains:view'), async (req, res) => {
 });
 
 // Create a new domain
-router.post('/', requirePermission('domains:create'), async (req, res) => {
+router.post('/', requirePermission('domains:create'), async (req: AuthRequest, res) => {
   const { name } = req.body;
   
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -52,7 +56,10 @@ router.post('/', requirePermission('domains:create'), async (req, res) => {
   
   try {
     const created = await prisma.domain.create({ 
-      data: { name: name.trim() } 
+      data: { 
+        name: name.trim(),
+        createdBy: req.user?.id || null,
+      } 
     });
     res.status(201).json(created);
   } catch (error: any) {
@@ -66,13 +73,19 @@ router.post('/', requirePermission('domains:create'), async (req, res) => {
 // Get a single domain
 router.get('/:id', requirePermission('domains:view'), async (req, res) => {
   const id = Number(req.params.id);
-  const item = await prisma.domain.findUnique({ where: { id } });
+  const item = await prisma.domain.findUnique({ 
+    where: { id },
+    include: {
+      createdByUser: { select: { id: true, name: true, email: true } },
+      updatedByUser: { select: { id: true, name: true, email: true } },
+    },
+  });
   if (!item) return res.status(404).json({ error: 'Not found' });
   res.json(item);
 });
 
 // Update a domain
-router.put('/:id', requirePermission('domains:update'), async (req, res) => {
+router.put('/:id', requirePermission('domains:update'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
   const { name } = req.body;
   
@@ -83,7 +96,10 @@ router.put('/:id', requirePermission('domains:update'), async (req, res) => {
   try {
     const updated = await prisma.domain.update({ 
       where: { id }, 
-      data: { name: name.trim() } 
+      data: { 
+        name: name.trim(),
+        updatedBy: req.user?.id || null,
+      } 
     });
     res.json(updated);
   } catch (error: any) {

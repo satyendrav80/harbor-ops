@@ -141,6 +141,8 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
       include: {
         servers: { include: { server: { select: { id: true, name: true, type: true } } } },
         services: { include: { service: { select: { id: true, name: true, port: true } } } },
+        createdByUser: { select: { id: true, name: true, email: true } },
+        updatedByUser: { select: { id: true, name: true, email: true } },
       },
       orderBy: { createdAt: 'desc' },
       skip: offset,
@@ -189,7 +191,7 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
   });
 });
 
-router.post('/', requirePermission('credentials:create'), async (req, res) => {
+router.post('/', requirePermission('credentials:create'), async (req: AuthRequest, res) => {
   const { name, type, data } = req.body;
   
   // Validate data is provided
@@ -200,7 +202,11 @@ router.post('/', requirePermission('credentials:create'), async (req, res) => {
   // Create credential with meta in a transaction
   const created = await prisma.$transaction(async (tx) => {
     const credential = await tx.credential.create({
-      data: { name, type },
+      data: { 
+        name, 
+        type,
+        createdBy: req.user?.id || null,
+      },
     });
 
     // Save meta records (with encrypted values)
@@ -230,6 +236,8 @@ router.get('/:id', requirePermission('credentials:view'), async (req: AuthReques
     include: {
       servers: { include: { server: { select: { id: true, name: true, type: true } } } },
       services: { include: { service: { select: { id: true, name: true, port: true } } } },
+      createdByUser: { select: { id: true, name: true, email: true } },
+      updatedByUser: { select: { id: true, name: true, email: true } },
     },
   });
   if (!item) return res.status(404).json({ error: 'Not found' });
@@ -256,7 +264,7 @@ router.get('/:id', requirePermission('credentials:view'), async (req: AuthReques
   }
 });
 
-router.put('/:id', requirePermission('credentials:update'), async (req, res) => {
+router.put('/:id', requirePermission('credentials:update'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
   const existingCredential = await prisma.credential.findUnique({ where: { id } });
   if (!existingCredential) {
@@ -273,6 +281,7 @@ router.put('/:id', requirePermission('credentials:update'), async (req, res) => 
       data: { 
         name: name !== undefined ? name : existingCredential.name,
         type: type !== undefined ? type : existingCredential.type,
+        updatedBy: req.user?.id || null,
       } 
     });
 

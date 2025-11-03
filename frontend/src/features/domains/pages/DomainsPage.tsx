@@ -186,9 +186,20 @@ export function DomainsPage() {
                   <Globe className="w-5 h-5 text-gray-400" />
                   <div>
                     <h3 className="text-sm font-medium text-gray-900 dark:text-white">{domain.name}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Created {new Date(domain.createdAt).toLocaleDateString()}
-                    </p>
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      <p>Created {new Date(domain.createdAt).toLocaleString()}</p>
+                      {domain.createdByUser && (
+                        <p className="text-gray-400 dark:text-gray-500">by {domain.createdByUser.name || domain.createdByUser.email}</p>
+                      )}
+                      {domain.updatedAt && (
+                        <>
+                          <p className="mt-1">Updated {new Date(domain.updatedAt).toLocaleString()}</p>
+                          {domain.updatedByUser && (
+                            <p className="text-gray-400 dark:text-gray-500">by {domain.updatedByUser.name || domain.updatedByUser.email}</p>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
