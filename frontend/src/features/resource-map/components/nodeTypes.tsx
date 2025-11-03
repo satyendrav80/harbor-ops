@@ -57,6 +57,7 @@ const CustomNode = memo(({ data }: { data: NodeData }) => {
   
   // Determine border color: highlighted > tag color > default
   const borderColor = isHighlighted ? nodeColors[data.type] : (tagBorderColor || undefined);
+  const hasTagBorder = tagBorderColor && !isHighlighted;
   
   return (
     <div
@@ -68,10 +69,21 @@ const CustomNode = memo(({ data }: { data: NodeData }) => {
           : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
       }`}
       style={{
-        borderColor: borderColor,
+        ...(hasTagBorder 
+          ? {
+              borderTopColor: tagBorderColor,
+              borderRightColor: tagBorderColor,
+              borderBottomColor: tagBorderColor,
+              borderLeftColor: tagBorderColor,
+              borderLeftWidth: '4px',
+            }
+          : borderColor 
+          ? {
+              borderColor: borderColor,
+            }
+          : {}
+        ),
         backgroundColor: isHighlighted ? `${nodeColors[data.type]}20` : undefined,
-        borderLeftWidth: tagBorderColor && !isHighlighted ? '4px' : undefined,
-        borderLeftColor: tagBorderColor && !isHighlighted ? tagBorderColor : undefined,
       }}
     >
       {/* Connection handles */}
