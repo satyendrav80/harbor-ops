@@ -7,7 +7,10 @@ export type Constants = {
   serverTypes: readonly string[];
   serverTypeLabels: Record<string, string>;
   permissionResources: readonly string[];
-  permissionActions: readonly string[];
+  permissionActions: readonly string[]; // All possible actions (backwards compatibility)
+  permissionActionsGeneric?: string[]; // Generic actions that apply to all resources
+  permissionActionsResourceSpecific?: Record<string, string[]>; // Resource-specific actions map
+  permissionResourceActions?: Record<string, string[]>; // Map of resource -> [actions] for easy lookup
 };
 
 let cachedConstants: Constants | null = null;

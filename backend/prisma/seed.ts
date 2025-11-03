@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { PERMISSION_RESOURCES, getActionsForResource } from '../src/constants/permissions';
 
 const prisma = new PrismaClient();
 
@@ -9,10 +10,10 @@ async function main() {
   const regularRole = await prisma.role.upsert({ where: { name: 'regular' }, update: { system: true }, create: { name: 'regular', system: true } });
 
   // Seed standard permissions as system and grant all to admin
-  const RESOURCES = ['users','roles','permissions','credentials','servers','services','groups','tags','release-notes','dashboard','profile'];
-  const ACTIONS = ['view','create','update','delete','manage'];
-  for (const resource of RESOURCES) {
-    for (const action of ACTIONS) {
+  // Use resource-specific actions for each resource
+  for (const resource of PERMISSION_RESOURCES) {
+    const actions = getActionsForResource(resource);
+    for (const action of actions) {
       const name = `${resource}:${action}`;
       const perm = await prisma.permission.upsert({
         where: { resource_action: { resource, action } },

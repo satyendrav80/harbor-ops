@@ -49,7 +49,11 @@ export type Permission = {
   system?: boolean;
 };
 
-export type PermissionConfig = { resources: string[]; actions: string[] };
+export type PermissionConfig = { 
+  resources: string[]; 
+  actions: string[]; // All possible actions (backwards compatibility)
+  resourceActions?: Record<string, string[]>; // Map of resource -> [actions] for resource-specific filtering
+};
 
 export type PaginatedResponse<T> = {
   data: T[];

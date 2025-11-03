@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import bcrypt from 'bcryptjs';
-import { PERMISSION_RESOURCES, PERMISSION_ACTIONS, isSystemPermission } from '../constants/permissions';
+import { PERMISSION_RESOURCES, PERMISSION_ACTIONS, isSystemPermission, getActionsForResource } from '../constants/permissions';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -182,7 +182,17 @@ router.get('/permissions', async (_req, res) => {
 
 // Permission config (resources and actions) - for frontend to drive UI
 router.get('/permission-config', async (_req, res) => {
-  res.json({ resources: PERMISSION_RESOURCES as string[], actions: PERMISSION_ACTIONS as string[] });
+  // Build resource-specific actions map for frontend
+  const resourceActions: Record<string, string[]> = {};
+  for (const resource of PERMISSION_RESOURCES) {
+    resourceActions[resource] = getActionsForResource(resource);
+  }
+
+  res.json({ 
+    resources: Array.from(PERMISSION_RESOURCES), 
+    actions: PERMISSION_ACTIONS, // All possible actions (backwards compatibility)
+    resourceActions, // Map of resource -> [actions] for resource-specific filtering
+  });
 });
 
 // Assign role to user

@@ -33,16 +33,7 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
   const isSystem = !!permission?.system;
   const [resources, setResources] = useState<Array<{ value: string; label: string }>>([]);
   const [actions, setActions] = useState<Array<{ value: string; label: string }>>([]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const cfg = await getPermissionConfig();
-        setResources(toOptions(cfg.resources));
-        setActions(toOptions(cfg.actions));
-      } catch {}
-    })();
-  }, []);
+  const [resourceActions, setResourceActions] = useState<Record<string, string[]>>({});
   const createPermission = useCreatePermission();
   const updatePermission = useUpdatePermission();
   const deletePermission = useDeletePermission();
@@ -56,6 +47,46 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
       description: permission?.description || '',
     },
   });
+
+  const selectedResource = form.watch('resource');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const cfg = await getPermissionConfig();
+        setResources(toOptions(cfg.resources));
+        // Store resource-specific actions map if available
+        if (cfg.resourceActions) {
+          setResourceActions(cfg.resourceActions);
+          // Set initial actions based on selected resource or all actions
+          const initialResource = permission?.resource || selectedResource;
+          const initialActions = initialResource && cfg.resourceActions[initialResource]
+            ? cfg.resourceActions[initialResource]
+            : cfg.actions;
+          setActions(toOptions(initialActions));
+        } else {
+          // Fallback to all actions for backwards compatibility
+          setActions(toOptions(cfg.actions));
+        }
+      } catch {}
+    })();
+  }, [permission?.resource, selectedResource]);
+
+  // Update actions when resource selection changes
+  useEffect(() => {
+    if (selectedResource && resourceActions[selectedResource]) {
+      const resourceSpecificActions = resourceActions[selectedResource];
+      setActions(toOptions(resourceSpecificActions));
+      // Clear action selection if it's not valid for the new resource
+      const currentAction = form.getValues('action');
+      if (currentAction && !resourceSpecificActions.includes(currentAction)) {
+        form.setValue('action', '');
+      }
+    } else if (Object.keys(resourceActions).length === 0) {
+      // Fallback: if no resourceActions map, use all actions
+      // This handles backwards compatibility
+    }
+  }, [selectedResource, resourceActions, form]);
 
   const [error, setError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);

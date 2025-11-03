@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import authRouter from './routes/auth';
 import { PrismaClient } from '@prisma/client';
-import { PERMISSION_RESOURCES, PERMISSION_ACTIONS } from './constants/permissions';
+import { PERMISSION_RESOURCES, getActionsForResource } from './constants/permissions';
 import serversRouter from './routes/servers';
 import servicesRouter from './routes/services';
 import credentialsRouter from './routes/credentials';
@@ -58,8 +58,10 @@ async function initializeDefaults() {
   });
 
   // Ensure all standard permissions exist
+  // Use resource-specific actions for each resource
   for (const resource of PERMISSION_RESOURCES) {
-    for (const action of PERMISSION_ACTIONS) {
+    const actions = getActionsForResource(resource);
+    for (const action of actions) {
       const name = `${resource}:${action}`;
       await prisma.permission.upsert({
         where: { resource_action: { resource, action } },
