@@ -11,6 +11,7 @@ import {
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ReleaseNoteModal } from '../components/ReleaseNoteModal';
+import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle } from 'lucide-react';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
@@ -356,6 +357,8 @@ ReleaseNotesList.displayName = 'ReleaseNotesList';
  */
 export function ReleaseNotesPage() {
   usePageTitle('Release Notes');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [releaseNoteToDelete, setReleaseNoteToDelete] = useState<number | null>(null);
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -477,15 +480,22 @@ export function ReleaseNotesPage() {
     }
   }, [markDeploymentStarted]);
 
-  const handleDeleteReleaseNote = useCallback(async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this release note? This action cannot be undone.')) {
+  const handleDeleteReleaseNote = useCallback((id: number) => {
+    setReleaseNoteToDelete(id);
+    setDeleteConfirmOpen(true);
+  }, []);
+
+  const confirmDeleteReleaseNote = useCallback(async () => {
+    if (releaseNoteToDelete !== null) {
       try {
-        await deleteReleaseNote.mutateAsync(id);
+        await deleteReleaseNote.mutateAsync(releaseNoteToDelete);
+        setDeleteConfirmOpen(false);
+        setReleaseNoteToDelete(null);
       } catch (err) {
         // Error handled by global error handler
       }
     }
-  }, [deleteReleaseNote]);
+  }, [releaseNoteToDelete, deleteReleaseNote]);
 
   // Only show loading on initial load when there's truly no data
   // placeholderData keeps previous data during refetches, so we don't flicker
@@ -567,6 +577,20 @@ export function ReleaseNotesPage() {
         }}
         releaseNote={selectedReleaseNoteForEdit}
         services={servicesData?.data || []}
+      />
+      <ConfirmationDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => {
+          setDeleteConfirmOpen(false);
+          setReleaseNoteToDelete(null);
+        }}
+        onConfirm={confirmDeleteReleaseNote}
+        title="Delete Release Note"
+        message="Are you sure you want to delete this release note? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteReleaseNote.isPending}
       />
     </div>
   );

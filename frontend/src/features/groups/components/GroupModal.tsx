@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal } from '../../../components/common/Modal';
+import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { useCreateGroup, useUpdateGroup, useDeleteGroup } from '../hooks/useGroupMutations';
 import { Trash2 } from 'lucide-react';
 import type { Group } from '../../../services/groups';
@@ -27,7 +28,7 @@ export function GroupModal({ isOpen, onClose, group, onDelete }: GroupModalProps
   const deleteGroup = useDeleteGroup();
 
   const [error, setError] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(groupSchema),
@@ -50,7 +51,7 @@ export function GroupModal({ isOpen, onClose, group, onDelete }: GroupModalProps
       });
     }
     setError(null);
-    setShowDeleteConfirm(false);
+    setDeleteConfirmOpen(false);
   }, [isOpen, group, form]);
 
   const onSubmit = async (values: GroupFormValues) => {
@@ -72,11 +73,12 @@ export function GroupModal({ isOpen, onClose, group, onDelete }: GroupModalProps
     }
   };
 
-  const handleDelete = async () => {
+  const confirmDelete = async () => {
     if (!group) return;
     setError(null);
     try {
       await deleteGroup.mutateAsync(group.id);
+      setDeleteConfirmOpen(false);
       onClose();
       if (onDelete) onDelete();
     } catch (err: any) {
@@ -116,7 +118,7 @@ export function GroupModal({ isOpen, onClose, group, onDelete }: GroupModalProps
             {isEditing && (
               <button
                 type="button"
-                onClick={() => setShowDeleteConfirm(true)}
+                onClick={() => setDeleteConfirmOpen(true)}
                 disabled={isLoading}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -143,34 +145,18 @@ export function GroupModal({ isOpen, onClose, group, onDelete }: GroupModalProps
             </button>
           </div>
         </div>
-
-        {showDeleteConfirm && (
-          <div className="mt-4 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-            <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-2">Confirm Deletion</p>
-            <p className="text-sm text-red-700 dark:text-red-300 mb-4">
-              Are you sure you want to delete this group? This action cannot be undone.
-            </p>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(false)}
-                disabled={isLoading}
-                className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={isLoading}
-                className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 dark:bg-red-500 hover:bg-red-700 dark:hover:bg-red-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        )}
       </form>
+      <ConfirmationDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Group"
+        message="Are you sure you want to delete this group? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteGroup.isPending}
+      />
     </Modal>
   );
 }

@@ -18,6 +18,7 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
     const [servers, services, credentials, domains] = await Promise.all([
       // Servers with their credentials, domains, and tags
       prisma.server.findMany({
+        where: { deleted: false },
         include: {
           credentials: {
             include: {
@@ -56,6 +57,7 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
       }),
       // Services with their servers, credentials, domains, dependencies, and tags
       prisma.service.findMany({
+        where: { deleted: false },
         include: {
           servers: {
             include: {
@@ -116,6 +118,7 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
       }),
       // Credentials with their servers and services
       prisma.credential.findMany({
+        where: { deleted: false },
         include: {
           servers: {
             include: {
@@ -143,6 +146,7 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
       }),
       // Domains with their servers and services
       prisma.domain.findMany({
+        where: { deleted: false },
         include: {
           servers: {
             include: {

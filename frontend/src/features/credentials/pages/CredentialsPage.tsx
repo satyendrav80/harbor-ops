@@ -6,6 +6,7 @@ import { useCreateCredential, useUpdateCredential, useDeleteCredential } from '.
 import { revealCredentialData } from '../../../services/credentials';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
+import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { CredentialModal } from '../components/CredentialModal';
 import { Search, Plus, Edit, Trash2, Key, X, Eye, EyeOff, Server, Cloud } from 'lucide-react';
 import type { Credential } from '../../../services/credentials';
@@ -156,11 +157,23 @@ export function CredentialsPage() {
     setCredentialModalOpen(true);
   };
 
-  const handleDeleteCredential = async (credentialId: number) => {
-    try {
-      await deleteCredential.mutateAsync(credentialId);
-    } catch (err) {
-      // Error handled by global error handler
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [credentialToDelete, setCredentialToDelete] = useState<number | null>(null);
+
+  const handleDeleteCredential = (credentialId: number) => {
+    setCredentialToDelete(credentialId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteCredential = async () => {
+    if (credentialToDelete !== null) {
+      try {
+        await deleteCredential.mutateAsync(credentialToDelete);
+        setDeleteConfirmOpen(false);
+        setCredentialToDelete(null);
+      } catch (err) {
+        // Error handled by global error handler
+      }
     }
   };
 
@@ -485,6 +498,21 @@ export function CredentialsPage() {
           setSelectedCredentialForEdit(null);
         }}
         credential={selectedCredentialForEdit}
+      />
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => {
+          setDeleteConfirmOpen(false);
+          setCredentialToDelete(null);
+        }}
+        onConfirm={confirmDeleteCredential}
+        title="Delete Credential"
+        message="Are you sure you want to delete this credential? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteCredential.isPending}
       />
     </div>
   );

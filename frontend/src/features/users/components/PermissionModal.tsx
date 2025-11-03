@@ -7,6 +7,7 @@ import { useCreatePermission, useUpdatePermission, useDeletePermission } from '.
 import { getPermissionConfig } from '../../../services/users';
 import { Trash2 } from 'lucide-react';
 import type { Permission } from '../../../services/users';
+import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 
 function toOptions(values: string[]) {
   return values.map((v) => ({ value: v, label: v.charAt(0).toUpperCase() + v.slice(1).replace('-', ' ') }));
@@ -89,7 +90,7 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
   }, [selectedResource, resourceActions, form]);
 
   const [error, setError] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // Auto-generate permission name from resource:action
   useEffect(() => {
@@ -128,7 +129,7 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
       });
     }
     setError(null);
-    setShowDeleteConfirm(false);
+    setDeleteConfirmOpen(false);
   }, [isOpen, permission, form]);
 
   const onSubmit = async (values: PermissionFormValues) => {
@@ -157,12 +158,12 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
     }
   };
 
-  const handleDelete = async () => {
+  const confirmDelete = async () => {
     if (!permission) return;
     setError(null);
     try {
       await deletePermission.mutateAsync(permission.id);
-      setShowDeleteConfirm(false);
+      setDeleteConfirmOpen(false);
       onDelete?.();
       onClose();
     } catch (err: any) {
@@ -261,39 +262,13 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
           </div>
         )}
 
-        {/* Delete Confirmation */}
-        {showDeleteConfirm && (
-          <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-4">
-            <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-3">
-              Are you sure you want to delete this permission? This will remove it from all roles. This action cannot be undone.
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deletePermission.isPending}
-                className="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {deletePermission.isPending ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700/50">
           <div>
-            {isEditing && !showDeleteConfirm && !isSystem && (
+            {isEditing && !isSystem && (
               <button
                 type="button"
-                onClick={() => setShowDeleteConfirm(true)}
+                onClick={() => setDeleteConfirmOpen(true)}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/50"
               >
                 <Trash2 className="w-4 h-4" />
@@ -319,6 +294,17 @@ export function PermissionModal({ isOpen, onClose, permission, onDelete }: Permi
           </div>
         </div>
       </form>
+      <ConfirmationDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Permission"
+        message="Are you sure you want to delete this permission? This will remove it from all roles. This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deletePermission.isPending}
+      />
     </Modal>
   );
 }

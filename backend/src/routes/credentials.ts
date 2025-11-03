@@ -3,6 +3,8 @@ import { PrismaClient } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 import { Response } from 'express';
 import { encrypt, decrypt } from '../utils/encryption';
+import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
+import { AuditResourceType, AuditAction } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -137,7 +139,10 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
 
   const [items, total] = await Promise.all([
     prisma.credential.findMany({
-      where: searchConditions,
+      where: {
+        ...searchConditions,
+        deleted: false, // Exclude deleted records
+      },
       include: {
         servers: { include: { server: { select: { id: true, name: true, type: true } } } },
         services: { include: { service: { select: { id: true, name: true, port: true } } } },
@@ -148,7 +153,7 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
       skip: offset,
       take: limit,
     }),
-    prisma.credential.count({ where: searchConditions }),
+    prisma.credential.count({ where: { ...searchConditions, deleted: false } }),
   ]);
 
   // Fetch meta records for all credentials
@@ -225,14 +230,25 @@ router.post('/', requirePermission('credentials:create'), async (req: AuthReques
       data: metaToMaskedData(metaRecords),
     };
   });
-
+  
+  // Log audit
+  const requestMetadata = getRequestMetadata(req);
+  await logAudit({
+    resourceType: AuditResourceType.credential,
+    resourceId: created.id.toString(),
+    action: AuditAction.create,
+    userId: req.user?.id,
+    changes: { created: created },
+    ...requestMetadata,
+  });
+  
   res.status(201).json(mask(created));
 });
 
 router.get('/:id', requirePermission('credentials:view'), async (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
   const item = await prisma.credential.findUnique({ 
-    where: { id },
+    where: { id, deleted: false },
     include: {
       servers: { include: { server: { select: { id: true, name: true, type: true } } } },
       services: { include: { service: { select: { id: true, name: true, port: true } } } },
@@ -266,11 +282,12 @@ router.get('/:id', requirePermission('credentials:view'), async (req: AuthReques
 
 router.put('/:id', requirePermission('credentials:update'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
-  const existingCredential = await prisma.credential.findUnique({ where: { id } });
+  const existingCredential = await prisma.credential.findUnique({ where: { id, deleted: false } });
   if (!existingCredential) {
     return res.status(404).json({ error: 'Credential not found' });
   }
   
+  const oldCredential = { ...existingCredential };
   const { name, type, data } = req.body;
   
   // Update credential and meta in a transaction
@@ -347,13 +364,27 @@ router.put('/:id', requirePermission('credentials:update'), async (req: AuthRequ
     };
   });
   
+  // Log audit
+  const requestMetadata = getRequestMetadata(req);
+  const changes = getChanges(oldCredential, updated);
+  if (changes) {
+    await logAudit({
+      resourceType: AuditResourceType.credential,
+      resourceId: id.toString(),
+      action: AuditAction.update,
+      userId: req.user?.id,
+      changes,
+      ...requestMetadata,
+    });
+  }
+  
   res.json(mask(updated));
 });
 
 // Reveal credential data endpoint - requires credentials:reveal permission
 router.get('/:id/reveal', requirePermission('credentials:reveal'), async (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
-  const item = await prisma.credential.findUnique({ where: { id } });
+  const item = await prisma.credential.findUnique({ where: { id, deleted: false } });
   if (!item) return res.status(404).json({ error: 'Credential not found' });
   
   try {
@@ -374,21 +405,30 @@ router.get('/:id/reveal', requirePermission('credentials:reveal'), async (req: A
   }
 });
 
-router.delete('/:id', requirePermission('credentials:delete'), async (req, res) => {
+router.delete('/:id', requirePermission('credentials:delete'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
+  const credential = await prisma.credential.findUnique({ where: { id, deleted: false } });
+  if (!credential) return res.status(404).json({ error: 'Credential not found' });
   
-  // Delete credential and related meta records in a transaction
-  await prisma.$transaction(async (tx) => {
-    // Delete meta records first (cascade will handle this, but explicit is safer)
-    await tx.meta.deleteMany({
-      where: {
-        resourceType: 'credential',
-        resourceId: id,
-      },
-    });
-    
-    // Delete credential
-    await tx.credential.delete({ where: { id } });
+  // Soft delete (meta records remain, they're just not accessible)
+  await prisma.credential.update({
+    where: { id },
+    data: {
+      deleted: true,
+      deletedAt: new Date(),
+      deletedBy: req.user?.id || null,
+    },
+  });
+  
+  // Log audit
+  const requestMetadata = getRequestMetadata(req);
+  await logAudit({
+    resourceType: AuditResourceType.credential,
+    resourceId: id.toString(),
+    action: AuditAction.delete,
+    userId: req.user?.id,
+    changes: { deleted: credential },
+    ...requestMetadata,
   });
   
   res.status(204).end();

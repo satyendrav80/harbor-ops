@@ -4,6 +4,7 @@ import { useTags } from '../hooks/useTags';
 import { useDeleteTag } from '../hooks/useTagMutations';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
+import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { TagModal } from '../components/TagModal';
 import { Search, Plus, Edit, Trash2, Tag as TagIcon } from 'lucide-react';
 import type { Tag } from '../../../services/tags';
@@ -227,13 +228,25 @@ export function TagsPage() {
     setTagModalOpen(true);
   }, []);
 
-  const handleDeleteTag = useCallback(async (tagId: number) => {
-    try {
-      await deleteTag.mutateAsync(tagId);
-    } catch (err) {
-      // Error handled by global error handler
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [tagToDelete, setTagToDelete] = useState<number | null>(null);
+
+  const handleDeleteTag = useCallback((tagId: number) => {
+    setTagToDelete(tagId);
+    setDeleteConfirmOpen(true);
+  }, []);
+
+  const confirmDeleteTag = useCallback(async () => {
+    if (tagToDelete !== null) {
+      try {
+        await deleteTag.mutateAsync(tagToDelete);
+        setDeleteConfirmOpen(false);
+        setTagToDelete(null);
+      } catch (err) {
+        // Error handled by global error handler
+      }
     }
-  }, [deleteTag]);
+  }, [tagToDelete, deleteTag]);
 
   if (tagsLoading && tags.length === 0) {
     return (
@@ -315,6 +328,21 @@ export function TagsPage() {
           setSelectedTagForEdit(null);
         }}
         tag={selectedTagForEdit}
+      />
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => {
+          setDeleteConfirmOpen(false);
+          setTagToDelete(null);
+        }}
+        onConfirm={confirmDeleteTag}
+        title="Delete Tag"
+        message="Are you sure you want to delete this tag? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteTag.isPending}
       />
     </div>
   );

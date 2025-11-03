@@ -9,6 +9,7 @@ import { useAssignPermissionToRole, useRemovePermissionFromRole } from '../hooks
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
+import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { UserModal } from '../components/UserModal';
 import { RoleModal } from '../components/RoleModal';
 import { PermissionModal } from '../components/PermissionModal';
@@ -191,15 +192,25 @@ export function UsersRolesPage() {
     }
   };
 
-  const handleRejectUser = async (userId: string) => {
-    if (window.confirm('Are you sure you want to reject this user? This will permanently delete their account.')) {
+  const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
+  const [userToReject, setUserToReject] = useState<string | null>(null);
+
+  const handleRejectUser = (userId: string) => {
+    setUserToReject(userId);
+    setRejectConfirmOpen(true);
+  };
+
+  const confirmRejectUser = useCallback(async () => {
+    if (userToReject) {
       try {
-        await rejectUser.mutateAsync(userId);
+        await rejectUser.mutateAsync(userToReject);
+        setRejectConfirmOpen(false);
+        setUserToReject(null);
       } catch (error) {
         // Error handling is done by React Query
       }
     }
-  };
+  }, [userToReject, rejectUser]);
 
   // removed inline error banners; errors will appear in global toast
   const handleAssignPermission = async (roleId: string, permissionId: string) => {
@@ -494,6 +505,20 @@ export function UsersRolesPage() {
         }}
         permission={selectedPermissionForEdit}
       />
+      <ConfirmationDialog
+        isOpen={rejectConfirmOpen}
+        onClose={() => {
+          setRejectConfirmOpen(false);
+          setUserToReject(null);
+        }}
+        onConfirm={confirmRejectUser}
+        title="Reject User"
+        message="Are you sure you want to reject this user? Their status will be set to 'rejected' and they can be reactivated later if needed."
+        confirmText="Reject"
+        cancelText="Cancel"
+        variant="warning"
+        isLoading={rejectUser.isPending}
+      />
     </div>
   );
 }
@@ -561,6 +586,13 @@ function UserRow({
           <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
             <Ban className="w-3 h-3" />
             Blocked
+          </span>
+        );
+      case 'rejected':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
+            <XCircle className="w-3 h-3" />
+            Rejected
           </span>
         );
       default:
@@ -662,6 +694,17 @@ function UserRow({
                 className="text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 font-medium focus:outline-none focus:ring-2 focus:ring-green-500/50 rounded px-2 py-1 disabled:opacity-50"
                 aria-label="Unblock user"
                 title="Unblock user"
+              >
+                <CheckCircle className="w-4 h-4" />
+              </button>
+            )}
+            {user.status === 'rejected' && (
+              <button
+                onClick={() => onApprove(user.id)}
+                disabled={approvingUser || !hasPermission('users:update')}
+                className="text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 font-medium focus:outline-none focus:ring-2 focus:ring-green-500/50 rounded px-2 py-1 disabled:opacity-50"
+                aria-label="Approve user"
+                title="Approve rejected user"
               >
                 <CheckCircle className="w-4 h-4" />
               </button>

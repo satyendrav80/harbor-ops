@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 import { encrypt, decrypt } from '../utils/encryption';
+import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
+import { AuditResourceType, AuditAction } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -35,7 +37,10 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
 
   const [servers, total] = await Promise.all([
             prisma.server.findMany({
-              where: searchConditions,
+              where: {
+                ...searchConditions,
+                deleted: false, // Exclude deleted records
+              },
               include: {
                 tags: { include: { tag: true } },
                 credentials: { include: { credential: true } },
@@ -54,7 +59,7 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
               skip: offset,
               take: limit,
             }),
-    prisma.server.count({ where: searchConditions }),
+    prisma.server.count({ where: { ...searchConditions, deleted: false } }),
   ]);
 
   // Remove passwords from response
@@ -161,13 +166,24 @@ router.post('/', requirePermission('servers:create'), async (req: AuthRequest, r
     });
   });
   
+  // Log audit
+  const requestMetadata = getRequestMetadata(req);
+  await logAudit({
+    resourceType: AuditResourceType.server,
+    resourceId: created.id.toString(),
+    action: AuditAction.create,
+    userId: req.user?.id,
+    changes: { created: created },
+    ...requestMetadata,
+  });
+  
   res.status(201).json(removePassword(created));
 });
 
 router.get('/:id', requirePermission('servers:view'), async (req, res) => {
   const id = Number(req.params.id);
   const server = await prisma.server.findUnique({ 
-    where: { id },
+    where: { id, deleted: false },
     include: {
       tags: { include: { tag: true } },
       credentials: { include: { credential: true } },
@@ -183,7 +199,7 @@ router.get('/:id', requirePermission('servers:view'), async (req, res) => {
 // Reveal password endpoint - requires credentials:reveal permission
 router.get('/:id/reveal-password', requirePermission('credentials:reveal'), async (req, res) => {
   const id = Number(req.params.id);
-  const server = await prisma.server.findUnique({ where: { id } });
+  const server = await prisma.server.findUnique({ where: { id, deleted: false } });
   if (!server) return res.status(404).json({ error: 'Server not found' });
   
   if (!server.password) {
@@ -200,8 +216,10 @@ router.get('/:id/reveal-password', requirePermission('credentials:reveal'), asyn
 
 router.put('/:id', requirePermission('servers:update'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
-  const server = await prisma.server.findUnique({ where: { id } });
+  const server = await prisma.server.findUnique({ where: { id, deleted: false } });
   if (!server) return res.status(404).json({ error: 'Server not found' });
+  
+  const oldServer = { ...server };
   
   const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds, domainIds, tagIds } = req.body;
   
@@ -317,12 +335,49 @@ router.put('/:id', requirePermission('servers:update'), async (req: AuthRequest,
     });
   });
   
+  // Log audit
+  const requestMetadata = getRequestMetadata(req);
+  const changes = getChanges(oldServer, updated);
+  if (changes) {
+    await logAudit({
+      resourceType: AuditResourceType.server,
+      resourceId: id.toString(),
+      action: AuditAction.update,
+      userId: req.user?.id,
+      changes,
+      ...requestMetadata,
+    });
+  }
+  
   res.json(removePassword(updated));
 });
 
-router.delete('/:id', requirePermission('servers:delete'), async (req, res) => {
+router.delete('/:id', requirePermission('servers:delete'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
-  await prisma.server.delete({ where: { id } });
+  const server = await prisma.server.findUnique({ where: { id, deleted: false } });
+  if (!server) return res.status(404).json({ error: 'Server not found' });
+  
+  // Soft delete
+  await prisma.server.update({
+    where: { id },
+    data: {
+      deleted: true,
+      deletedAt: new Date(),
+      deletedBy: req.user?.id || null,
+    },
+  });
+  
+  // Log audit
+  const requestMetadata = getRequestMetadata(req);
+  await logAudit({
+    resourceType: AuditResourceType.server,
+    resourceId: id.toString(),
+    action: AuditAction.delete,
+    userId: req.user?.id,
+    changes: { deleted: server },
+    ...requestMetadata,
+  });
+  
   res.status(204).end();
 });
 

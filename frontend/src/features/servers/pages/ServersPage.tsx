@@ -6,6 +6,7 @@ import { useCreateServer, useUpdateServer, useDeleteServer } from '../hooks/useS
 import { revealServerPassword } from '../../../services/servers';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
+import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { ServerModal } from '../components/ServerModal';
 import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Eye, EyeOff, Cloud } from 'lucide-react';
 import type { Server } from '../../../services/servers';
@@ -116,11 +117,23 @@ export function ServersPage() {
     setServerModalOpen(true);
   };
 
-  const handleDeleteServer = async (serverId: number) => {
-    try {
-      await deleteServer.mutateAsync(serverId);
-    } catch (err) {
-      // Error handled by global error handler
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [serverToDelete, setServerToDelete] = useState<number | null>(null);
+
+  const handleDeleteServer = (serverId: number) => {
+    setServerToDelete(serverId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteServer = async () => {
+    if (serverToDelete !== null) {
+      try {
+        await deleteServer.mutateAsync(serverToDelete);
+        setDeleteConfirmOpen(false);
+        setServerToDelete(null);
+      } catch (err) {
+        // Error handled by global error handler
+      }
     }
   };
 
@@ -510,6 +523,21 @@ export function ServersPage() {
           setSelectedServerForEdit(null);
         }}
         server={selectedServerForEdit}
+      />
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => {
+          setDeleteConfirmOpen(false);
+          setServerToDelete(null);
+        }}
+        onConfirm={confirmDeleteServer}
+        title="Delete Server"
+        message="Are you sure you want to delete this server? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteServer.isPending}
       />
     </div>
   );

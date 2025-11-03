@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
+import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
+import { AuditResourceType, AuditAction } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -23,7 +25,10 @@ router.get('/', requirePermission('domains:view'), async (req, res) => {
 
   const [items, total] = await Promise.all([
     prisma.domain.findMany({
-      where: searchConditions,
+      where: {
+        ...searchConditions,
+        deleted: false, // Exclude deleted records
+      },
       include: {
         createdByUser: { select: { id: true, name: true, email: true } },
         updatedByUser: { select: { id: true, name: true, email: true } },
@@ -32,7 +37,7 @@ router.get('/', requirePermission('domains:view'), async (req, res) => {
       skip: offset,
       take: limit,
     }),
-    prisma.domain.count({ where: searchConditions }),
+    prisma.domain.count({ where: { ...searchConditions, deleted: false } }),
   ]);
 
   res.json({
@@ -61,6 +66,18 @@ router.post('/', requirePermission('domains:create'), async (req: AuthRequest, r
         createdBy: req.user?.id || null,
       } 
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    await logAudit({
+      resourceType: AuditResourceType.domain,
+      resourceId: created.id.toString(),
+      action: AuditAction.create,
+      userId: req.user?.id,
+      changes: { created: created },
+      ...requestMetadata,
+    });
+    
     res.status(201).json(created);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -74,7 +91,7 @@ router.post('/', requirePermission('domains:create'), async (req: AuthRequest, r
 router.get('/:id', requirePermission('domains:view'), async (req, res) => {
   const id = Number(req.params.id);
   const item = await prisma.domain.findUnique({ 
-    where: { id },
+    where: { id, deleted: false },
     include: {
       createdByUser: { select: { id: true, name: true, email: true } },
       updatedByUser: { select: { id: true, name: true, email: true } },
@@ -87,6 +104,10 @@ router.get('/:id', requirePermission('domains:view'), async (req, res) => {
 // Update a domain
 router.put('/:id', requirePermission('domains:update'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
+  const domain = await prisma.domain.findUnique({ where: { id, deleted: false } });
+  if (!domain) return res.status(404).json({ error: 'Domain not found' });
+  
+  const oldDomain = { ...domain };
   const { name } = req.body;
   
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -101,6 +122,21 @@ router.put('/:id', requirePermission('domains:update'), async (req: AuthRequest,
         updatedBy: req.user?.id || null,
       } 
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    const changes = getChanges(oldDomain, updated);
+    if (changes) {
+      await logAudit({
+        resourceType: AuditResourceType.domain,
+        resourceId: id.toString(),
+        action: AuditAction.update,
+        userId: req.user?.id,
+        changes,
+        ...requestMetadata,
+      });
+    }
+    
     res.json(updated);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -111,9 +147,32 @@ router.put('/:id', requirePermission('domains:update'), async (req: AuthRequest,
 });
 
 // Delete a domain
-router.delete('/:id', requirePermission('domains:delete'), async (req, res) => {
+router.delete('/:id', requirePermission('domains:delete'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
-  await prisma.domain.delete({ where: { id } });
+  const domain = await prisma.domain.findUnique({ where: { id, deleted: false } });
+  if (!domain) return res.status(404).json({ error: 'Domain not found' });
+  
+  // Soft delete
+  await prisma.domain.update({
+    where: { id },
+    data: {
+      deleted: true,
+      deletedAt: new Date(),
+      deletedBy: req.user?.id || null,
+    },
+  });
+  
+  // Log audit
+  const requestMetadata = getRequestMetadata(req);
+  await logAudit({
+    resourceType: AuditResourceType.domain,
+    resourceId: id.toString(),
+    action: AuditAction.delete,
+    userId: req.user?.id,
+    changes: { deleted: domain },
+    ...requestMetadata,
+  });
+  
   res.status(204).end();
 });
 

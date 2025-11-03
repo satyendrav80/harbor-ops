@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!token) return;
     try {
       const me = await getMe();
-      // If user is blocked/pending or has no permissions, force logout
+      // If user is blocked/pending/rejected or has no permissions, force logout
       if (me.status && me.status !== 'approved') {
         logout();
         if (typeof window !== 'undefined' && window.location.pathname !== '/login') {

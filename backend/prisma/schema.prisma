@@ -8,47 +8,61 @@ datasource db {
 }
 
 model User {
-  id            String     @id @default(cuid())        @map("id")
-  email         String     @unique                    @map("email")
-  username      String?    @unique                    @map("username")
-  passwordHash  String                                 @map("password_hash")
-  name          String?                                @map("name")
-  status        UserStatus @default(pending)           @map("status")
-  createdAt     DateTime   @default(now())            @map("created_at")
-  updatedAt     DateTime   @updatedAt                 @map("updated_at")
-  createdBy     String?                                @map("created_by")
-  updatedBy     String?                                @map("updated_by")
-  createdByUser User?      @relation("UserCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User?      @relation("UserUpdatedBy", fields: [updatedBy], references: [id])
-  createdUsers  User[]     @relation("UserCreatedBy")
-  updatedUsers  User[]     @relation("UserUpdatedBy")
-  createdCredentials Credential[] @relation("CredentialCreatedBy")
-  updatedCredentials Credential[] @relation("CredentialUpdatedBy")
-  createdServers Server[] @relation("ServerCreatedBy")
-  updatedServers Server[] @relation("ServerUpdatedBy")
-  createdServices Service[] @relation("ServiceCreatedBy")
-  updatedServices Service[] @relation("ServiceUpdatedBy")
-  createdGroups Group[] @relation("GroupCreatedBy")
-  updatedGroups Group[] @relation("GroupUpdatedBy")
-  createdTags Tag[] @relation("TagCreatedBy")
-  updatedTags Tag[] @relation("TagUpdatedBy")
-  createdReleaseNotes ReleaseNote[] @relation("ReleaseNoteCreatedBy")
-  updatedReleaseNotes ReleaseNote[] @relation("ReleaseNoteUpdatedBy")
-  createdDomains Domain[] @relation("DomainCreatedBy")
-  updatedDomains Domain[] @relation("DomainUpdatedBy")
+  id                         String              @id @default(cuid()) @map("id")
+  email                      String              @unique @map("email")
+  username                   String?             @unique @map("username")
+  passwordHash               String              @map("password_hash")
+  name                       String?             @map("name")
+  status                     UserStatus          @default(pending) @map("status")
+  createdAt                  DateTime            @default(now()) @map("created_at")
+  updatedAt                  DateTime            @updatedAt @map("updated_at")
+  createdBy                  String?             @map("created_by")
+  updatedBy                  String?             @map("updated_by")
+  createdByUser              User?               @relation("UserCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser              User?               @relation("UserUpdatedBy", fields: [updatedBy], references: [id])
+  createdUsers               User[]              @relation("UserCreatedBy")
+  updatedUsers               User[]              @relation("UserUpdatedBy")
+  createdCredentials         Credential[]        @relation("CredentialCreatedBy")
+  updatedCredentials         Credential[]        @relation("CredentialUpdatedBy")
+  createdServers             Server[]            @relation("ServerCreatedBy")
+  updatedServers             Server[]            @relation("ServerUpdatedBy")
+  createdServices            Service[]           @relation("ServiceCreatedBy")
+  updatedServices            Service[]           @relation("ServiceUpdatedBy")
+  createdGroups              Group[]             @relation("GroupCreatedBy")
+  updatedGroups              Group[]             @relation("GroupUpdatedBy")
+  createdTags                Tag[]               @relation("TagCreatedBy")
+  updatedTags                Tag[]               @relation("TagUpdatedBy")
+  createdReleaseNotes        ReleaseNote[]       @relation("ReleaseNoteCreatedBy")
+  updatedReleaseNotes        ReleaseNote[]       @relation("ReleaseNoteUpdatedBy")
+  createdDomains             Domain[]            @relation("DomainCreatedBy")
+  updatedDomains             Domain[]            @relation("DomainUpdatedBy")
   createdServiceDependencies ServiceDependency[] @relation("ServiceDependencyCreatedBy")
   updatedServiceDependencies ServiceDependency[] @relation("ServiceDependencyUpdatedBy")
-  createdMeta Meta[] @relation("MetaCreatedBy")
-  updatedMeta Meta[] @relation("MetaUpdatedBy")
-  roles     UserRole[]
+  createdMeta                Meta[]              @relation("MetaCreatedBy")
+  updatedMeta                Meta[]              @relation("MetaUpdatedBy")
+  audits                     Audit[]             @relation("AuditUser")
+  roles                      UserRole[]
+  deleted                    Boolean             @default(false) @map("deleted")
+  deletedAt                  DateTime?           @map("deleted_at")
+  deletedBy                  String?             @map("deleted_by")
+  deletedByUser              User?               @relation("UserDeletedBy", fields: [deletedBy], references: [id])
+  deletedCredentials         Credential[]        @relation("CredentialDeletedBy")
+  deletedServers             Server[]            @relation("ServerDeletedBy")
+  deletedServices            Service[]           @relation("ServiceDeletedBy")
+  deletedGroups              Group[]             @relation("GroupDeletedBy")
+  deletedTags                Tag[]               @relation("TagDeletedBy")
+  deletedDomains             Domain[]            @relation("DomainDeletedBy")
+  deletedUsers               User[]              @relation("UserDeletedBy")
 
   @@map("users")
 }
 
 model Role {
-  id          String          @id @default(cuid())   @map("id")
-  name        String          @unique                @map("name")
-  system      Boolean         @default(false)        @map("system")
+  id          String           @id @default(cuid()) @map("id")
+  name        String           @unique @map("name")
+  system      Boolean          @default(false) @map("system")
+  deleted     Boolean          @default(false) @map("deleted")
+  deletedAt   DateTime?        @map("deleted_at")
   users       UserRole[]
   permissions RolePermission[]
 
@@ -56,14 +70,16 @@ model Role {
 }
 
 model Permission {
-  id       String           @id @default(cuid())       @map("id")
-  name     String           @unique                    @map("name")
-  resource String                                      @map("resource")
-  action   String                                      @map("action")
-  description String?                                  @map("description")
-  system   Boolean          @default(false)            @map("system")
-  roles    RolePermission[]
-  
+  id          String           @id @default(cuid()) @map("id")
+  name        String           @unique @map("name")
+  resource    String           @map("resource")
+  action      String           @map("action")
+  description String?          @map("description")
+  system      Boolean          @default(false) @map("system")
+  deleted     Boolean          @default(false) @map("deleted")
+  deletedAt   DateTime?        @map("deleted_at")
+  roles       RolePermission[]
+
   @@unique([resource, action])
   @@map("permissions")
 }
@@ -71,16 +87,16 @@ model Permission {
 model UserRole {
   userId String @map("user_id")
   roleId String @map("role_id")
-  user   User @relation(fields: [userId], references: [id])
-  role   Role @relation(fields: [roleId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+  role   Role   @relation(fields: [roleId], references: [id])
 
   @@id([userId, roleId])
   @@map("user_roles")
 }
 
 model RolePermission {
-  roleId       String @map("role_id")
-  permissionId String @map("permission_id")
+  roleId       String     @map("role_id")
+  permissionId String     @map("permission_id")
   role         Role       @relation(fields: [roleId], references: [id])
   permission   Permission @relation(fields: [permissionId], references: [id])
 
@@ -90,26 +106,31 @@ model RolePermission {
 
 // Domain models
 model Credential {
-  id         Int      @id @default(autoincrement()) @map("id")
-  name       String                               @map("name")
-  type       String                               @map("type")
-  createdAt  DateTime @default(now())             @map("created_at")
-  updatedAt  DateTime @updatedAt                   @map("updated_at")
-  createdBy  String?                              @map("created_by")
-  updatedBy  String?                              @map("updated_by")
-  createdByUser User? @relation("CredentialCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User? @relation("CredentialUpdatedBy", fields: [updatedBy], references: [id])
-  services   ServiceCredential[]
-  servers    ServerCredential[]
+  id            Int                 @id @default(autoincrement()) @map("id")
+  name          String              @map("name")
+  type          String              @map("type")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  createdBy     String?             @map("created_by")
+  updatedBy     String?             @map("updated_by")
+  createdByUser User?               @relation("CredentialCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?               @relation("CredentialUpdatedBy", fields: [updatedBy], references: [id])
+  deleted       Boolean             @default(false) @map("deleted")
+  deletedAt     DateTime?           @map("deleted_at")
+  deletedBy     String?             @map("deleted_by")
+  deletedByUser User?               @relation("CredentialDeletedBy", fields: [deletedBy], references: [id])
+  services      ServiceCredential[]
+  servers       ServerCredential[]
 
+  @@index([deleted])
   @@map("credentials")
 }
 
 model ServerCredential {
-  serverId    Int @map("server_id")
-  credentialId Int @map("credential_id")
-  server      Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  credential  Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  serverId     Int        @map("server_id")
+  credentialId Int        @map("credential_id")
+  server       Server     @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  credential   Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
 
   @@id([serverId, credentialId])
   @@map("server_credentials")
@@ -126,56 +147,66 @@ enum ServerType {
 }
 
 model Server {
-  id          Int         @id @default(autoincrement()) @map("id")
-  name        String                                    @map("name")
-  type        ServerType  @default(os)                 @map("type")
-  publicIp    String?                                   @map("public_ip")
-  privateIp   String?                                   @map("private_ip")
-  endpoint    String?                                   @map("endpoint")
-  port        Int?                                      @map("port")
-  sshPort     Int?                                      @map("ssh_port")
-  username    String?                                   @map("username")
-  password    String?                                   @map("password")
-  createdAt   DateTime    @default(now())               @map("created_at")
-  updatedAt   DateTime    @updatedAt                   @map("updated_at")
-  createdBy   String?                                   @map("created_by")
-  updatedBy   String?                                   @map("updated_by")
-  createdByUser User?     @relation("ServerCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User?     @relation("ServerUpdatedBy", fields: [updatedBy], references: [id])
-  services    ServiceServer[]
-  tags        ServerTag[]
-  credentials ServerCredential[]
-  domains     ServerDomain[]
+  id            Int                @id @default(autoincrement()) @map("id")
+  name          String             @map("name")
+  type          ServerType         @default(os) @map("type")
+  publicIp      String?            @map("public_ip")
+  privateIp     String?            @map("private_ip")
+  endpoint      String?            @map("endpoint")
+  port          Int?               @map("port")
+  sshPort       Int?               @map("ssh_port")
+  username      String?            @map("username")
+  password      String?            @map("password")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  createdBy     String?            @map("created_by")
+  updatedBy     String?            @map("updated_by")
+  createdByUser User?              @relation("ServerCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?              @relation("ServerUpdatedBy", fields: [updatedBy], references: [id])
+  deleted       Boolean            @default(false) @map("deleted")
+  deletedAt     DateTime?          @map("deleted_at")
+  deletedBy     String?            @map("deleted_by")
+  deletedByUser User?              @relation("ServerDeletedBy", fields: [deletedBy], references: [id])
+  services      ServiceServer[]
+  tags          ServerTag[]
+  credentials   ServerCredential[]
+  domains       ServerDomain[]
 
+  @@index([deleted])
   @@map("servers")
 }
 
 model Service {
-  id             Int         @id @default(autoincrement()) @map("id")
-  name           String                                   @map("name")
-  port           Int                                      @map("port")
-  external       Boolean     @default(false)              @map("external")
-  sourceRepo     String?                                  @map("source_repo")
-  appId          String?                                  @map("app_id")
-  functionName   String?                                  @map("function_name")
-  deploymentUrl  String?                                  @map("deployment_url")
-  documentationUrl String?                               @map("documentation_url")
-  documentation String?                                  @db.Text @map("documentation")
-  metadata       Json?                                    @map("metadata")
-  createdAt      DateTime    @default(now())              @map("created_at")
-  updatedAt      DateTime    @updatedAt                   @map("updated_at")
-  createdBy      String?                                  @map("created_by")
-  updatedBy      String?                                  @map("updated_by")
-  createdByUser  User?      @relation("ServiceCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser  User?      @relation("ServiceUpdatedBy", fields: [updatedBy], references: [id])
-  servers        ServiceServer[]
-  tags           ServiceTag[]
-  releaseNotes   ReleaseNote[]
-  credentials    ServiceCredential[]
-  domains        ServiceDomain[]
-  dependencies   ServiceDependency[] @relation("ServiceDependencies")
+  id                Int                 @id @default(autoincrement()) @map("id")
+  name              String              @map("name")
+  port              Int                 @map("port")
+  external          Boolean             @default(false) @map("external")
+  sourceRepo        String?             @map("source_repo")
+  appId             String?             @map("app_id")
+  functionName      String?             @map("function_name")
+  deploymentUrl     String?             @map("deployment_url")
+  documentationUrl  String?             @map("documentation_url")
+  documentation     String?             @map("documentation") @db.Text
+  metadata          Json?               @map("metadata")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  createdBy         String?             @map("created_by")
+  updatedBy         String?             @map("updated_by")
+  createdByUser     User?               @relation("ServiceCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser     User?               @relation("ServiceUpdatedBy", fields: [updatedBy], references: [id])
+  deleted           Boolean             @default(false) @map("deleted")
+  deletedAt         DateTime?           @map("deleted_at")
+  deletedBy         String?             @map("deleted_by")
+  deletedByUser     User?               @relation("ServiceDeletedBy", fields: [deletedBy], references: [id])
+  servers           ServiceServer[]
+  tags              ServiceTag[]
+  releaseNotes      ReleaseNote[]
+  credentials       ServiceCredential[]
+  domains           ServiceDomain[]
+  dependencies      ServiceDependency[] @relation("ServiceDependencies")
   dependentServices ServiceDependency[] @relation("ServiceDependents")
 
+  @@index([deleted])
   @@map("services")
 }
 
@@ -185,50 +216,60 @@ enum GroupItemType {
 }
 
 model Group {
-  id        Int         @id @default(autoincrement()) @map("id")
-  name      String      @unique                       @map("name")
-  createdAt DateTime    @default(now())               @map("created_at")
-  updatedAt DateTime    @updatedAt                    @map("updated_at")
-  createdBy String?                                   @map("created_by")
-  updatedBy String?                                   @map("updated_by")
-  createdByUser User?   @relation("GroupCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User?   @relation("GroupUpdatedBy", fields: [updatedBy], references: [id])
-  items     GroupItem[]
+  id            Int         @id @default(autoincrement()) @map("id")
+  name          String      @unique @map("name")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  createdBy     String?     @map("created_by")
+  updatedBy     String?     @map("updated_by")
+  createdByUser User?       @relation("GroupCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?       @relation("GroupUpdatedBy", fields: [updatedBy], references: [id])
+  deleted       Boolean     @default(false) @map("deleted")
+  deletedAt     DateTime?   @map("deleted_at")
+  deletedBy     String?     @map("deleted_by")
+  deletedByUser User?       @relation("GroupDeletedBy", fields: [deletedBy], references: [id])
+  items         GroupItem[]
 
+  @@index([deleted])
   @@map("groups")
 }
 
 model GroupItem {
-  id        Int           @id @default(autoincrement()) @map("id")
-  groupId   Int                                       @map("group_id")
-  group     Group         @relation(fields: [groupId], references: [id])
-  itemType  GroupItemType                             @map("item_type")
-  itemId    Int                                       @map("item_id")
+  id       Int           @id @default(autoincrement()) @map("id")
+  groupId  Int           @map("group_id")
+  group    Group         @relation(fields: [groupId], references: [id])
+  itemType GroupItemType @map("item_type")
+  itemId   Int           @map("item_id")
 
   @@map("group_items")
 }
 
 model Tag {
-  id        Int       @id @default(autoincrement()) @map("id")
-  name      String                                  @map("name")
-  value     String?                                 @map("value")
-  color     String?                                 @map("color")
-  createdAt DateTime  @default(now())              @map("created_at")
-  updatedAt DateTime  @updatedAt                   @map("updated_at")
-  createdBy String?                                 @map("created_by")
-  updatedBy String?                                 @map("updated_by")
-  createdByUser User? @relation("TagCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User? @relation("TagUpdatedBy", fields: [updatedBy], references: [id])
-  services  ServiceTag[]
-  servers   ServerTag[]
+  id            Int          @id @default(autoincrement()) @map("id")
+  name          String       @map("name")
+  value         String?      @map("value")
+  color         String?      @map("color")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  createdBy     String?      @map("created_by")
+  updatedBy     String?      @map("updated_by")
+  createdByUser User?        @relation("TagCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?        @relation("TagUpdatedBy", fields: [updatedBy], references: [id])
+  deleted       Boolean      @default(false) @map("deleted")
+  deletedAt     DateTime?    @map("deleted_at")
+  deletedBy     String?      @map("deleted_by")
+  deletedByUser User?        @relation("TagDeletedBy", fields: [deletedBy], references: [id])
+  services      ServiceTag[]
+  servers       ServerTag[]
 
   @@unique([name, value])
+  @@index([deleted])
   @@map("tags")
 }
 
 model ServiceTag {
-  serviceId Int @map("service_id")
-  tagId     Int @map("tag_id")
+  serviceId Int     @map("service_id")
+  tagId     Int     @map("tag_id")
   service   Service @relation(fields: [serviceId], references: [id])
   tag       Tag     @relation(fields: [tagId], references: [id])
 
@@ -237,8 +278,8 @@ model ServiceTag {
 }
 
 model ServerTag {
-  serverId Int @map("server_id")
-  tagId    Int @map("tag_id")
+  serverId Int    @map("server_id")
+  tagId    Int    @map("tag_id")
   server   Server @relation(fields: [serverId], references: [id])
   tag      Tag    @relation(fields: [tagId], references: [id])
 
@@ -256,44 +297,50 @@ enum UserStatus {
   pending
   approved
   blocked
+  rejected
 }
 
 model ReleaseNote {
-  id         Int            @id @default(autoincrement()) @map("id")
-  serviceId  Int                                         @map("service_id")
-  service    Service        @relation(fields: [serviceId], references: [id])
-  note       String                                      @map("note")
-  status     ReleaseStatus  @default(pending)            @map("status")
-  publishDate DateTime      @default(now())              @map("publish_date")
-  createdAt  DateTime       @default(now())              @map("created_at")
-  updatedAt  DateTime       @updatedAt                   @map("updated_at")
-  createdBy  String?                                     @map("created_by")
-  updatedBy  String?                                     @map("updated_by")
-  createdByUser User?      @relation("ReleaseNoteCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User?      @relation("ReleaseNoteUpdatedBy", fields: [updatedBy], references: [id])
+  id            Int           @id @default(autoincrement()) @map("id")
+  serviceId     Int           @map("service_id")
+  service       Service       @relation(fields: [serviceId], references: [id])
+  note          String        @map("note")
+  status        ReleaseStatus @default(pending) @map("status")
+  publishDate   DateTime      @default(now()) @map("publish_date")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  createdBy     String?       @map("created_by")
+  updatedBy     String?       @map("updated_by")
+  createdByUser User?         @relation("ReleaseNoteCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?         @relation("ReleaseNoteUpdatedBy", fields: [updatedBy], references: [id])
 
   @@map("release_notes")
 }
 
 model Domain {
-  id        Int       @id @default(autoincrement()) @map("id")
-  name      String    @unique                       @map("name")
-  createdAt DateTime  @default(now())               @map("created_at")
-  updatedAt DateTime  @updatedAt                   @map("updated_at")
-  createdBy String?                                 @map("created_by")
-  updatedBy String?                                 @map("updated_by")
-  createdByUser User? @relation("DomainCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User? @relation("DomainUpdatedBy", fields: [updatedBy], references: [id])
-  servers   ServerDomain[]
-  services  ServiceDomain[]
+  id            Int             @id @default(autoincrement()) @map("id")
+  name          String          @unique @map("name")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  createdBy     String?         @map("created_by")
+  updatedBy     String?         @map("updated_by")
+  createdByUser User?           @relation("DomainCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?           @relation("DomainUpdatedBy", fields: [updatedBy], references: [id])
+  deleted       Boolean         @default(false) @map("deleted")
+  deletedAt     DateTime?       @map("deleted_at")
+  deletedBy     String?         @map("deleted_by")
+  deletedByUser User?           @relation("DomainDeletedBy", fields: [deletedBy], references: [id])
+  servers       ServerDomain[]
+  services      ServiceDomain[]
 
+  @@index([deleted])
   @@map("domains")
 }
 
 model ServiceCredential {
-  serviceId    Int @map("service_id")
-  credentialId Int @map("credential_id")
-  service      Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  serviceId    Int        @map("service_id")
+  credentialId Int        @map("credential_id")
+  service      Service    @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   credential   Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
 
   @@id([serviceId, credentialId])
@@ -301,8 +348,8 @@ model ServiceCredential {
 }
 
 model ServerDomain {
-  serverId Int @map("server_id")
-  domainId Int @map("domain_id")
+  serverId Int    @map("server_id")
+  domainId Int    @map("domain_id")
   server   Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
   domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
 
@@ -311,47 +358,47 @@ model ServerDomain {
 }
 
 model ServiceDomain {
-  serviceId Int @map("service_id")
-  domainId  Int @map("domain_id")
+  serviceId Int     @map("service_id")
+  domainId  Int     @map("domain_id")
   service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  domain    Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  domain    Domain  @relation(fields: [domainId], references: [id], onDelete: Cascade)
 
   @@id([serviceId, domainId])
   @@map("service_domains")
 }
 
 model ServiceServer {
-  serviceId Int @map("service_id")
-  serverId  Int @map("server_id")
+  serviceId Int     @map("service_id")
+  serverId  Int     @map("server_id")
   service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  server    Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  server    Server  @relation(fields: [serverId], references: [id], onDelete: Cascade)
 
   @@id([serviceId, serverId])
   @@map("service_servers")
 }
 
 model ServiceDependency {
-  id                Int       @id @default(autoincrement()) @map("id")
-  serviceId         Int                                       @map("service_id")
-  service           Service    @relation("ServiceDependencies", fields: [serviceId], references: [id], onDelete: Cascade)
-  
+  id        Int     @id @default(autoincrement()) @map("id")
+  serviceId Int     @map("service_id")
+  service   Service @relation("ServiceDependencies", fields: [serviceId], references: [id], onDelete: Cascade)
+
   // Internal dependency (references another service)
-  dependencyServiceId Int?                                     @map("dependency_service_id")
+  dependencyServiceId Int?     @map("dependency_service_id")
   dependencyService   Service? @relation("ServiceDependents", fields: [dependencyServiceId], references: [id], onDelete: Cascade)
-  
+
   // External dependency (third-party services like OpenAI, AWS, etc.)
-  externalServiceName String?                                 @map("external_service_name")
-  externalServiceType String?                                 @map("external_service_type")
-  externalServiceUrl  String?                                 @map("external_service_url")
-  description        String?                                 @map("description")
-  
-  createdAt          DateTime  @default(now())               @map("created_at")
-  updatedAt          DateTime  @updatedAt                   @map("updated_at")
-  createdBy          String?                                 @map("created_by")
-  updatedBy          String?                                 @map("updated_by")
-  createdByUser      User?     @relation("ServiceDependencyCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser      User?     @relation("ServiceDependencyUpdatedBy", fields: [updatedBy], references: [id])
-  
+  externalServiceName String? @map("external_service_name")
+  externalServiceType String? @map("external_service_type")
+  externalServiceUrl  String? @map("external_service_url")
+  description         String? @map("description")
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdBy     String?  @map("created_by")
+  updatedBy     String?  @map("updated_by")
+  createdByUser User?    @relation("ServiceDependencyCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?    @relation("ServiceDependencyUpdatedBy", fields: [updatedBy], references: [id])
+
   // Ensure either dependencyServiceId or externalServiceName is provided
   @@index([serviceId])
   @@index([dependencyServiceId])
@@ -377,18 +424,18 @@ enum MetaValueType {
 }
 
 model Meta {
-  id           Int             @id @default(autoincrement()) @map("id")
-  resourceType MetaResourceType @map("resource_type")
-  resourceId   Int             @map("resource_id")
-  key          String          @map("key")
-  value        String          @map("value") // Encrypted value stored as string
-  valueType    MetaValueType   @default(string) @map("value_type")
-  createdAt    DateTime        @default(now()) @map("created_at")
-  updatedAt    DateTime        @updatedAt @map("updated_at")
-  createdBy    String?         @map("created_by")
-  updatedBy    String?         @map("updated_by")
-  createdByUser User?          @relation("MetaCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User?          @relation("MetaUpdatedBy", fields: [updatedBy], references: [id])
+  id            Int              @id @default(autoincrement()) @map("id")
+  resourceType  MetaResourceType @map("resource_type")
+  resourceId    Int              @map("resource_id")
+  key           String           @map("key")
+  value         String           @map("value") // Encrypted value stored as string
+  valueType     MetaValueType    @default(string) @map("value_type")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  createdBy     String?          @map("created_by")
+  updatedBy     String?          @map("updated_by")
+  createdByUser User?            @relation("MetaCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?            @relation("MetaUpdatedBy", fields: [updatedBy], references: [id])
 
   // Note: Polymorphic relations - resourceId refers to different tables based on resourceType
   // Foreign key constraints cannot be enforced at DB level for polymorphic relations
@@ -397,4 +444,43 @@ model Meta {
   @@unique([resourceType, resourceId, key])
   @@index([resourceType, resourceId])
   @@map("meta")
+}
+
+// Audit logging for critical resources
+enum AuditResourceType {
+  user
+  server
+  service
+  credential
+  tag
+  domain
+  group
+  role
+  permission
+}
+
+enum AuditAction {
+  create
+  update
+  delete
+  restore
+}
+
+model Audit {
+  id           Int               @id @default(autoincrement()) @map("id")
+  resourceType AuditResourceType @map("resource_type")
+  resourceId   String            @map("resource_id") // String to support both Int and String IDs
+  action       AuditAction       @map("action")
+  userId       String?           @map("user_id")
+  user         User?             @relation("AuditUser", fields: [userId], references: [id])
+  changes      Json?             @map("changes") // Stores before/after values
+  metadata     Json?             @map("metadata") // Additional context
+  ipAddress    String?           @map("ip_address")
+  userAgent    String?           @map("user_agent")
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  @@index([resourceType, resourceId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audits")
 }

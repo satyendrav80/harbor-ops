@@ -4,6 +4,7 @@ import { useDomains } from '../hooks/useDomains';
 import { useCreateDomain, useUpdateDomain, useDeleteDomain } from '../hooks/useDomainMutations';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
+import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { DomainModal } from '../components/DomainModal';
 import { Search, Plus, Edit, Trash2, Globe } from 'lucide-react';
 import type { Domain } from '../../../services/domains';
@@ -92,11 +93,23 @@ export function DomainsPage() {
     setDomainModalOpen(true);
   };
 
-  const handleDeleteDomain = async (domainId: number) => {
-    try {
-      await deleteDomain.mutateAsync(domainId);
-    } catch (err) {
-      // Error handled by global error handler
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [domainToDelete, setDomainToDelete] = useState<number | null>(null);
+
+  const handleDeleteDomain = (domainId: number) => {
+    setDomainToDelete(domainId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteDomain = async () => {
+    if (domainToDelete !== null) {
+      try {
+        await deleteDomain.mutateAsync(domainToDelete);
+        setDeleteConfirmOpen(false);
+        setDomainToDelete(null);
+      } catch (err) {
+        // Error handled by global error handler
+      }
     }
   };
 
@@ -247,6 +260,21 @@ export function DomainsPage() {
         onDelete={() => {
           // Domain deleted, no special handling needed
         }}
+      />
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => {
+          setDeleteConfirmOpen(false);
+          setDomainToDelete(null);
+        }}
+        onConfirm={confirmDeleteDomain}
+        title="Delete Domain"
+        message="Are you sure you want to delete this domain? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteDomain.isPending}
       />
     </div>
   );

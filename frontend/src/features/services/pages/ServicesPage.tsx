@@ -4,6 +4,7 @@ import { useServices } from '../hooks/useServices';
 import { useCreateService, useUpdateService, useDeleteService } from '../hooks/useServiceMutations';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
+import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { ServiceModal } from '../components/ServiceModal';
 import { Search, Plus, Edit, Trash2, Server as ServerIcon, X } from 'lucide-react';
 import type { Service } from '../../../services/services';
@@ -137,11 +138,23 @@ export function ServicesPage() {
     setServiceModalOpen(true);
   };
 
-  const handleDeleteService = async (serviceId: number) => {
-    try {
-      await deleteService.mutateAsync(serviceId);
-    } catch (err) {
-      // Error handled by global error handler
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [serviceToDelete, setServiceToDelete] = useState<number | null>(null);
+
+  const handleDeleteService = (serviceId: number) => {
+    setServiceToDelete(serviceId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteService = async () => {
+    if (serviceToDelete !== null) {
+      try {
+        await deleteService.mutateAsync(serviceToDelete);
+        setDeleteConfirmOpen(false);
+        setServiceToDelete(null);
+      } catch (err) {
+        // Error handled by global error handler
+      }
     }
   };
 
@@ -525,6 +538,21 @@ export function ServicesPage() {
         }}
         service={selectedServiceForEdit}
         onDelete={() => setSelectedServiceForEdit(null)}
+      />
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => {
+          setDeleteConfirmOpen(false);
+          setServiceToDelete(null);
+        }}
+        onConfirm={confirmDeleteService}
+        title="Delete Service"
+        message="Are you sure you want to delete this service? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteService.isPending}
       />
     </div>
   );

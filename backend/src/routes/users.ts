@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { requireAuth, requirePermission } from '../middleware/auth';
+import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 import bcrypt from 'bcryptjs';
 import { PERMISSION_RESOURCES, PERMISSION_ACTIONS, isSystemPermission, getActionsForResource } from '../constants/permissions';
+import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
+import { AuditResourceType, AuditAction } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -29,7 +31,10 @@ router.get('/users', async (req, res) => {
 
   const [users, total] = await Promise.all([
     prisma.user.findMany({
-      where: searchConditions,
+      where: {
+        ...searchConditions,
+        deleted: false, // Exclude deleted records
+      },
       select: {
         id: true,
         email: true,
@@ -55,7 +60,7 @@ router.get('/users', async (req, res) => {
       skip: offset,
       take: limit,
     }),
-    prisma.user.count({ where: searchConditions }),
+    prisma.user.count({ where: { ...searchConditions, deleted: false } }),
   ]);
 
   res.json({
@@ -73,7 +78,7 @@ router.get('/users', async (req, res) => {
 router.get('/users/:id', async (req, res) => {
   const { id } = req.params;
   const user = await prisma.user.findUnique({
-    where: { id },
+    where: { id, deleted: false },
     select: {
       id: true,
       email: true,
@@ -123,7 +128,10 @@ router.get('/roles', async (req, res) => {
 
   const [roles, total] = await Promise.all([
     prisma.role.findMany({
-      where: searchConditions,
+      where: {
+        ...searchConditions,
+        deleted: false, // Exclude deleted records
+      },
       include: {
         permissions: {
           include: {
@@ -154,7 +162,7 @@ router.get('/roles', async (req, res) => {
       skip: offset,
       take: limit,
     }),
-    prisma.role.count({ where: searchConditions }),
+    prisma.role.count({ where: { ...searchConditions, deleted: false } }),
   ]);
 
   res.json({
@@ -171,6 +179,7 @@ router.get('/roles', async (req, res) => {
 // Get all permissions
 router.get('/permissions', async (_req, res) => {
   const permissions = await prisma.permission.findMany({
+    where: { deleted: false }, // Exclude deleted records
     orderBy: [
       { resource: 'asc' },
       { action: 'asc' },
@@ -238,7 +247,7 @@ router.delete('/users/:userId/roles/:roleId', requirePermission('roles:manage'),
   const { userId, roleId } = req.params;
   try {
     // Prevent removing admin role if it would leave no approved admins
-    const adminRole = await prisma.role.findUnique({ where: { name: 'admin' } });
+    const adminRole = await prisma.role.findUnique({ where: { name: 'admin', deleted: false } });
     if (adminRole && adminRole.id === roleId) {
       const remaining = await prisma.userRole.count({
         where: {
@@ -246,6 +255,7 @@ router.delete('/users/:userId/roles/:roleId', requirePermission('roles:manage'),
           user: {
             status: 'approved',
             id: { not: userId },
+            deleted: false,
           } as any,
         },
       });
@@ -254,7 +264,7 @@ router.delete('/users/:userId/roles/:roleId', requirePermission('roles:manage'),
       }
     }
     // Prevent removing the default regular role from any user
-    const regularRole = await prisma.role.findUnique({ where: { name: 'regular' } });
+    const regularRole = await prisma.role.findUnique({ where: { name: 'regular', deleted: false } });
     if (regularRole && regularRole.id === roleId) {
       return res.status(400).json({ error: 'Default role cannot be removed from user' });
     }
@@ -273,7 +283,7 @@ router.delete('/users/:userId/roles/:roleId', requirePermission('roles:manage'),
 });
 
 // Create a new role
-router.post('/roles', requirePermission('roles:create'), async (req, res) => {
+router.post('/roles', requirePermission('roles:create'), async (req: AuthRequest, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Role name is required' });
   if (name === 'admin' || name === 'regular') return res.status(400).json({ error: 'Default roles cannot be created or modified' });
@@ -293,6 +303,18 @@ router.post('/roles', requirePermission('roles:create'), async (req, res) => {
         },
       },
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    await logAudit({
+      resourceType: AuditResourceType.role,
+      resourceId: role.id,
+      action: AuditAction.create,
+      userId: req.user?.id,
+      changes: { created: role },
+      ...requestMetadata,
+    });
+    
     res.status(201).json(role);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -306,7 +328,7 @@ router.post('/roles', requirePermission('roles:create'), async (req, res) => {
 router.post('/roles/:roleId/permissions/:permissionId', requirePermission('roles:manage'), async (req, res) => {
   const { roleId, permissionId } = req.params;
   try {
-    let role = await prisma.role.findUnique({ where: { id: roleId } });
+    let role = await prisma.role.findUnique({ where: { id: roleId, deleted: false } });
     if (!role) return res.status(404).json({ error: 'Role not found' });
     if (role.name === 'admin' || role.name === 'regular') return res.status(400).json({ error: 'Default role permissions cannot be modified' });
     await prisma.rolePermission.create({
@@ -343,7 +365,7 @@ router.post('/roles/:roleId/permissions/:permissionId', requirePermission('roles
 router.delete('/roles/:roleId/permissions/:permissionId', requirePermission('roles:manage'), async (req, res) => {
   const { roleId, permissionId } = req.params;
   try {
-    const role = await prisma.role.findUnique({ where: { id: roleId } });
+    const role = await prisma.role.findUnique({ where: { id: roleId, deleted: false } });
     if (!role) return res.status(404).json({ error: 'Role not found' });
     if (role.name === 'admin' || role.name === 'regular') return res.status(400).json({ error: 'Default role permissions cannot be modified' });
     await prisma.rolePermission.delete({
@@ -366,12 +388,12 @@ router.post('/users', requirePermission('users:create'), async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
   
   // Check if email already exists
-  const existingEmail = await prisma.user.findUnique({ where: { email } });
+  const existingEmail = await prisma.user.findUnique({ where: { email, deleted: false } });
   if (existingEmail) return res.status(409).json({ error: 'Email already registered' });
   
   // Check if username already exists (if provided)
   if (username) {
-    const existingUsername = await prisma.user.findUnique({ where: { username } });
+    const existingUsername = await prisma.user.findUnique({ where: { username, deleted: false } });
     if (existingUsername) return res.status(409).json({ error: 'Username already taken' });
   }
   
@@ -408,7 +430,7 @@ router.post('/users', requirePermission('users:create'), async (req, res) => {
       },
     });
     // Assign default role "regular" to newly created user
-    const regularRole = await prisma.role.findUnique({ where: { name: 'regular' } });
+    const regularRole = await prisma.role.findUnique({ where: { name: 'regular', deleted: false } });
     if (regularRole) {
       await prisma.userRole.upsert({
         where: { userId_roleId: { userId: user.id, roleId: regularRole.id } },
@@ -416,6 +438,18 @@ router.post('/users', requirePermission('users:create'), async (req, res) => {
         create: { userId: user.id, roleId: regularRole.id },
       });
     }
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    await logAudit({
+      resourceType: AuditResourceType.user,
+      resourceId: user.id,
+      action: AuditAction.create,
+      userId: req.user?.id,
+      changes: { created: user },
+      ...requestMetadata,
+    });
+    
     res.status(201).json(user);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -426,17 +460,19 @@ router.post('/users', requirePermission('users:create'), async (req, res) => {
 });
 
 // Update a user
-router.put('/users/:id', requirePermission('users:update'), async (req, res) => {
+router.put('/users/:id', requirePermission('users:update'), async (req: AuthRequest, res) => {
   const { id } = req.params;
   const { email, name, username, password } = req.body;
   
   // Check if user exists
-  const existingUser = await prisma.user.findUnique({ where: { id } });
+  const existingUser = await prisma.user.findUnique({ where: { id, deleted: false } });
   if (!existingUser) return res.status(404).json({ error: 'User not found' });
+  
+  const oldUser = { ...existingUser };
   
   // Check if email is being changed and if it's already taken
   if (email && email !== existingUser.email) {
-    const emailExists = await prisma.user.findUnique({ where: { email } });
+    const emailExists = await prisma.user.findUnique({ where: { email, deleted: false } });
     if (emailExists) return res.status(409).json({ error: 'Email already in use' });
   }
   
@@ -444,7 +480,7 @@ router.put('/users/:id', requirePermission('users:update'), async (req, res) => 
   if (username !== undefined) {
     const trimmedUsername = username.trim() || email || existingUser.email;
     if (trimmedUsername !== existingUser.username) {
-      const usernameExists = await prisma.user.findUnique({ where: { username: trimmedUsername } });
+      const usernameExists = await prisma.user.findUnique({ where: { username: trimmedUsername, deleted: false } });
       if (usernameExists) return res.status(409).json({ error: 'Username already taken' });
     }
   }
@@ -479,6 +515,21 @@ router.put('/users/:id', requirePermission('users:update'), async (req, res) => 
         },
       },
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    const changes = getChanges(oldUser, user);
+    if (changes) {
+      await logAudit({
+        resourceType: AuditResourceType.user,
+        resourceId: id,
+        action: AuditAction.update,
+        userId: req.user?.id,
+        changes,
+        ...requestMetadata,
+      });
+    }
+    
     res.json(user);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -489,11 +540,14 @@ router.put('/users/:id', requirePermission('users:update'), async (req, res) => 
 });
 
 // Delete a user
-router.delete('/users/:id', requirePermission('users:delete'), async (req, res) => {
+router.delete('/users/:id', requirePermission('users:delete'), async (req: AuthRequest, res) => {
   const { id } = req.params;
+  const user = await prisma.user.findUnique({ where: { id, deleted: false } });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
   try {
     // Prevent deleting last approved admin
-    const adminRole = await prisma.role.findUnique({ where: { name: 'admin' } });
+    const adminRole = await prisma.role.findUnique({ where: { name: 'admin', deleted: false } });
     if (adminRole) {
       const isAdmin = await prisma.userRole.findUnique({ where: { userId_roleId: { userId: id, roleId: adminRole.id } } });
       if (isAdmin) {
@@ -503,6 +557,7 @@ router.delete('/users/:id', requirePermission('users:delete'), async (req, res) 
             user: {
               status: 'approved',
               id: { not: id },
+              deleted: false,
             } as any,
           },
         });
@@ -511,10 +566,28 @@ router.delete('/users/:id', requirePermission('users:delete'), async (req, res) 
         }
       }
     }
-    // Delete user roles first (cascade)
-    await prisma.userRole.deleteMany({ where: { userId: id } });
-    // Delete user
-    await prisma.user.delete({ where: { id } });
+    
+    // Soft delete user
+    await prisma.user.update({
+      where: { id },
+      data: {
+        deleted: true,
+        deletedAt: new Date(),
+        deletedBy: req.user?.id || null,
+      },
+    });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    await logAudit({
+      resourceType: AuditResourceType.user,
+      resourceId: id,
+      action: AuditAction.delete,
+      userId: req.user?.id,
+      changes: { deleted: user },
+      ...requestMetadata,
+    });
+    
     res.status(204).end();
   } catch (error) {
     return res.status(400).json({ error: 'Failed to delete user' });
@@ -522,19 +595,21 @@ router.delete('/users/:id', requirePermission('users:delete'), async (req, res) 
 });
 
 // Update a role
-router.put('/roles/:id', requirePermission('roles:update'), async (req, res) => {
+router.put('/roles/:id', requirePermission('roles:update'), async (req: AuthRequest, res) => {
   const { id } = req.params;
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Role name is required' });
   
   // Check if role exists
-  const existingRole = await prisma.role.findUnique({ where: { id } });
+  const existingRole = await prisma.role.findUnique({ where: { id, deleted: false } });
   if (!existingRole) return res.status(404).json({ error: 'Role not found' });
   if (existingRole.name === 'admin' || existingRole.name === 'regular') return res.status(400).json({ error: 'Default roles cannot be modified' });
   
+  const oldRole = { ...existingRole };
+  
   // Check if name is being changed and if it's already taken
   if (name !== existingRole.name) {
-    const nameExists = await prisma.role.findUnique({ where: { name } });
+    const nameExists = await prisma.role.findUnique({ where: { name, deleted: false } });
     if (nameExists) return res.status(409).json({ error: 'Role name already exists' });
   }
   
@@ -567,6 +642,21 @@ router.put('/roles/:id', requirePermission('roles:update'), async (req, res) => 
         },
       },
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    const changes = getChanges(oldRole, role);
+    if (changes) {
+      await logAudit({
+        resourceType: AuditResourceType.role,
+        resourceId: id,
+        action: AuditAction.update,
+        userId: req.user?.id,
+        changes,
+        ...requestMetadata,
+      });
+    }
+    
     res.json(role);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -577,17 +667,33 @@ router.put('/roles/:id', requirePermission('roles:update'), async (req, res) => 
 });
 
 // Delete a role
-router.delete('/roles/:id', requirePermission('roles:delete'), async (req, res) => {
+router.delete('/roles/:id', requirePermission('roles:delete'), async (req: AuthRequest, res) => {
   const { id } = req.params;
-  const existingRole = await prisma.role.findUnique({ where: { id } });
-  if (existingRole && (existingRole.name === 'admin' || existingRole.name === 'regular')) return res.status(400).json({ error: 'Default roles cannot be deleted' });
+  const existingRole = await prisma.role.findUnique({ where: { id, deleted: false } });
+  if (!existingRole) return res.status(404).json({ error: 'Role not found' });
+  if (existingRole.name === 'admin' || existingRole.name === 'regular') return res.status(400).json({ error: 'Default roles cannot be deleted' });
+  
   try {
-    // Delete role permissions first (cascade)
-    await prisma.rolePermission.deleteMany({ where: { roleId: id } });
-    // Delete user roles first (cascade)
-    await prisma.userRole.deleteMany({ where: { roleId: id } });
-    // Delete role
-    await prisma.role.delete({ where: { id } });
+    // Soft delete role
+    await prisma.role.update({
+      where: { id },
+      data: {
+        deleted: true,
+        deletedAt: new Date(),
+      },
+    });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    await logAudit({
+      resourceType: AuditResourceType.role,
+      resourceId: id,
+      action: AuditAction.delete,
+      userId: req.user?.id,
+      changes: { deleted: existingRole },
+      ...requestMetadata,
+    });
+    
     res.status(204).end();
   } catch (error) {
     return res.status(400).json({ error: 'Failed to delete role' });
@@ -595,20 +701,32 @@ router.delete('/roles/:id', requirePermission('roles:delete'), async (req, res) 
 });
 
 // Create a new permission
-router.post('/permissions', requirePermission('permissions:create'), async (req, res) => {
+router.post('/permissions', requirePermission('permissions:create'), async (req: AuthRequest, res) => {
   const { name, resource, action, description } = req.body;
   if (!name) return res.status(400).json({ error: 'Permission name is required' });
   if (!resource) return res.status(400).json({ error: 'Resource is required' });
   if (!action) return res.status(400).json({ error: 'Action is required' });
   // Prevent creating permissions that collide with system-managed standard perms with different name
   if (name !== `${resource}:${action}`) {
-    const existingSystem = await prisma.permission.findUnique({ where: { resource_action: { resource, action } } });
+    const existingSystem = await prisma.permission.findUnique({ where: { resource_action: { resource, action }, deleted: false } });
     if (existingSystem) return res.status(409).json({ error: 'A system permission for this resource and action already exists' });
   }
   try {
     const permission = await prisma.permission.create({
       data: { name, resource, action, description: description || null },
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    await logAudit({
+      resourceType: AuditResourceType.permission,
+      resourceId: permission.id,
+      action: AuditAction.create,
+      userId: req.user?.id,
+      changes: { created: permission },
+      ...requestMetadata,
+    });
+    
     res.status(201).json(permission);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -624,7 +742,7 @@ router.post('/permissions', requirePermission('permissions:create'), async (req,
 });
 
 // Update a permission
-router.put('/permissions/:id', requirePermission('permissions:update'), async (req, res) => {
+router.put('/permissions/:id', requirePermission('permissions:update'), async (req: AuthRequest, res) => {
   const { id } = req.params;
   const { name, resource, action, description } = req.body;
   if (!name) return res.status(400).json({ error: 'Permission name is required' });
@@ -632,15 +750,17 @@ router.put('/permissions/:id', requirePermission('permissions:update'), async (r
   if (!action) return res.status(400).json({ error: 'Action is required' });
   
   // Check if permission exists
-  const existingPermission = await prisma.permission.findUnique({ where: { id } });
+  const existingPermission = await prisma.permission.findUnique({ where: { id, deleted: false } });
   if (!existingPermission) return res.status(404).json({ error: 'Permission not found' });
   // Block updates to system permissions (standard resource:action set)
   const isSystem = isSystemPermission(existingPermission.resource, existingPermission.action);
   if (isSystem) return res.status(400).json({ error: 'System permissions cannot be modified' });
   
+  const oldPermission = { ...existingPermission };
+  
   // Check if name is being changed and if it's already taken
   if (name !== existingPermission.name) {
-    const nameExists = await prisma.permission.findUnique({ where: { name } });
+    const nameExists = await prisma.permission.findUnique({ where: { name, deleted: false } });
     if (nameExists) return res.status(409).json({ error: 'Permission name already exists' });
   }
   
@@ -651,6 +771,7 @@ router.put('/permissions/:id', requirePermission('permissions:update'), async (r
         resource,
         action,
         id: { not: id },
+        deleted: false,
       },
     });
     if (comboExists) {
@@ -663,6 +784,21 @@ router.put('/permissions/:id', requirePermission('permissions:update'), async (r
       where: { id },
       data: { name, resource, action, description: description || null },
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    const changes = getChanges(oldPermission, permission);
+    if (changes) {
+      await logAudit({
+        resourceType: AuditResourceType.permission,
+        resourceId: id,
+        action: AuditAction.update,
+        userId: req.user?.id,
+        changes,
+        ...requestMetadata,
+      });
+    }
+    
     res.json(permission);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -678,17 +814,34 @@ router.put('/permissions/:id', requirePermission('permissions:update'), async (r
 });
 
 // Delete a permission
-router.delete('/permissions/:id', requirePermission('permissions:delete'), async (req, res) => {
+router.delete('/permissions/:id', requirePermission('permissions:delete'), async (req: AuthRequest, res) => {
   const { id } = req.params;
+  const perm = await prisma.permission.findUnique({ where: { id, deleted: false } });
+  if (!perm) return res.status(404).json({ error: 'Permission not found' });
+  const isSystem = isSystemPermission(perm.resource, perm.action);
+  if (isSystem) return res.status(400).json({ error: 'System permissions cannot be deleted' });
+  
   try {
-    const perm = await prisma.permission.findUnique({ where: { id } });
-    if (!perm) return res.status(404).json({ error: 'Permission not found' });
-    const isSystem = isSystemPermission(perm.resource, perm.action);
-    if (isSystem) return res.status(400).json({ error: 'System permissions cannot be deleted' });
-    // Delete role permissions first (cascade)
-    await prisma.rolePermission.deleteMany({ where: { permissionId: id } });
-    // Delete permission
-    await prisma.permission.delete({ where: { id } });
+    // Soft delete permission
+    await prisma.permission.update({
+      where: { id },
+      data: {
+        deleted: true,
+        deletedAt: new Date(),
+      },
+    });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    await logAudit({
+      resourceType: AuditResourceType.permission,
+      resourceId: id,
+      action: AuditAction.delete,
+      userId: req.user?.id,
+      changes: { deleted: perm },
+      ...requestMetadata,
+    });
+    
     res.status(204).end();
   } catch (error) {
     return res.status(400).json({ error: 'Failed to delete permission' });
@@ -696,11 +849,14 @@ router.delete('/permissions/:id', requirePermission('permissions:delete'), async
 });
 
 // Approve a user
-router.post('/users/:id/approve', requirePermission('users:update'), async (req, res) => {
+router.post('/users/:id/approve', requirePermission('users:update'), async (req: AuthRequest, res) => {
   const { id } = req.params;
+  const existingUser = await prisma.user.findUnique({ where: { id, deleted: false } });
+  if (!existingUser) return res.status(404).json({ error: 'User not found' });
+  
   try {
     const user = await prisma.user.update({
-      where: { id },
+      where: { id, deleted: false },
       data: { status: 'approved' },
       select: {
         id: true,
@@ -722,6 +878,18 @@ router.post('/users/:id/approve', requirePermission('users:update'), async (req,
         },
       },
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    await logAudit({
+      resourceType: AuditResourceType.user,
+      resourceId: id,
+      action: AuditAction.update,
+      userId: req.user?.id,
+      changes: { status: { before: existingUser.status, after: 'approved' } },
+      ...requestMetadata,
+    });
+    
     res.json(user);
   } catch (error: any) {
     if (error.code === 'P2025') {
@@ -732,11 +900,14 @@ router.post('/users/:id/approve', requirePermission('users:update'), async (req,
 });
 
 // Block a user
-router.post('/users/:id/block', requirePermission('users:update'), async (req, res) => {
+router.post('/users/:id/block', requirePermission('users:update'), async (req: AuthRequest, res) => {
   const { id } = req.params;
+  const existingUser = await prisma.user.findUnique({ where: { id, deleted: false } });
+  if (!existingUser) return res.status(404).json({ error: 'User not found' });
+  
   try {
     // Prevent blocking the last approved admin
-    const adminRole = await prisma.role.findUnique({ where: { name: 'admin' } });
+    const adminRole = await prisma.role.findUnique({ where: { name: 'admin', deleted: false } });
     if (adminRole) {
       const isAdmin = await prisma.userRole.findUnique({ where: { userId_roleId: { userId: id, roleId: adminRole.id } } });
       if (isAdmin) {
@@ -746,6 +917,7 @@ router.post('/users/:id/block', requirePermission('users:update'), async (req, r
             user: {
               status: 'approved',
               id: { not: id },
+              deleted: false,
             } as any,
           },
         });
@@ -755,7 +927,7 @@ router.post('/users/:id/block', requirePermission('users:update'), async (req, r
       }
     }
     const user = await prisma.user.update({
-      where: { id },
+      where: { id, deleted: false },
       data: { status: 'blocked' },
       select: {
         id: true,
@@ -777,6 +949,18 @@ router.post('/users/:id/block', requirePermission('users:update'), async (req, r
         },
       },
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    await logAudit({
+      resourceType: AuditResourceType.user,
+      resourceId: id,
+      action: AuditAction.update,
+      userId: req.user?.id,
+      changes: { status: { before: existingUser.status, after: 'blocked' } },
+      ...requestMetadata,
+    });
+    
     res.json(user);
   } catch (error: any) {
     if (error.code === 'P2025') {
@@ -787,11 +971,14 @@ router.post('/users/:id/block', requirePermission('users:update'), async (req, r
 });
 
 // Unblock a user (approve)
-router.post('/users/:id/unblock', requirePermission('users:update'), async (req, res) => {
+router.post('/users/:id/unblock', requirePermission('users:update'), async (req: AuthRequest, res) => {
   const { id } = req.params;
+  const existingUser = await prisma.user.findUnique({ where: { id, deleted: false } });
+  if (!existingUser) return res.status(404).json({ error: 'User not found' });
+  
   try {
     const user = await prisma.user.update({
-      where: { id },
+      where: { id, deleted: false },
       data: { status: 'approved' },
       select: {
         id: true,
@@ -813,6 +1000,18 @@ router.post('/users/:id/unblock', requirePermission('users:update'), async (req,
         },
       },
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    await logAudit({
+      resourceType: AuditResourceType.user,
+      resourceId: id,
+      action: AuditAction.update,
+      userId: req.user?.id,
+      changes: { status: { before: existingUser.status, after: 'approved' } },
+      ...requestMetadata,
+    });
+    
     res.json(user);
   } catch (error: any) {
     if (error.code === 'P2025') {
@@ -822,15 +1021,38 @@ router.post('/users/:id/unblock', requirePermission('users:update'), async (req,
   }
 });
 
-// Reject a user (delete)
-router.delete('/users/:id/reject', requirePermission('users:delete'), async (req, res) => {
+// Reject a user (set status to rejected instead of deleting)
+router.delete('/users/:id/reject', requirePermission('users:delete'), async (req: AuthRequest, res) => {
   const { id } = req.params;
+  const user = await prisma.user.findUnique({ where: { id, deleted: false } });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  const oldUser = { ...user };
+  
   try {
-    // Delete user roles first (cascade)
-    await prisma.userRole.deleteMany({ where: { userId: id } });
-    // Delete user
-    await prisma.user.delete({ where: { id } });
-    res.status(204).end();
+    // Set status to rejected (user can be reactivated later)
+    const updated = await prisma.user.update({
+      where: { id },
+      data: {
+        status: 'rejected',
+        updatedBy: req.user?.id || null,
+      },
+    });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    const changes = getChanges(oldUser, updated);
+    await logAudit({
+      resourceType: AuditResourceType.user,
+      resourceId: id,
+      action: AuditAction.update,
+      userId: req.user?.id,
+      changes: changes || { status: { before: oldUser.status, after: 'rejected' } },
+      metadata: { reason: 'reject' },
+      ...requestMetadata,
+    });
+    
+    res.json(updated);
   } catch (error: any) {
     if (error.code === 'P2025') {
       return res.status(404).json({ error: 'User not found' });

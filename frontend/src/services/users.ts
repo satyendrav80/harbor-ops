@@ -5,7 +5,7 @@ export type UserWithRoles = {
   email: string;
   username: string | null;
   name: string | null;
-  status: 'pending' | 'approved' | 'blocked';
+  status: 'pending' | 'approved' | 'blocked' | 'rejected';
   createdAt: string;
   updatedAt: string;
   roles: Array<{

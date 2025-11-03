@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal } from '../../../components/common/Modal';
+import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { useCreateTag, useUpdateTag, useDeleteTag } from '../hooks/useTagMutations';
 import { Trash2 } from 'lucide-react';
 import type { Tag } from '../../../services/tags';
@@ -30,7 +31,7 @@ export function TagModal({ isOpen, onClose, tag, onDelete }: TagModalProps) {
   const deleteTag = useDeleteTag();
   
   const [error, setError] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const form = useForm<TagFormValues>({
     resolver: zodResolver(tagSchema),
@@ -66,7 +67,7 @@ export function TagModal({ isOpen, onClose, tag, onDelete }: TagModalProps) {
       });
     }
     setError(null);
-    setShowDeleteConfirm(false);
+    setDeleteConfirmOpen(false);
   }, [isOpen, tag, form]);
 
   const onSubmit = async (values: TagFormValues) => {
@@ -106,12 +107,12 @@ export function TagModal({ isOpen, onClose, tag, onDelete }: TagModalProps) {
     }
   };
 
-  const handleDelete = async () => {
+  const confirmDelete = async () => {
     if (!tag) return;
     setError(null);
     try {
       await deleteTag.mutateAsync(tag.id);
-      setShowDeleteConfirm(false);
+      setDeleteConfirmOpen(false);
       onClose();
       if (onDelete) onDelete();
     } catch (err: any) {
@@ -231,22 +232,12 @@ export function TagModal({ isOpen, onClose, tag, onDelete }: TagModalProps) {
             {isEditing && (
               <button
                 type="button"
-                onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+                onClick={() => setDeleteConfirmOpen(true)}
                 disabled={isLoading}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
               >
                 <Trash2 className="w-4 h-4" />
-                {showDeleteConfirm ? 'Cancel Delete' : 'Delete'}
-              </button>
-            )}
-            {showDeleteConfirm && (
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={isLoading || deleteTag.isPending}
-                className="ml-2 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
-              >
-                Confirm Delete
+                Delete
               </button>
             )}
           </div>
@@ -269,6 +260,17 @@ export function TagModal({ isOpen, onClose, tag, onDelete }: TagModalProps) {
           </div>
         </div>
       </form>
+      <ConfirmationDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Tag"
+        message="Are you sure you want to delete this tag? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteTag.isPending}
+      />
     </Modal>
   );
 }

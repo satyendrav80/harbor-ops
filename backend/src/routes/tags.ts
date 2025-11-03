@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
+import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
+import { AuditResourceType, AuditAction } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -25,7 +27,10 @@ router.get('/', requirePermission('tags:view'), async (req, res) => {
 
   const [items, total] = await Promise.all([
     prisma.tag.findMany({
-      where: searchConditions,
+      where: {
+        ...searchConditions,
+        deleted: false, // Exclude deleted records
+      },
       include: {
         createdByUser: { select: { id: true, name: true, email: true } },
         updatedByUser: { select: { id: true, name: true, email: true } },
@@ -34,7 +39,7 @@ router.get('/', requirePermission('tags:view'), async (req, res) => {
       skip: offset,
       take: limit,
     }),
-    prisma.tag.count({ where: searchConditions }),
+    prisma.tag.count({ where: { ...searchConditions, deleted: false } }),
   ]);
 
   res.json({
@@ -66,6 +71,18 @@ router.post('/', requirePermission('tags:create'), async (req: AuthRequest, res)
         createdBy: req.user?.id || null,
       } 
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    await logAudit({
+      resourceType: AuditResourceType.tag,
+      resourceId: created.id.toString(),
+      action: AuditAction.create,
+      userId: req.user?.id,
+      changes: { created: created },
+      ...requestMetadata,
+    });
+    
     res.status(201).json(created);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -78,7 +95,7 @@ router.post('/', requirePermission('tags:create'), async (req: AuthRequest, res)
 router.get('/:id', requirePermission('tags:view'), async (req, res) => {
   const id = Number(req.params.id);
   const item = await prisma.tag.findUnique({ 
-    where: { id },
+    where: { id, deleted: false },
     include: {
       createdByUser: { select: { id: true, name: true, email: true } },
       updatedByUser: { select: { id: true, name: true, email: true } },
@@ -90,6 +107,10 @@ router.get('/:id', requirePermission('tags:view'), async (req, res) => {
 
 router.put('/:id', requirePermission('tags:update'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
+  const tag = await prisma.tag.findUnique({ where: { id, deleted: false } });
+  if (!tag) return res.status(404).json({ error: 'Tag not found' });
+  
+  const oldTag = { ...tag };
   const { name, value, color } = req.body;
   
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -112,6 +133,21 @@ router.put('/:id', requirePermission('tags:update'), async (req: AuthRequest, re
         updatedBy: req.user?.id || null,
       } 
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    const changes = getChanges(oldTag, updated);
+    if (changes) {
+      await logAudit({
+        resourceType: AuditResourceType.tag,
+        resourceId: id.toString(),
+        action: AuditAction.update,
+        userId: req.user?.id,
+        changes,
+        ...requestMetadata,
+      });
+    }
+    
     res.json(updated);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -121,9 +157,32 @@ router.put('/:id', requirePermission('tags:update'), async (req: AuthRequest, re
   }
 });
 
-router.delete('/:id', requirePermission('tags:delete'), async (req, res) => {
+router.delete('/:id', requirePermission('tags:delete'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
-  await prisma.tag.delete({ where: { id } });
+  const tag = await prisma.tag.findUnique({ where: { id, deleted: false } });
+  if (!tag) return res.status(404).json({ error: 'Tag not found' });
+  
+  // Soft delete
+  await prisma.tag.update({
+    where: { id },
+    data: {
+      deleted: true,
+      deletedAt: new Date(),
+      deletedBy: req.user?.id || null,
+    },
+  });
+  
+  // Log audit
+  const requestMetadata = getRequestMetadata(req);
+  await logAudit({
+    resourceType: AuditResourceType.tag,
+    resourceId: id.toString(),
+    action: AuditAction.delete,
+    userId: req.user?.id,
+    changes: { deleted: tag },
+    ...requestMetadata,
+  });
+  
   res.status(204).end();
 });
 

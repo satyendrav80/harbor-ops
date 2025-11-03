@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useGroups, useGroup } from '../hooks/useGroups';
-import { useRemoveItemFromGroup } from '../hooks/useGroupMutations';
+import { useRemoveItemFromGroup, useDeleteGroup } from '../hooks/useGroupMutations';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
+import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { GroupModal } from '../components/GroupModal';
 import { GroupItemModal } from '../components/GroupItemModal';
-import { Search, Plus, Edit, Server, Cloud, X, FolderOpen, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, Plus, Edit, Server, Cloud, X, FolderOpen, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import type { Group } from '../../../services/groups';
 
 /**
@@ -59,6 +60,10 @@ export function GroupsPage() {
   const { data: selectedGroupData } = useGroup(selectedGroup || 0);
 
   const removeItem = useRemoveItemFromGroup();
+  const deleteGroup = useDeleteGroup();
+
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [groupToDelete, setGroupToDelete] = useState<number | null>(null);
 
   // Get groups list
   // Keep previous data during refetches to prevent flicker
@@ -118,6 +123,30 @@ export function GroupsPage() {
       await removeItem.mutateAsync({ groupId, itemId });
     } catch (err) {
       // Error handled by global error handler
+    }
+  };
+
+  const handleDeleteGroup = (groupId: number) => {
+    setGroupToDelete(groupId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteGroup = async () => {
+    if (groupToDelete !== null) {
+      try {
+        await deleteGroup.mutateAsync(groupToDelete);
+        setDeleteConfirmOpen(false);
+        setGroupToDelete(null);
+        // If the deleted group was expanded or selected, clear it
+        if (selectedGroup === groupToDelete) {
+          setSelectedGroup(null);
+        }
+        const newExpanded = new Set(expandedGroups);
+        newExpanded.delete(groupToDelete);
+        setExpandedGroups(newExpanded);
+      } catch (err) {
+        // Error handled by global error handler
+      }
     }
   };
 
@@ -266,6 +295,17 @@ export function GroupsPage() {
                           </button>
                         </>
                       )}
+                      {hasPermission('groups:delete') && (
+                        <button
+                          onClick={() => handleDeleteGroup(group.id)}
+                          disabled={deleteGroup.isPending}
+                          className="p-2 text-gray-400 dark:text-gray-500 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 rounded-lg transition-colors disabled:opacity-50"
+                          title="Delete group"
+                          aria-label="Delete group"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -359,6 +399,21 @@ export function GroupsPage() {
         }}
         groupId={selectedGroupForItem || 0}
         existingItemIds={selectedGroupForItem === selectedGroup ? existingItemIds : []}
+      />
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => {
+          setDeleteConfirmOpen(false);
+          setGroupToDelete(null);
+        }}
+        onConfirm={confirmDeleteGroup}
+        title="Delete Group"
+        message="Are you sure you want to delete this group? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteGroup.isPending}
       />
     </div>
   );

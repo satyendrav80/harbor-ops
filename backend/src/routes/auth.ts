@@ -43,6 +43,9 @@ async function requireApprovedUser(req: any, res: any, next: any) {
     if (user.status === 'pending') {
       return res.status(403).json({ error: 'Your account is pending approval. Please wait for an administrator to approve your account.' });
     }
+    if (user.status === 'rejected') {
+      return res.status(403).json({ error: 'Your account has been rejected. Please contact an administrator if you believe this is an error.' });
+    }
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid token' });
@@ -105,6 +108,9 @@ router.post('/login', async (req, res) => {
   }
   if (user.status === 'pending') {
     return res.status(403).json({ error: 'Your account is pending approval. Please wait for an administrator to approve your account.' });
+  }
+  if (user.status === 'rejected') {
+    return res.status(403).json({ error: 'Your account has been rejected. Please contact an administrator if you believe this is an error.' });
   }
   
   const ok = await bcrypt.compare(password, user.passwordHash);

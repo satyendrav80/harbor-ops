@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal } from '../../../components/common/Modal';
+import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { useCreateRole, useUpdateRole, useDeleteRole } from '../hooks/useRoleMutations';
 import { Trash2 } from 'lucide-react';
 import type { RoleWithPermissions } from '../../../services/users';
@@ -27,7 +28,7 @@ export function RoleModal({ isOpen, onClose, role, onDelete }: RoleModalProps) {
   const deleteRole = useDeleteRole();
 
   const [error, setError] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const form = useForm<RoleFormValues>({
     resolver: zodResolver(roleSchema),
@@ -46,7 +47,7 @@ export function RoleModal({ isOpen, onClose, role, onDelete }: RoleModalProps) {
       form.reset({ name: '' });
     }
     setError(null);
-    setShowDeleteConfirm(false);
+    setDeleteConfirmOpen(false);
   }, [isOpen, role, form]);
 
   const onSubmit = async (values: RoleFormValues) => {
@@ -64,12 +65,12 @@ export function RoleModal({ isOpen, onClose, role, onDelete }: RoleModalProps) {
     }
   };
 
-  const handleDelete = async () => {
+  const confirmDelete = async () => {
     if (!role) return;
     setError(null);
     try {
       await deleteRole.mutateAsync(role.id);
-      setShowDeleteConfirm(false);
+      setDeleteConfirmOpen(false);
       onDelete?.();
       onClose();
     } catch (err: any) {
@@ -103,39 +104,13 @@ export function RoleModal({ isOpen, onClose, role, onDelete }: RoleModalProps) {
           </div>
         )}
 
-        {/* Delete Confirmation */}
-        {showDeleteConfirm && (
-          <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-4">
-            <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-3">
-              Are you sure you want to delete this role? This will remove it from all users. This action cannot be undone.
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleteRole.isPending}
-                className="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {deleteRole.isPending ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700/50">
           <div>
-            {isEditing && !showDeleteConfirm && (
+            {isEditing && (
               <button
                 type="button"
-                onClick={() => setShowDeleteConfirm(true)}
+                onClick={() => setDeleteConfirmOpen(true)}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/50"
               >
                 <Trash2 className="w-4 h-4" />
@@ -161,6 +136,17 @@ export function RoleModal({ isOpen, onClose, role, onDelete }: RoleModalProps) {
           </div>
         </div>
       </form>
+      <ConfirmationDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Role"
+        message="Are you sure you want to delete this role? This will remove it from all users. This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteRole.isPending}
+      />
     </Modal>
   );
 }

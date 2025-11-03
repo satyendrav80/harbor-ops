@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
+import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
+import { AuditResourceType, AuditAction } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -57,7 +59,10 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
 
   const [services, total] = await Promise.all([
     prisma.service.findMany({
-      where: searchConditions,
+      where: {
+        ...searchConditions,
+        deleted: false, // Exclude deleted records
+      },
       include: {
         ...(includeRelations ? {
             servers: { include: { server: true } },
@@ -84,7 +89,7 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
       skip: offset,
       take: limit,
     }),
-    prisma.service.count({ where: searchConditions }),
+    prisma.service.count({ where: { ...searchConditions, deleted: false } }),
   ]);
 
   res.json({
@@ -183,6 +188,17 @@ router.post('/', requirePermission('services:create'), async (req: AuthRequest, 
     });
   });
   
+  // Log audit
+  const requestMetadata = getRequestMetadata(req);
+  await logAudit({
+    resourceType: AuditResourceType.service,
+    resourceId: created.id.toString(),
+    action: AuditAction.create,
+    userId: req.user?.id,
+    changes: { created: created },
+    ...requestMetadata,
+  });
+  
   res.status(201).json(created);
 });
 
@@ -195,7 +211,7 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
   }
   
   const item = await prisma.service.findUnique({
-    where: { id },
+    where: { id, deleted: false },
     include: {
       servers: { include: { server: true } },
       credentials: { include: { credential: true } },
@@ -224,6 +240,10 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
 
 router.put('/:id', requirePermission('services:update'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
+  const service = await prisma.service.findUnique({ where: { id, deleted: false } });
+  if (!service) return res.status(404).json({ error: 'Service not found' });
+  
+  const oldService = { ...service };
   const { name, port, external, serverIds, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, documentationUrl, documentation, metadata } = req.body;
   
   // Validate serverIds if provided
@@ -336,6 +356,20 @@ router.put('/:id', requirePermission('services:update'), async (req: AuthRequest
     });
   });
   
+  // Log audit
+  const requestMetadata = getRequestMetadata(req);
+  const changes = getChanges(oldService, updated);
+  if (changes) {
+    await logAudit({
+      resourceType: AuditResourceType.service,
+      resourceId: id.toString(),
+      action: AuditAction.update,
+      userId: req.user?.id,
+      changes,
+      ...requestMetadata,
+    });
+  }
+  
   res.json(updated);
 });
 
@@ -407,9 +441,32 @@ router.delete('/:id/dependencies/:dependencyId', requirePermission('services:upd
   }
 });
 
-router.delete('/:id', requirePermission('services:delete'), async (req, res) => {
+router.delete('/:id', requirePermission('services:delete'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
-  await prisma.service.delete({ where: { id } });
+  const service = await prisma.service.findUnique({ where: { id, deleted: false } });
+  if (!service) return res.status(404).json({ error: 'Service not found' });
+  
+  // Soft delete
+  await prisma.service.update({
+    where: { id },
+    data: {
+      deleted: true,
+      deletedAt: new Date(),
+      deletedBy: req.user?.id || null,
+    },
+  });
+  
+  // Log audit
+  const requestMetadata = getRequestMetadata(req);
+  await logAudit({
+    resourceType: AuditResourceType.service,
+    resourceId: id.toString(),
+    action: AuditAction.delete,
+    userId: req.user?.id,
+    changes: { deleted: service },
+    ...requestMetadata,
+  });
+  
   res.status(204).end();
 });
 
@@ -419,7 +476,7 @@ router.post('/:id/tags', requirePermission('services:update'), async (req, res) 
   const { tagIds } = req.body as { tagIds: number[] };
   const data = (tagIds || []).map((tagId) => ({ serviceId: id, tagId: Number(tagId) }));
   await prisma.serviceTag.createMany({ data, skipDuplicates: true });
-  const updated = await prisma.service.findUnique({ where: { id }, include: { tags: true } });
+  const updated = await prisma.service.findUnique({ where: { id, deleted: false }, include: { tags: true } });
   res.json(updated);
 });
 

@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
+import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
+import { AuditResourceType, AuditAction } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -23,7 +25,10 @@ router.get('/', requirePermission('groups:view'), async (req, res) => {
 
   const [items, total] = await Promise.all([
     prisma.group.findMany({
-      where: searchConditions,
+      where: {
+        ...searchConditions,
+        deleted: false, // Exclude deleted records
+      },
       select: {
         id: true,
         name: true,
@@ -44,7 +49,7 @@ router.get('/', requirePermission('groups:view'), async (req, res) => {
       skip: offset,
       take: limit,
     }),
-    prisma.group.count({ where: searchConditions }),
+    prisma.group.count({ where: { ...searchConditions, deleted: false } }),
   ]);
 
   res.json({
@@ -71,6 +76,18 @@ router.post('/', requirePermission('groups:create'), async (req: AuthRequest, re
         createdBy: req.user?.id || null,
       } 
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    await logAudit({
+      resourceType: AuditResourceType.group,
+      resourceId: created.id.toString(),
+      action: AuditAction.create,
+      userId: req.user?.id,
+      changes: { created: created },
+      ...requestMetadata,
+    });
+    
     res.status(201).json(created);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -88,7 +105,7 @@ router.get('/:id', requirePermission('groups:view'), async (req, res) => {
   }
   
   const group = await prisma.group.findUnique({
-    where: { id },
+    where: { id, deleted: false },
     include: {
       items: true,
       createdByUser: { select: { id: true, name: true, email: true } },
@@ -104,7 +121,7 @@ router.get('/:id', requirePermission('groups:view'), async (req, res) => {
   
   const [servers, services] = await Promise.all([
     serverIds.length > 0 ? prisma.server.findMany({
-      where: { id: { in: serverIds } },
+      where: { id: { in: serverIds }, deleted: false },
       select: {
         id: true,
         name: true,
@@ -114,7 +131,7 @@ router.get('/:id', requirePermission('groups:view'), async (req, res) => {
       },
     }) : [],
     serviceIds.length > 0 ? prisma.service.findMany({
-      where: { id: { in: serviceIds } },
+      where: { id: { in: serviceIds }, deleted: false },
       select: {
         id: true,
         name: true,
@@ -180,6 +197,7 @@ router.get('/by-item/:itemType/:itemId', requirePermission('groups:view'), async
 
   const groups = await prisma.group.findMany({
     where: {
+      deleted: false, // Exclude deleted groups
       items: {
         some: {
           itemType: itemType as 'server' | 'service',
@@ -202,6 +220,10 @@ router.put('/:id', requirePermission('groups:update'), async (req: AuthRequest, 
   if (isNaN(id)) {
     return res.status(400).json({ error: 'Invalid group ID' });
   }
+  const group = await prisma.group.findUnique({ where: { id, deleted: false } });
+  if (!group) return res.status(404).json({ error: 'Group not found' });
+  
+  const oldGroup = { ...group };
   const { name } = req.body;
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'Group name is required' });
@@ -215,6 +237,21 @@ router.put('/:id', requirePermission('groups:update'), async (req: AuthRequest, 
         updatedBy: req.user?.id || null,
       },
     });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    const changes = getChanges(oldGroup, updated);
+    if (changes) {
+      await logAudit({
+        resourceType: AuditResourceType.group,
+        resourceId: id.toString(),
+        action: AuditAction.update,
+        userId: req.user?.id,
+        changes,
+        ...requestMetadata,
+      });
+    }
+    
     res.json(updated);
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -225,14 +262,37 @@ router.put('/:id', requirePermission('groups:update'), async (req: AuthRequest, 
 });
 
 // Delete a group
-router.delete('/:id', requirePermission('groups:delete'), async (req, res) => {
+router.delete('/:id', requirePermission('groups:delete'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
   if (isNaN(id)) {
     return res.status(400).json({ error: 'Invalid group ID' });
   }
 
+  const group = await prisma.group.findUnique({ where: { id, deleted: false } });
+  if (!group) return res.status(404).json({ error: 'Group not found' });
+
   try {
-    await prisma.group.delete({ where: { id } });
+    // Soft delete
+    await prisma.group.update({
+      where: { id },
+      data: {
+        deleted: true,
+        deletedAt: new Date(),
+        deletedBy: req.user?.id || null,
+      },
+    });
+    
+    // Log audit
+    const requestMetadata = getRequestMetadata(req);
+    await logAudit({
+      resourceType: AuditResourceType.group,
+      resourceId: id.toString(),
+      action: AuditAction.delete,
+      userId: req.user?.id,
+      changes: { deleted: group },
+      ...requestMetadata,
+    });
+    
     res.status(204).end();
   } catch (error: any) {
     return res.status(400).json({ error: 'Failed to delete group' });

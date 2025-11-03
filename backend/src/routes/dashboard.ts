@@ -14,10 +14,10 @@ router.use(requireAuth);
 router.get('/stats', requirePermission('dashboard:view'), async (_req, res) => {
   try {
     const [totalServers, totalServices, totalCredentials, totalTags, pendingReleaseNotes] = await Promise.all([
-      prisma.server.count(),
-      prisma.service.count(),
-      prisma.credential.count(),
-      prisma.tag.count(),
+      prisma.server.count({ where: { deleted: false } }),
+      prisma.service.count({ where: { deleted: false } }),
+      prisma.credential.count({ where: { deleted: false } }),
+      prisma.tag.count({ where: { deleted: false } }),
       prisma.releaseNote.count({
         where: { status: ReleaseStatus.pending },
       }),
@@ -158,6 +158,7 @@ router.get('/search', requirePermission('dashboard:view'), async (req, res) => {
     const [servers, services, credentials, domains] = await Promise.all([
       prisma.server.findMany({
         where: {
+          deleted: false,
           OR: [
             { name: searchPattern },
             { publicIp: searchPattern },
@@ -173,6 +174,7 @@ router.get('/search', requirePermission('dashboard:view'), async (req, res) => {
       }),
       prisma.service.findMany({
         where: {
+          deleted: false,
           OR: [
             { name: searchPattern },
             ...(isNaN(Number(query)) ? [] : [{ port: { equals: Number(query) } }]),
@@ -187,6 +189,7 @@ router.get('/search', requirePermission('dashboard:view'), async (req, res) => {
       }),
       prisma.credential.findMany({
         where: {
+          deleted: false,
           name: searchPattern,
         },
         select: {
@@ -198,6 +201,7 @@ router.get('/search', requirePermission('dashboard:view'), async (req, res) => {
       }),
       prisma.domain.findMany({
         where: {
+          deleted: false,
           name: searchPattern,
         },
         select: {
