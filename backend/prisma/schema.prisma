@@ -154,6 +154,7 @@ model Service {
   id             Int         @id @default(autoincrement()) @map("id")
   name           String                                   @map("name")
   port           Int                                      @map("port")
+  external       Boolean     @default(false)              @map("external")
   sourceRepo     String?                                  @map("source_repo")
   appId          String?                                  @map("app_id")
   functionName   String?                                  @map("function_name")

@@ -10,10 +10,8 @@ export type ServiceDependency = {
     id: number;
     name: string;
     port: number;
+    external?: boolean;
   } | null;
-  externalServiceName?: string | null;
-  externalServiceType?: string | null;
-  externalServiceUrl?: string | null;
   description?: string | null;
   createdAt: string;
 };
@@ -22,6 +20,7 @@ export type Service = {
   id: number;
   name: string;
   port: number;
+  external?: boolean;
   sourceRepo?: string | null;
   appId?: string | null;
   functionName?: string | null;
@@ -141,10 +140,7 @@ export async function deleteService(id: number): Promise<void> {
 export async function addServiceDependency(
   serviceId: number,
   data: {
-    dependencyServiceId?: number;
-    externalServiceName?: string;
-    externalServiceType?: string;
-    externalServiceUrl?: string;
+    dependencyServiceId: number;
     description?: string;
   }
 ): Promise<ServiceDependency> {
@@ -162,4 +158,5 @@ export async function removeServiceDependency(serviceId: number, dependencyId: n
     method: 'DELETE',
   });
 }
+
 

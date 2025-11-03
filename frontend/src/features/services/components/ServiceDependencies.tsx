@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getService, addServiceDependency, removeServiceDependency, type ServiceDependency } from '../../../services/services';
 import { getServices } from '../../../services/services';
-import { Plus, Trash2, Link2, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Link2 } from 'lucide-react';
 import { useAuth } from '../../auth/context/AuthContext';
 
 type ServiceDependenciesProps = {
-  serviceId: number;
+  serviceId: number | null; // Allow null for creation mode
   dependencies?: ServiceDependency[];
 };
 
@@ -14,23 +14,17 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
-  const [dependencyType, setDependencyType] = useState<'internal' | 'external'>('internal');
   const [selectedServiceId, setSelectedServiceId] = useState<number>(0);
-  const [externalServiceMode, setExternalServiceMode] = useState<'existing' | 'new'>('existing'); // For external: select existing or type new
-  const [selectedExternalServiceId, setSelectedExternalServiceId] = useState<number>(0);
-  const [externalServiceName, setExternalServiceName] = useState('');
-  const [externalServiceType, setExternalServiceType] = useState('');
-  const [externalServiceUrl, setExternalServiceUrl] = useState('');
   const [description, setDescription] = useState('');
 
-  // Fetch current service to get latest dependencies
+  // Fetch current service to get latest dependencies (only if serviceId is provided)
   const { data: service } = useQuery({
     queryKey: ['services', serviceId],
-    queryFn: () => getService(serviceId),
+    queryFn: () => serviceId ? getService(serviceId) : null,
     enabled: !!serviceId,
   });
 
-  // Fetch all services for internal dependency selection
+  // Fetch all services for dependency selection
   const { data: servicesData } = useQuery({
     queryKey: ['services', 'all', 'dependencies'],
     queryFn: async () => {
@@ -46,72 +40,53 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
   const addDependency = useMutation({
     mutationFn: (data: {
       dependencyServiceId?: number;
-      externalServiceName?: string;
-      externalServiceType?: string;
-      externalServiceUrl?: string;
       description?: string;
-    }) => addServiceDependency(serviceId, data),
+    }) => {
+      if (!serviceId) {
+        throw new Error('Service ID is required to add dependencies');
+      }
+      return addServiceDependency(serviceId, data);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services', serviceId] });
+      if (serviceId) {
+        queryClient.invalidateQueries({ queryKey: ['services', serviceId] });
+      }
       resetForm();
-      setDependencyType('internal'); // Reset to default when successfully adding
       setShowAddForm(false);
     },
   });
 
   const removeDependency = useMutation({
-    mutationFn: (dependencyId: number) => removeServiceDependency(serviceId, dependencyId),
+    mutationFn: (dependencyId: number) => {
+      if (!serviceId) {
+        throw new Error('Service ID is required to remove dependencies');
+      }
+      return removeServiceDependency(serviceId, dependencyId);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services', serviceId] });
+      if (serviceId) {
+        queryClient.invalidateQueries({ queryKey: ['services', serviceId] });
+      }
     },
   });
 
   const resetForm = () => {
     setSelectedServiceId(0);
-    setExternalServiceMode('existing');
-    setSelectedExternalServiceId(0);
-    setExternalServiceName('');
-    setExternalServiceType('');
-    setExternalServiceUrl('');
     setDescription('');
-    // Don't reset dependencyType here - it should only be reset when closing/canceling
   };
 
   const handleSubmit = () => {
-    if (dependencyType === 'internal') {
-      if (!selectedServiceId) {
-        return;
-      }
-      addDependency.mutate({
-        dependencyServiceId: selectedServiceId,
-        description: description || undefined,
-      });
-    } else {
-      // External dependency: either select existing service or type new name
-      if (externalServiceMode === 'existing') {
-        if (!selectedExternalServiceId) {
-          return;
-        }
-        addDependency.mutate({
-          dependencyServiceId: selectedExternalServiceId,
-          description: description || undefined,
-        });
-      } else {
-        if (!externalServiceName) {
-          return;
-        }
-        addDependency.mutate({
-          externalServiceName,
-          externalServiceType: externalServiceType || undefined,
-          externalServiceUrl: externalServiceUrl || undefined,
-          description: description || undefined,
-        });
-      }
+    if (!selectedServiceId) {
+      return;
     }
+    addDependency.mutate({
+      dependencyServiceId: selectedServiceId,
+      description: description || undefined,
+    });
   };
 
-  // Filter out current service from available services
-  const availableServices = (servicesData || []).filter((s) => s.id !== serviceId);
+  // Filter out current service from available services (if serviceId is provided)
+  const availableServices = (servicesData || []).filter((s) => !serviceId || s.id !== serviceId);
 
   if (!hasPermission('services:update')) {
     if (dependencies.length === 0) return null;
@@ -126,19 +101,14 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
               className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700/50"
             >
               <div className="flex items-center gap-2">
-                {dep.dependencyService ? (
+                {dep.dependencyService && (
                   <>
                     <Link2 className="w-4 h-4 text-blue-500" />
                     <span className="text-sm text-gray-900 dark:text-white">
                       {dep.dependencyService.name} (:{dep.dependencyService.port})
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <ExternalLink className="w-4 h-4 text-purple-500" />
-                    <span className="text-sm text-gray-900 dark:text-white">
-                      {dep.externalServiceName}
-                      {dep.externalServiceType && ` (${dep.externalServiceType})`}
+                      {dep.dependencyService.external && (
+                        <span className="ml-2 text-xs text-purple-500">[External]</span>
+                      )}
                     </span>
                   </>
                 )}
@@ -177,32 +147,15 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
             className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700/50"
           >
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              {dep.dependencyService ? (
+              {dep.dependencyService && (
                 <>
                   <Link2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
                   <span className="text-sm text-gray-900 dark:text-white truncate">
                     {dep.dependencyService.name} (:{dep.dependencyService.port})
-                  </span>
-                </>
-              ) : (
-                <>
-                  <ExternalLink className="w-4 h-4 text-purple-500 flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <span className="text-sm text-gray-900 dark:text-white">
-                      {dep.externalServiceName}
-                      {dep.externalServiceType && ` (${dep.externalServiceType})`}
-                    </span>
-                    {dep.externalServiceUrl && (
-                      <a
-                        href={dep.externalServiceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-500 hover:text-blue-600 ml-2"
-                      >
-                        {dep.externalServiceUrl}
-                      </a>
+                    {dep.dependencyService.external && (
+                      <span className="ml-2 text-xs text-purple-500">[External]</span>
                     )}
-                  </div>
+                  </span>
                 </>
               )}
               {dep.description && (
@@ -228,166 +181,30 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
       {/* Add Dependency Form */}
       {showAddForm && (
         <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700/50 space-y-3">
-          <div className="flex items-center gap-2 mb-3">
-            <button
-              type="button"
-              onClick={() => {
-                resetForm();
-                setDependencyType('internal');
-              }}
-              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                dependencyType === 'internal'
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-              }`}
+          <div>
+            <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
+              Service *
+            </label>
+            <select
+              value={selectedServiceId}
+              onChange={(e) => setSelectedServiceId(Number(e.target.value))}
+              className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+              required
             >
-              Internal Service
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                resetForm();
-                setDependencyType('external');
-              }}
-              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                dependencyType === 'external'
-                  ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-              }`}
-            >
-              External Service
-            </button>
+              <option value={0}>Select a service</option>
+              {availableServices.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} (:{s.port})
+                  {s.external ? ' [External]' : ''}
+                </option>
+              ))}
+            </select>
+            {availableServices.length === 0 && (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                No other services available. Create another service first.
+              </p>
+            )}
           </div>
-
-          {dependencyType === 'internal' && (
-            <div>
-              <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
-                Service *
-              </label>
-              <select
-                value={selectedServiceId}
-                onChange={(e) => setSelectedServiceId(Number(e.target.value))}
-                className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                required
-              >
-                <option value={0}>Select a service</option>
-                {availableServices.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} (:{s.port})
-                  </option>
-                ))}
-              </select>
-              {availableServices.length === 0 && (
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  No other services available. Create another service first.
-                </p>
-              )}
-            </div>
-          )}
-
-          {dependencyType === 'external' && (
-            <>
-              <div className="flex items-center gap-2 mb-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setExternalServiceMode('existing');
-                    setExternalServiceName('');
-                    setExternalServiceType('');
-                    setExternalServiceUrl('');
-                    setSelectedExternalServiceId(0);
-                  }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                    externalServiceMode === 'existing'
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                  }`}
-                >
-                  Select Existing Service
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setExternalServiceMode('new');
-                    setSelectedExternalServiceId(0);
-                  }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                    externalServiceMode === 'new'
-                      ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                  }`}
-                >
-                  Type New Name
-                </button>
-              </div>
-
-              {externalServiceMode === 'existing' ? (
-                <div>
-                  <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
-                    Service *
-                  </label>
-                  <select
-                    value={selectedExternalServiceId}
-                    onChange={(e) => setSelectedExternalServiceId(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    required
-                  >
-                    <option value={0}>Select a service</option>
-                    {availableServices.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} (:{s.port})
-                      </option>
-                    ))}
-                  </select>
-                  {availableServices.length === 0 && (
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      No other services available. Select "Type New Name" to add an external service.
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
-                      Service Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={externalServiceName}
-                      onChange={(e) => setExternalServiceName(e.target.value)}
-                      placeholder="e.g., OpenAI, AWS S3, Stripe"
-                      className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
-                      Service Type (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={externalServiceType}
-                      onChange={(e) => setExternalServiceType(e.target.value)}
-                      placeholder="e.g., API, Database, Payment Gateway"
-                      className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
-                      Service URL (Optional)
-                    </label>
-                    <input
-                      type="url"
-                      value={externalServiceUrl}
-                      onChange={(e) => setExternalServiceUrl(e.target.value)}
-                      placeholder="https://api.example.com"
-                      className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    />
-                  </div>
-                </>
-              )}
-            </>
-          )}
 
           <div>
             <label className="block text-xs font-medium text-gray-900 dark:text-white mb-1">
@@ -403,21 +220,20 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
           </div>
 
           <div className="flex items-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={addDependency.isPending}
-                className="px-3 py-1.5 text-xs font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {addDependency.isPending ? 'Adding...' : 'Add'}
-              </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            resetForm();
-                            setDependencyType('internal'); // Reset to default when canceling
-                            setShowAddForm(false);
-                          }}
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={addDependency.isPending}
+              className="px-3 py-1.5 text-xs font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {addDependency.isPending ? 'Adding...' : 'Add'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                resetForm();
+                setShowAddForm(false);
+              }}
               disabled={addDependency.isPending}
               className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
             >
@@ -429,4 +245,3 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
     </div>
   );
 }
-

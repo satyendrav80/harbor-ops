@@ -99,7 +99,7 @@ router.get('/', requirePermission('services:view'), async (req, res) => {
 });
 
 router.post('/', requirePermission('services:create'), async (req: AuthRequest, res) => {
-  const { name, port, serverIds, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, documentationUrl, documentation, metadata } = req.body;
+  const { name, port, external, serverIds, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, documentationUrl, documentation, metadata } = req.body;
   
   // Validate serverIds
   if (!serverIds || !Array.isArray(serverIds) || serverIds.length === 0) {
@@ -112,6 +112,7 @@ router.post('/', requirePermission('services:create'), async (req: AuthRequest, 
       data: {
         name,
         port: Number(port),
+        external: external === true || external === 'true',
         sourceRepo: sourceRepo || null,
         appId: appId || null,
         functionName: functionName || null,
@@ -187,6 +188,12 @@ router.post('/', requirePermission('services:create'), async (req: AuthRequest, 
 
 router.get('/:id', requirePermission('services:view'), async (req, res) => {
   const id = Number(req.params.id);
+  
+  // Validate that id is a valid number
+  if (isNaN(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid service ID' });
+  }
+  
   const item = await prisma.service.findUnique({
     where: { id },
     include: {
@@ -202,6 +209,7 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
               id: true,
               name: true,
               port: true,
+              external: true,
             },
           },
         },
@@ -216,7 +224,7 @@ router.get('/:id', requirePermission('services:view'), async (req, res) => {
 
 router.put('/:id', requirePermission('services:update'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
-  const { name, port, serverIds, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, documentationUrl, documentation, metadata } = req.body;
+  const { name, port, external, serverIds, credentialIds, domainIds, tagIds, sourceRepo, appId, functionName, deploymentUrl, documentationUrl, documentation, metadata } = req.body;
   
   // Validate serverIds if provided
   if (serverIds !== undefined && (!Array.isArray(serverIds) || serverIds.length === 0)) {
@@ -231,6 +239,7 @@ router.put('/:id', requirePermission('services:update'), async (req: AuthRequest
       data: {
         name,
         port: Number(port),
+        external: external !== undefined ? (external === true || external === 'true') : undefined,
         sourceRepo: sourceRepo !== undefined ? (sourceRepo || null) : undefined,
         appId: appId !== undefined ? (appId || null) : undefined,
         functionName: functionName !== undefined ? (functionName || null) : undefined,
@@ -331,22 +340,17 @@ router.put('/:id', requirePermission('services:update'), async (req: AuthRequest
 });
 
 // POST /services/:id/dependencies - Add a dependency
-router.post('/:id/dependencies', requirePermission('services:update'), async (req, res) => {
+router.post('/:id/dependencies', requirePermission('services:update'), async (req: AuthRequest, res) => {
   const serviceId = Number(req.params.id);
-  const { dependencyServiceId, externalServiceName, externalServiceType, externalServiceUrl, description } = req.body;
+  const { dependencyServiceId, description } = req.body;
   
-  // Validate: either dependencyServiceId OR externalServiceName must be provided
-  if (!dependencyServiceId && !externalServiceName) {
-    return res.status(400).json({ error: 'Either dependencyServiceId or externalServiceName must be provided' });
-  }
-  
-  // Cannot have both
-  if (dependencyServiceId && externalServiceName) {
-    return res.status(400).json({ error: 'Cannot specify both dependencyServiceId and externalServiceName' });
+  // Validate: dependencyServiceId must be provided
+  if (!dependencyServiceId) {
+    return res.status(400).json({ error: 'dependencyServiceId is required' });
   }
   
   // Prevent self-dependency
-  if (dependencyServiceId && Number(dependencyServiceId) === serviceId) {
+  if (Number(dependencyServiceId) === serviceId) {
     return res.status(400).json({ error: 'Service cannot depend on itself' });
   }
   
@@ -354,11 +358,9 @@ router.post('/:id/dependencies', requirePermission('services:update'), async (re
     const dependency = await prisma.serviceDependency.create({
       data: {
         serviceId,
-        dependencyServiceId: dependencyServiceId ? Number(dependencyServiceId) : null,
-        externalServiceName: externalServiceName || null,
-        externalServiceType: externalServiceType || null,
-        externalServiceUrl: externalServiceUrl || null,
+        dependencyServiceId: Number(dependencyServiceId),
         description: description || null,
+        createdBy: req.user?.id || null,
       },
       include: {
         dependencyService: {
@@ -366,6 +368,7 @@ router.post('/:id/dependencies', requirePermission('services:update'), async (re
             id: true,
             name: true,
             port: true,
+            external: true,
           },
         },
       },

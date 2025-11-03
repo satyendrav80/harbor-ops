@@ -26,6 +26,7 @@ import { Highlight } from '@tiptap/extension-highlight';
 const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required').max(100, 'Service name must be 100 characters or less'),
   port: z.coerce.number().int().min(1, 'Port must be between 1 and 65535').max(65535),
+  external: z.boolean().optional().default(false),
   serverIds: z.array(z.number()).min(1, 'At least one server is required'),
   credentialIds: z.array(z.number()).optional(),
   domainIds: z.array(z.number()).optional(),
@@ -66,6 +67,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
 
   const [error, setError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [createdService, setCreatedService] = useState<Service | null>(null);
 
   // Fetch servers and credentials for dropdowns
   const { data: serversData } = useQuery({
@@ -134,6 +136,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
     defaultValues: {
       name: service?.name || '',
       port: service?.port || 80,
+      external: service?.external || false,
       serverIds: service?.servers?.map((ss) => ss.server.id) || [],
       credentialIds: [],
       domainIds: [],
@@ -217,6 +220,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
       form.reset({
         name: service.name,
         port: service.port,
+        external: service.external || false,
         serverIds: service.servers?.map((ss) => ss.server.id) || [],
         credentialIds: service.credentials?.map((sc) => sc.credential.id) || [],
         domainIds: existingDomainsData || [],
@@ -237,6 +241,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
       form.reset({
         name: '',
         port: 80,
+        external: false,
         serverIds: [],
         credentialIds: [],
         domainIds: [],
@@ -256,6 +261,9 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
     }
     setError(null);
     setShowDeleteConfirm(false);
+    if (!isOpen) {
+      setCreatedService(null); // Reset created service when modal closes
+    }
   }, [isOpen, service, form, existingGroupsData, existingDomainsData, editor]);
 
   const onSubmit = async (values: ServiceFormValues) => {
@@ -269,6 +277,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
           data: {
             name: values.name,
             port: values.port,
+            external: values.external,
             serverIds: values.serverIds,
             credentialIds: values.credentialIds || [],
             domainIds: values.domainIds || [],
@@ -285,6 +294,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         createdOrUpdatedService = await createService.mutateAsync({
           name: values.name,
           port: values.port,
+          external: values.external,
           serverIds: values.serverIds,
           credentialIds: values.credentialIds || [],
           domainIds: values.domainIds || [],
@@ -296,6 +306,11 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
           documentationUrl: values.documentationUrl || null,
           documentation: values.documentation || null,
         });
+      }
+
+      // Store created service for dependencies management
+      if (!isEditing) {
+        setCreatedService(createdOrUpdatedService);
       }
 
       // Update groups membership
@@ -329,10 +344,12 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
       }
 
       // Reset form after successful submission (only for create, not update)
+      // Don't close modal after creation if service was just created - allow adding dependencies
       if (!isEditing) {
         form.reset({
           name: '',
           port: 80,
+          external: false,
           serverIds: [],
           credentialIds: [],
           domainIds: [],
@@ -345,8 +362,11 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
           documentation: '',
           groupIds: [],
         });
+        // Don't close modal - user can now add dependencies
+        // onClose(); // Commented out to allow dependency management
+      } else {
+        onClose();
       }
-      onClose();
     } catch (err: any) {
       setError(err?.message || `Failed to ${isEditing ? 'update' : 'create'} service`);
     }
@@ -392,6 +412,17 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
           {form.formState.errors.name && (
             <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.name.message}</p>
           )}
+        </div>
+
+        <div>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              {...form.register('external')}
+              className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+            />
+            <span className="text-sm font-medium text-gray-900 dark:text-white">External Service</span>
+          </label>
         </div>
 
         <div>
@@ -735,9 +766,14 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
           </div>
         </div>
 
-        {/* Service Dependencies - Only show when editing */}
-        {isEditing && service?.id && (
-          <ServiceDependencies serviceId={service.id} dependencies={service.dependencies} />
+        {/* Service Dependencies - Show during creation and editing */}
+        {(isEditing ? service?.id : createdService?.id) ? (
+          <ServiceDependencies 
+            serviceId={(isEditing ? service?.id : createdService?.id) || null} 
+            dependencies={(isEditing ? service?.dependencies : createdService?.dependencies) || []} 
+          />
+        ) : (
+          <ServiceDependencies serviceId={null} dependencies={[]} />
         )}
 
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700/50">
