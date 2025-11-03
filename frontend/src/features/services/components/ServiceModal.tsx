@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal } from '../../../components/common/Modal';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { useCreateService, useUpdateService, useDeleteService } from '../hooks/useServiceMutations';
+import { addServiceDependency, removeServiceDependency } from '../../../services/services';
 import { Trash2 } from 'lucide-react';
 import type { Service } from '../../../services/services';
 import { useQuery } from '@tanstack/react-query';
@@ -69,6 +70,10 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [createdService, setCreatedService] = useState<Service | null>(null);
+  
+  // Local dependencies state for controlled mode (only saved on submit)
+  type LocalDependency = { dependencyServiceId: number; description?: string };
+  const [localDependencies, setLocalDependencies] = useState<LocalDependency[]>([]);
 
   // Fetch servers and credentials for dropdowns
   const { data: serversData } = useQuery({
@@ -215,7 +220,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
     }
   }, [selectedServerIds, showAmplifyLambdaFields, form]);
 
-  // Reset form when service changes
+  // Reset form and dependencies when service changes
   useEffect(() => {
     if (service) {
       form.reset({
@@ -234,6 +239,13 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         documentation: service.documentation || '',
         groupIds: existingGroupsData || [],
       });
+      // Initialize local dependencies from service dependencies
+      setLocalDependencies(
+        (service.dependencies || []).map((dep) => ({
+          dependencyServiceId: dep.dependencyServiceId || 0,
+          description: dep.description || undefined,
+        }))
+      );
       // Update editor content when service changes
       if (editor) {
         editor.commands.setContent(service.documentation || '');
@@ -255,6 +267,8 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
         documentation: '',
         groupIds: [],
       });
+      // Clear local dependencies when creating new service
+      setLocalDependencies([]);
       // Clear editor when creating new service
       if (editor) {
         editor.commands.setContent('');
@@ -264,6 +278,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
     setDeleteConfirmOpen(false);
     if (!isOpen) {
       setCreatedService(null); // Reset created service when modal closes
+      setLocalDependencies([]); // Reset local dependencies when modal closes
     }
   }, [isOpen, service, form, existingGroupsData, existingDomainsData, editor]);
 
@@ -342,6 +357,58 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
             removeItemFromGroup.mutateAsync({ groupId, itemId: createdOrUpdatedService.id })
           )
         );
+      }
+
+      // Save dependencies after service is created/updated
+      if (hasPermission('services:update')) {
+        // Get existing dependencies
+        const existingDependencies = isEditing && service?.dependencies
+          ? service.dependencies.map((dep) => ({
+              dependencyServiceId: dep.dependencyServiceId || 0,
+              description: dep.description || undefined,
+            }))
+          : [];
+
+        // Find dependencies to add (in local but not in existing)
+        const dependenciesToAdd = localDependencies.filter(
+          (localDep) =>
+            !existingDependencies.some(
+              (existingDep) => existingDep.dependencyServiceId === localDep.dependencyServiceId
+            )
+        );
+
+        // Find dependencies to remove (in existing but not in local)
+        const dependenciesToRemove = existingDependencies.filter(
+          (existingDep) =>
+            !localDependencies.some(
+              (localDep) => localDep.dependencyServiceId === existingDep.dependencyServiceId
+            )
+        );
+
+        // Add new dependencies
+        await Promise.all(
+          dependenciesToAdd.map((dep) =>
+            addServiceDependency(createdOrUpdatedService.id, {
+              dependencyServiceId: dep.dependencyServiceId,
+              description: dep.description,
+            })
+          )
+        );
+
+        // Remove dependencies that were deleted
+        if (isEditing && service?.dependencies) {
+          await Promise.all(
+            dependenciesToRemove
+              .map((depToRemove) => {
+                const existingDep = service.dependencies?.find(
+                  (d) => d.dependencyServiceId === depToRemove.dependencyServiceId
+                );
+                return existingDep?.id;
+              })
+              .filter((id): id is number => id !== undefined)
+              .map((dependencyId) => removeServiceDependency(createdOrUpdatedService.id, dependencyId))
+          );
+        }
       }
 
       // Close modal after successful creation or update
@@ -748,15 +815,14 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
           </div>
         </div>
 
-        {/* Service Dependencies - Show during creation and editing */}
-        {(isEditing ? service?.id : createdService?.id) ? (
-          <ServiceDependencies 
-            serviceId={(isEditing ? service?.id : createdService?.id) || null} 
-            dependencies={(isEditing ? service?.dependencies : createdService?.dependencies) || []} 
-          />
-        ) : (
-          <ServiceDependencies serviceId={null} dependencies={[]} />
-        )}
+        {/* Service Dependencies - Use controlled mode for both create and edit */}
+        <ServiceDependencies
+          serviceId={(isEditing ? service?.id : createdService?.id) || null}
+          dependencies={(isEditing ? service?.dependencies : createdService?.dependencies) || []}
+          controlled={true}
+          localDependencies={localDependencies}
+          onDependenciesChange={setLocalDependencies}
+        />
 
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700/50">
           <div>

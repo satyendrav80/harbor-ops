@@ -5,23 +5,38 @@ import { getServices } from '../../../services/services';
 import { Plus, Trash2, Link2 } from 'lucide-react';
 import { useAuth } from '../../auth/context/AuthContext';
 
+type ServiceDependencyInput = {
+  dependencyServiceId: number;
+  description?: string;
+};
+
 type ServiceDependenciesProps = {
   serviceId: number | null; // Allow null for creation mode
   dependencies?: ServiceDependency[];
+  // Controlled mode: manage dependencies locally without immediate saves
+  controlled?: boolean;
+  localDependencies?: ServiceDependencyInput[];
+  onDependenciesChange?: (dependencies: ServiceDependencyInput[]) => void;
 };
 
-export function ServiceDependencies({ serviceId, dependencies: initialDependencies }: ServiceDependenciesProps) {
+export function ServiceDependencies({ 
+  serviceId, 
+  dependencies: initialDependencies,
+  controlled = false,
+  localDependencies = [],
+  onDependenciesChange,
+}: ServiceDependenciesProps) {
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState<number>(0);
   const [description, setDescription] = useState('');
 
-  // Fetch current service to get latest dependencies (only if serviceId is provided)
+  // Fetch current service to get latest dependencies (only if serviceId is provided and not in controlled mode)
   const { data: service } = useQuery({
     queryKey: ['services', serviceId],
     queryFn: () => serviceId ? getService(serviceId) : null,
-    enabled: !!serviceId,
+    enabled: !!serviceId && !controlled,
   });
 
   // Fetch all services for dependency selection
@@ -35,7 +50,22 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
     enabled: showAddForm, // Fetch when form is open
   });
 
-  const dependencies = service?.dependencies || initialDependencies || [];
+  // Use local dependencies in controlled mode, otherwise use service dependencies
+  const dependencies = controlled 
+    ? localDependencies.map((dep, index) => ({
+        id: -(index + 1), // Temporary negative IDs for local dependencies
+        serviceId: serviceId || 0,
+        dependencyServiceId: dep.dependencyServiceId,
+        description: dep.description || null,
+        dependencyService: servicesData?.find(s => s.id === dep.dependencyServiceId) ? {
+          id: dep.dependencyServiceId,
+          name: servicesData.find(s => s.id === dep.dependencyServiceId)!.name,
+          port: servicesData.find(s => s.id === dep.dependencyServiceId)!.port,
+          external: servicesData.find(s => s.id === dep.dependencyServiceId)!.external,
+        } : null,
+        createdAt: new Date().toISOString(),
+      }))
+    : (service?.dependencies || initialDependencies || []);
 
   const addDependency = useMutation({
     mutationFn: (data: {
@@ -69,6 +99,38 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
       }
     },
   });
+  
+  // Handle controlled mode: add/remove dependencies locally
+  const handleAddLocalDependency = () => {
+    if (!selectedServiceId || !onDependenciesChange) return;
+    
+    // Check if already added
+    if (localDependencies.some(dep => dep.dependencyServiceId === selectedServiceId)) {
+      return;
+    }
+    
+    const newDependencies = [
+      ...localDependencies,
+      {
+        dependencyServiceId: selectedServiceId,
+        description: description || undefined,
+      },
+    ];
+    
+    onDependenciesChange(newDependencies);
+    resetForm();
+    setShowAddForm(false);
+  };
+  
+  const handleRemoveLocalDependency = (dependencyServiceId: number) => {
+    if (!onDependenciesChange) return;
+    
+    const newDependencies = localDependencies.filter(
+      dep => dep.dependencyServiceId !== dependencyServiceId
+    );
+    
+    onDependenciesChange(newDependencies);
+  };
 
   const resetForm = () => {
     setSelectedServiceId(0);
@@ -79,14 +141,24 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
     if (!selectedServiceId) {
       return;
     }
-    addDependency.mutate({
-      dependencyServiceId: selectedServiceId,
-      description: description || undefined,
-    });
+    
+    if (controlled && onDependenciesChange) {
+      handleAddLocalDependency();
+    } else {
+      addDependency.mutate({
+        dependencyServiceId: selectedServiceId,
+        description: description || undefined,
+      });
+    }
   };
 
   // Filter out current service from available services (if serviceId is provided)
-  const availableServices = (servicesData || []).filter((s) => !serviceId || s.id !== serviceId);
+  // In controlled mode, also filter out already selected dependencies
+  const availableServices = (servicesData || []).filter((s) => {
+    if (serviceId && s.id === serviceId) return false;
+    if (controlled && localDependencies.some(dep => dep.dependencyServiceId === s.id)) return false;
+    return true;
+  });
 
   if (!hasPermission('services:update')) {
     if (dependencies.length === 0) return null;
@@ -164,7 +236,13 @@ export function ServiceDependencies({ serviceId, dependencies: initialDependenci
             </div>
             <button
               type="button"
-              onClick={() => removeDependency.mutate(dep.id)}
+              onClick={() => {
+                if (controlled && onDependenciesChange && dep.dependencyServiceId) {
+                  handleRemoveLocalDependency(dep.dependencyServiceId);
+                } else {
+                  removeDependency.mutate(dep.id);
+                }
+              }}
               disabled={removeDependency.isPending}
               className="ml-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors disabled:opacity-50"
               aria-label="Remove dependency"
