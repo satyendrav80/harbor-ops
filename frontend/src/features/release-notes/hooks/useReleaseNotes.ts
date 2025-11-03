@@ -3,7 +3,7 @@ import { getReleaseNotes, ReleaseNotesResponse } from '../../../services/release
 
 export function useReleaseNotes(
   search?: string,
-  status?: 'pending' | 'deployed',
+  status?: 'pending' | 'deployed' | 'deployment_started',
   limit: number = 20,
   serviceId?: number
 ) {

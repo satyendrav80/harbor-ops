@@ -1,11 +1,17 @@
 import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useReleaseNotes } from '../hooks/useReleaseNotes';
-import { useCreateReleaseNote, useUpdateReleaseNote, useMarkReleaseNoteDeployed } from '../hooks/useReleaseNoteMutations';
+import { 
+  useCreateReleaseNote, 
+  useUpdateReleaseNote, 
+  useMarkReleaseNoteDeployed,
+  useMarkReleaseNoteDeploymentStarted,
+  useDeleteReleaseNote,
+} from '../hooks/useReleaseNoteMutations';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ReleaseNoteModal } from '../components/ReleaseNoteModal';
-import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle } from 'lucide-react';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
@@ -25,8 +31,8 @@ const ReleaseNotesHeader = memo(({
 }: {
   searchQuery: string;
   onSearchChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  statusFilter: 'pending' | 'deployed' | 'all';
-  onStatusFilterChange: (value: 'pending' | 'deployed' | 'all') => void;
+  statusFilter: 'pending' | 'deployed' | 'deployment_started' | 'all';
+  onStatusFilterChange: (value: 'pending' | 'deployed' | 'deployment_started' | 'all') => void;
   onCreateClick: () => void;
   hasPermission: (permission: string) => boolean;
 }) => {
@@ -53,11 +59,12 @@ const ReleaseNotesHeader = memo(({
         {/* Status Filter */}
         <select
           value={statusFilter}
-          onChange={(e) => onStatusFilterChange(e.target.value as 'pending' | 'deployed' | 'all')}
+          onChange={(e) => onStatusFilterChange(e.target.value as 'pending' | 'deployed' | 'deployment_started' | 'all')}
           className="px-4 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
         >
           <option value="all">All</option>
           <option value="pending">Pending</option>
+          <option value="deployment_started">Deployment Started</option>
           <option value="deployed">Deployed</option>
         </select>
         {hasPermission('release-notes:create') && (
@@ -90,14 +97,22 @@ const ReleaseNoteItem = memo(({
   releaseNote,
   onEdit,
   onMarkDeployed,
+  onMarkDeploymentStarted,
+  onDelete,
   hasPermission,
   markDeployedPending,
+  markDeploymentStartedPending,
+  deletePending,
 }: {
   releaseNote: ReleaseNote;
   onEdit: (releaseNote: ReleaseNote) => void;
   onMarkDeployed: (id: number) => void;
+  onMarkDeploymentStarted: (id: number) => void;
+  onDelete: (id: number) => void;
   hasPermission: (permission: string) => boolean;
   markDeployedPending: boolean;
+  markDeploymentStartedPending: boolean;
+  deletePending: boolean;
 }) => {
   const navigate = useNavigate();
   return (
@@ -115,10 +130,12 @@ const ReleaseNoteItem = memo(({
               className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
                 releaseNote.status === 'deployed'
                   ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                  : releaseNote.status === 'deployment_started'
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                   : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
               }`}
             >
-              {releaseNote.status}
+              {releaseNote.status === 'deployment_started' ? 'deployment started' : releaseNote.status}
             </span>
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 whitespace-pre-wrap">
@@ -163,25 +180,55 @@ const ReleaseNoteItem = memo(({
           </div>
         </div>
         <div className="flex items-center gap-2 ml-4">
+          {/* Edit button - only for pending notes, requires update permission */}
           {hasPermission('release-notes:update') && releaseNote.status === 'pending' && (
-            <>
-              <button
-                onClick={() => onEdit(releaseNote)}
-                className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
-                aria-label="Edit release note"
-              >
-                <Edit className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => onMarkDeployed(releaseNote.id)}
-                disabled={markDeployedPending}
-                className="text-gray-400 dark:text-gray-500 hover:text-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 rounded p-1 disabled:opacity-50"
-                aria-label="Mark as deployed"
-                title="Mark as deployed"
-              >
-                <CheckCircle className="w-4 h-4" />
-              </button>
-            </>
+            <button
+              onClick={() => onEdit(releaseNote)}
+              className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
+              aria-label="Edit release note"
+              title="Edit release note"
+            >
+              <Edit className="w-4 h-4" />
+            </button>
+          )}
+          
+          {/* Delete button - only for pending notes, requires delete permission */}
+          {hasPermission('release-notes:delete') && releaseNote.status === 'pending' && (
+            <button
+              onClick={() => onDelete(releaseNote.id)}
+              disabled={deletePending}
+              className="text-gray-400 dark:text-gray-500 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 rounded p-1 disabled:opacity-50"
+              aria-label="Delete release note"
+              title="Delete release note"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+          
+          {/* Deployment Started button - only for pending notes, requires deploy permission */}
+          {hasPermission('release-notes:deploy') && releaseNote.status === 'pending' && (
+            <button
+              onClick={() => onMarkDeploymentStarted(releaseNote.id)}
+              disabled={markDeploymentStartedPending}
+              className="text-gray-400 dark:text-gray-500 hover:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 rounded p-1 disabled:opacity-50"
+              aria-label="Mark deployment started"
+              title="Mark deployment started"
+            >
+              <PlayCircle className="w-4 h-4" />
+            </button>
+          )}
+          
+          {/* Mark as Deployed button - for pending or deployment_started notes, requires deploy permission */}
+          {hasPermission('release-notes:deploy') && (releaseNote.status === 'pending' || releaseNote.status === 'deployment_started') && (
+            <button
+              onClick={() => onMarkDeployed(releaseNote.id)}
+              disabled={markDeployedPending}
+              className="text-gray-400 dark:text-gray-500 hover:text-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 rounded p-1 disabled:opacity-50"
+              aria-label="Mark as deployed"
+              title="Mark as deployed"
+            >
+              <CheckCircle className="w-4 h-4" />
+            </button>
           )}
         </div>
       </div>
@@ -209,9 +256,13 @@ const ReleaseNoteItem = memo(({
     releaseNoteEqual &&
     serviceEqual &&
     prevProps.markDeployedPending === nextProps.markDeployedPending &&
+    prevProps.markDeploymentStartedPending === nextProps.markDeploymentStartedPending &&
+    prevProps.deletePending === nextProps.deletePending &&
     prevProps.hasPermission === nextProps.hasPermission &&
     prevProps.onEdit === nextProps.onEdit &&
-    prevProps.onMarkDeployed === nextProps.onMarkDeployed
+    prevProps.onMarkDeployed === nextProps.onMarkDeployed &&
+    prevProps.onMarkDeploymentStarted === nextProps.onMarkDeploymentStarted &&
+    prevProps.onDelete === nextProps.onDelete
   );
 });
 ReleaseNoteItem.displayName = 'ReleaseNoteItem';
@@ -221,16 +272,24 @@ const ReleaseNotesList = memo(({
   releaseNotes,
   onEdit,
   onMarkDeployed,
+  onMarkDeploymentStarted,
+  onDelete,
   hasPermission,
   markDeployedPending,
+  markDeploymentStartedPending,
+  deletePending,
   observerTarget,
   isFetchingNextPage,
 }: {
   releaseNotes: ReleaseNote[];
   onEdit: (releaseNote: ReleaseNote) => void;
   onMarkDeployed: (id: number) => void;
+  onMarkDeploymentStarted: (id: number) => void;
+  onDelete: (id: number) => void;
   hasPermission: (permission: string) => boolean;
   markDeployedPending: boolean;
+  markDeploymentStartedPending: boolean;
+  deletePending: boolean;
   observerTarget: React.RefObject<HTMLDivElement>;
   isFetchingNextPage: boolean;
 }) => {
@@ -242,8 +301,12 @@ const ReleaseNotesList = memo(({
           releaseNote={releaseNote}
           onEdit={onEdit}
           onMarkDeployed={onMarkDeployed}
+          onMarkDeploymentStarted={onMarkDeploymentStarted}
+          onDelete={onDelete}
           hasPermission={hasPermission}
           markDeployedPending={markDeployedPending}
+          markDeploymentStartedPending={markDeploymentStartedPending}
+          deletePending={deletePending}
         />
       ))}
       <div ref={observerTarget} className="h-4" />
@@ -271,8 +334,12 @@ const ReleaseNotesList = memo(({
   return (
     prevProps.onEdit === nextProps.onEdit &&
     prevProps.onMarkDeployed === nextProps.onMarkDeployed &&
+    prevProps.onMarkDeploymentStarted === nextProps.onMarkDeploymentStarted &&
+    prevProps.onDelete === nextProps.onDelete &&
     prevProps.hasPermission === nextProps.hasPermission &&
     prevProps.markDeployedPending === nextProps.markDeployedPending &&
+    prevProps.markDeploymentStartedPending === nextProps.markDeploymentStartedPending &&
+    prevProps.deletePending === nextProps.deletePending &&
     prevProps.isFetchingNextPage === nextProps.isFetchingNextPage
   );
 });
@@ -293,15 +360,15 @@ export function ReleaseNotesPage() {
   const serviceId = serviceIdParam ? Number(serviceIdParam) : undefined;
   
   // Initialize status filter from URL params
-  const initialStatusFilter = (searchParams.get('status') as 'pending' | 'deployed' | 'all') || 'all';
-  const [statusFilter, setStatusFilter] = useState<'pending' | 'deployed' | 'all'>(initialStatusFilter);
+  const initialStatusFilter = (searchParams.get('status') as 'pending' | 'deployed' | 'deployment_started' | 'all') || 'all';
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'deployed' | 'deployment_started' | 'all'>(initialStatusFilter);
   const [releaseNoteModalOpen, setReleaseNoteModalOpen] = useState(false);
   const [selectedReleaseNoteForEdit, setSelectedReleaseNoteForEdit] = useState<ReleaseNote | null>(null);
 
   // Update status filter when URL params change
   useEffect(() => {
     const statusParam = searchParams.get('status');
-    if (statusParam === 'pending' || statusParam === 'deployed') {
+    if (statusParam === 'pending' || statusParam === 'deployed' || statusParam === 'deployment_started') {
       setStatusFilter(statusParam);
     } else {
       setStatusFilter('all');
@@ -341,6 +408,8 @@ export function ReleaseNotesPage() {
   const createReleaseNote = useCreateReleaseNote();
   const updateReleaseNote = useUpdateReleaseNote();
   const markDeployed = useMarkReleaseNoteDeployed();
+  const markDeploymentStarted = useMarkReleaseNoteDeploymentStarted();
+  const deleteReleaseNote = useDeleteReleaseNote();
 
   // Keep previous data during refetches to prevent flicker
   const previousDataRef = useRef<ReleaseNote[]>([]);
@@ -366,7 +435,7 @@ export function ReleaseNotesPage() {
   });
 
   // Memoize handlers to prevent re-renders - MUST be called before any conditional returns
-  const handleStatusFilterChange = useCallback((value: 'pending' | 'deployed' | 'all') => {
+  const handleStatusFilterChange = useCallback((value: 'pending' | 'deployed' | 'deployment_started' | 'all') => {
     setStatusFilter(value);
     // Update URL params
     if (value === 'all') {
@@ -393,6 +462,24 @@ export function ReleaseNotesPage() {
       // Error handled by global error handler
     }
   }, [markDeployed]);
+
+  const handleMarkDeploymentStarted = useCallback(async (id: number) => {
+    try {
+      await markDeploymentStarted.mutateAsync(id);
+    } catch (err) {
+      // Error handled by global error handler
+    }
+  }, [markDeploymentStarted]);
+
+  const handleDeleteReleaseNote = useCallback(async (id: number) => {
+    if (window.confirm('Are you sure you want to delete this release note? This action cannot be undone.')) {
+      try {
+        await deleteReleaseNote.mutateAsync(id);
+      } catch (err) {
+        // Error handled by global error handler
+      }
+    }
+  }, [deleteReleaseNote]);
 
   // Only show loading on initial load when there's truly no data
   // placeholderData keeps previous data during refetches, so we don't flicker
@@ -454,8 +541,12 @@ export function ReleaseNotesPage() {
           releaseNotes={releaseNotes}
           onEdit={handleEditReleaseNote}
           onMarkDeployed={handleMarkDeployed}
+          onMarkDeploymentStarted={handleMarkDeploymentStarted}
+          onDelete={handleDeleteReleaseNote}
           hasPermission={hasPermission}
           markDeployedPending={markDeployed.isPending}
+          markDeploymentStartedPending={markDeploymentStarted.isPending}
+          deletePending={deleteReleaseNote.isPending}
           observerTarget={releaseNotesObserverTarget}
           isFetchingNextPage={isFetchingNextReleaseNotesPage}
         />

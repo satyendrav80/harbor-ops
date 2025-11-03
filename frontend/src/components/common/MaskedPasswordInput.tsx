@@ -11,6 +11,7 @@ type MaskedPasswordInputProps = {
   error?: string;
   label?: string;
   revealEndpoint?: string; // API endpoint to reveal password (e.g., '/servers/:id/reveal-password')
+  revealPermission?: string; // Required permission to reveal (e.g., 'servers:reveal' or 'credentials:reveal')
   canReveal?: boolean; // Override to force reveal capability
   className?: string;
   inputClassName?: string;
@@ -18,7 +19,7 @@ type MaskedPasswordInputProps = {
 
 /**
  * Reusable masked password input component with reveal functionality
- * Requires credentials:reveal permission to reveal passwords
+ * Requires specific reveal permission based on the resource (e.g., 'servers:reveal' or 'credentials:reveal')
  */
 export function MaskedPasswordInput({
   value,
@@ -28,6 +29,7 @@ export function MaskedPasswordInput({
   error,
   label,
   revealEndpoint,
+  revealPermission,
   canReveal: forceCanReveal,
   className = '',
   inputClassName = '',
@@ -38,7 +40,13 @@ export function MaskedPasswordInput({
   const [isRevealing, setIsRevealing] = useState(false);
   const [isRevealed, setIsRevealed] = useState(false);
 
-  const canReveal = forceCanReveal !== undefined ? forceCanReveal : (hasPermission('credentials:reveal') && !!revealEndpoint);
+  // Determine which permission to check
+  // If revealPermission is provided, use it; otherwise default to credentials:reveal
+  const requiredPermission = revealPermission || 'credentials:reveal'; // Default fallback
+
+  const canReveal = forceCanReveal !== undefined 
+    ? forceCanReveal 
+    : (hasPermission(requiredPermission) && !!revealEndpoint);
 
   // Reset revealed state when value changes (e.g., when editing different server)
   useEffect(() => {
@@ -113,7 +121,7 @@ export function MaskedPasswordInput({
             disabled={isRevealing || disabled}
             className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
             aria-label={showPassword ? 'Hide password' : isRevealed ? 'Show password' : 'Reveal password'}
-            title={isRevealed ? (showPassword ? 'Hide password' : 'Show password') : 'Reveal password (requires credentials:reveal permission)'}
+            title={isRevealed ? (showPassword ? 'Hide password' : 'Show password') : `Reveal password (requires ${requiredPermission} permission)`}
           >
             {isRevealing ? (
               <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />

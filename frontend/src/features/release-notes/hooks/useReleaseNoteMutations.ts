@@ -1,5 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createReleaseNote, updateReleaseNote, markReleaseNoteDeployed } from '../../../services/releaseNotes';
+import { 
+  createReleaseNote, 
+  updateReleaseNote, 
+  markReleaseNoteDeployed,
+  markReleaseNoteDeploymentStarted,
+  deleteReleaseNote,
+} from '../../../services/releaseNotes';
 
 export function useCreateReleaseNote() {
   const queryClient = useQueryClient();
@@ -27,6 +33,26 @@ export function useMarkReleaseNoteDeployed() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => markReleaseNoteDeployed(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['release-notes'] });
+    },
+  });
+}
+
+export function useMarkReleaseNoteDeploymentStarted() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => markReleaseNoteDeploymentStarted(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['release-notes'] });
+    },
+  });
+}
+
+export function useDeleteReleaseNote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteReleaseNote(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['release-notes'] });
     },

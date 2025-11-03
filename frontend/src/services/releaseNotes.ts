@@ -4,7 +4,7 @@ export type ReleaseNote = {
   id: number;
   serviceId: number;
   note: string;
-  status: 'pending' | 'deployed';
+  status: 'pending' | 'deployment_started' | 'deployed';
   publishDate: string;
   createdAt: string;
   updatedAt?: string;
@@ -32,7 +32,7 @@ export async function getReleaseNotes(
   page: number = 1,
   limit: number = 20,
   search?: string,
-  status?: 'pending' | 'deployed',
+  status?: 'pending' | 'deployed' | 'deployment_started',
   serviceId?: number
 ): Promise<ReleaseNotesResponse> {
   const params = new URLSearchParams();
@@ -76,6 +76,24 @@ export async function updateReleaseNote(id: number, note?: string, publishDate?:
 export async function markReleaseNoteDeployed(id: number): Promise<ReleaseNote> {
   return apiFetch<ReleaseNote>(`/release-notes/${id}/mark-deployed`, {
     method: 'POST',
+  });
+}
+
+/**
+ * Mark a release note as deployment started
+ */
+export async function markReleaseNoteDeploymentStarted(id: number): Promise<ReleaseNote> {
+  return apiFetch<ReleaseNote>(`/release-notes/${id}/mark-deployment-started`, {
+    method: 'POST',
+  });
+}
+
+/**
+ * Delete a release note (only if pending)
+ */
+export async function deleteReleaseNote(id: number): Promise<void> {
+  return apiFetch<void>(`/release-notes/${id}`, {
+    method: 'DELETE',
   });
 }
 
