@@ -109,7 +109,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
       const kTrimmed = k.trim();
       const v = newValues[k];
       if (kTrimmed !== '' && v !== undefined && v.trim() !== '') {
-        dataObject[kTrimmed] = v.trim();
+        dataObject[kTrimmed] = v;
       }
     });
     form.setValue('data', dataObject, { shouldValidate: true });
@@ -125,7 +125,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
       const kTrimmed = k.trim();
       const v = newValues[k];
       if (kTrimmed !== '' && v !== undefined && v.trim() !== '') {
-        dataObject[kTrimmed] = v.trim();
+        dataObject[kTrimmed] = v;
       }
     });
     form.setValue('data', dataObject, { shouldValidate: true });
@@ -140,7 +140,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
       const keyTrimmed = key.trim();
       const value = dataValues[key];
       if (keyTrimmed !== '' && value !== undefined && value.trim() !== '') {
-        dataObject[keyTrimmed] = value.trim();
+        dataObject[keyTrimmed] = value;
       }
     });
     
@@ -276,16 +276,16 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
                       const kTrimmed = k.trim();
                       const v = newValues[k];
                       if (kTrimmed !== '' && v !== undefined && v.trim() !== '') {
-                        dataObject[kTrimmed] = v.trim();
+                        dataObject[kTrimmed] = v;
                       }
                     });
                     form.setValue('data', dataObject, { shouldValidate: true });
                   }}
                 />
-                <input
-                  className="form-input flex-1 rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
-                  placeholder="Value"
-                  type="password"
+                <textarea
+                  className="form-input flex-1 rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] min-h-[2.5rem] px-4 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50 resize-y"
+                  placeholder="Value (multiline supported)"
+                  rows={1}
                   value={dataValues[key] || ''}
                   onChange={(e) => updateDataValue(key, e.target.value)}
                 />

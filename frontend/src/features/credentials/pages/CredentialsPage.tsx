@@ -324,14 +324,24 @@ export function CredentialsPage() {
                     <div className="mt-4 space-y-2">
                       {isRevealed && revealed ? (
                         <div className="space-y-2">
-                          {Object.entries(revealed).map(([key, value]) => (
-                            <div key={key} className="flex items-center gap-2">
-                              <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[100px]">{key}:</span>
-                              <code className="flex-1 text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded break-all">
-                                {String(value)}
-                              </code>
-                            </div>
-                          ))}
+                          {Object.entries(revealed).map(([key, value]) => {
+                            const valueStr = String(value);
+                            const isMultiline = valueStr.includes('\n');
+                            return (
+                              <div key={key} className={isMultiline ? "flex flex-col gap-1" : "flex items-center gap-2"}>
+                                <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[100px]">{key}:</span>
+                                {isMultiline ? (
+                                  <pre className="flex-1 text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded break-all whitespace-pre-wrap overflow-x-auto">
+                                    {valueStr}
+                                  </pre>
+                                ) : (
+                                  <code className="flex-1 text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded break-all">
+                                    {valueStr}
+                                  </code>
+                                )}
+                              </div>
+                            );
+                          })}
                           {hasPermission('credentials:reveal') && (
                             <button
                               onClick={() => handleRevealData(credential.id)}
