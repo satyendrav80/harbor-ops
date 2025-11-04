@@ -7,16 +7,21 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: Number(process.env.APP_PORT || 3045),
+    allowedHosts: true,
   },
   preview: {
     host: '0.0.0.0',
     port: Number(process.env.APP_PORT || 3045),
+    allowedHosts: true,
   },
   resolve: {
-    alias: {},
+    dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
     include: [
+      'react',
+      'react-dom',
+      '@tanstack/react-query',
       '@tiptap/react',
       '@tiptap/starter-kit',
       '@tiptap/extension-link',
