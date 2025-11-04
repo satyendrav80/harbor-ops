@@ -6,6 +6,7 @@ import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { ServiceModal } from '../components/ServiceModal';
+import { ServiceGroups } from '../components/ServiceGroups';
 import { Search, Plus, Edit, Trash2, Server as ServerIcon, X } from 'lucide-react';
 import type { Service } from '../../../services/services';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
@@ -14,6 +15,8 @@ import { useConstants } from '../../constants/hooks/useConstants';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getServers } from '../../../services/servers';
+import { getGroups, getGroupsByItem } from '../../../services/groups';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 /**
  * Debounce hook to delay search input
@@ -56,6 +59,7 @@ export function ServicesPage() {
   }, []);
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
   const [selectedServiceForEdit, setSelectedServiceForEdit] = useState<Service | null>(null);
+  const [expandedDocumentation, setExpandedDocumentation] = useState<Set<number>>(new Set());
 
   // Fetch servers for filter display
   const { data: serversData } = useQuery({
@@ -63,6 +67,20 @@ export function ServicesPage() {
     queryFn: () => getServers(),
     enabled: !!serverId,
   });
+
+  // Fetch all groups to get names (for matching with group IDs)
+  const { data: groupsData } = useQuery({
+    queryKey: ['groups', 'all'],
+    queryFn: () => getGroups({ limit: 1000 }),
+    enabled: hasPermission('groups:view'),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Create a map of group IDs to group names
+  const groupsMap = useMemo(() => {
+    if (!groupsData?.data) return new Map<number, string>();
+    return new Map(groupsData.data.map((g) => [g.id, g.name]));
+  }, [groupsData]);
 
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
@@ -327,6 +345,9 @@ export function ServicesPage() {
                         </div>
                       </div>
                     )}
+                    {hasPermission('groups:view') && (
+                      <ServiceGroups serviceId={service.id} groupsMap={groupsMap} />
+                    )}
                     {/* Audit Fields */}
                     <div className="col-span-full">
                       <div className="grid grid-cols-2 gap-4 text-xs text-gray-500 dark:text-gray-400 pt-4 border-t border-gray-200 dark:border-gray-700/50">
@@ -464,7 +485,37 @@ export function ServicesPage() {
                   {/* Documentation Section */}
                   {(service.documentationUrl || service.documentation) && (
                     <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
-                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Documentation & Rules</h4>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Documentation & Rules</h4>
+                        {service.documentation && (
+                          <button
+                            onClick={() => {
+                              setExpandedDocumentation((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(service.id)) {
+                                  next.delete(service.id);
+                                } else {
+                                  next.add(service.id);
+                                }
+                                return next;
+                              });
+                            }}
+                            className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                          >
+                            {expandedDocumentation.has(service.id) ? (
+                              <>
+                                <ChevronUp className="w-4 h-4" />
+                                Collapse
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="w-4 h-4" />
+                                Expand
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
                       
                       {service.documentationUrl && (
                         <div className="mb-3">
@@ -486,10 +537,16 @@ export function ServicesPage() {
                       {service.documentation && (
                         <div>
                           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Inline Documentation</p>
-                          <div
-                            className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline"
-                            dangerouslySetInnerHTML={{ __html: service.documentation }}
-                          />
+                          {expandedDocumentation.has(service.id) ? (
+                            <div
+                              className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline"
+                              dangerouslySetInnerHTML={{ __html: service.documentation }}
+                            />
+                          ) : (
+                            <div className="text-sm text-gray-500 dark:text-gray-400 italic">
+                              Click "Expand" to view documentation
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

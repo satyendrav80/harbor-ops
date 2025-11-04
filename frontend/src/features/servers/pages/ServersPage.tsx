@@ -8,7 +8,10 @@ import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { ServerModal } from '../components/ServerModal';
+import { ServerGroups } from '../components/ServerGroups';
 import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Eye, EyeOff, Cloud } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { getGroups } from '../../../services/groups';
 import type { Server } from '../../../services/servers';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
@@ -55,6 +58,20 @@ export function ServersPage() {
 
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
+
+  // Fetch all groups to get names (for matching with group IDs)
+  const { data: groupsData } = useQuery({
+    queryKey: ['groups', 'all'],
+    queryFn: () => getGroups({ limit: 1000 }),
+    enabled: hasPermission('groups:view'),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Create a map of group IDs to group names
+  const groupsMap = useMemo(() => {
+    if (!groupsData?.data) return new Map<number, string>();
+    return new Map(groupsData.data.map((g) => [g.id, g.name]));
+  }, [groupsData]);
 
   // Auto-scroll to server if serverId is in URL
   useEffect(() => {
@@ -398,6 +415,9 @@ export function ServersPage() {
                           ))}
                         </div>
                       </div>
+                    )}
+                    {hasPermission('groups:view') && (
+                      <ServerGroups serverId={server.id} groupsMap={groupsMap} />
                     )}
                   </div>
                   

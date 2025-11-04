@@ -12,7 +12,7 @@ import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ReleaseNoteModal } from '../components/ReleaseNoteModal';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
-import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
@@ -116,6 +116,19 @@ const ReleaseNoteItem = memo(({
   deletePending: boolean;
 }) => {
   const navigate = useNavigate();
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Strip HTML tags for preview
+  const getPlainText = (html: string) => {
+    if (typeof document === 'undefined') return html; // SSR safety
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || html;
+  };
+  
+  const plainText = getPlainText(releaseNote.note);
+  const preview = plainText.length > 100 ? `${plainText.substring(0, 100)}...` : plainText;
+  
   return (
     <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6">
       <div className="flex items-start justify-between">
@@ -123,9 +136,7 @@ const ReleaseNoteItem = memo(({
           <div className="flex items-center gap-3 mb-2">
             <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {releaseNote.note.length > 100
-                ? `${releaseNote.note.substring(0, 100)}...`
-                : releaseNote.note}
+              {preview}
             </h3>
             <span
               className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
@@ -139,9 +150,37 @@ const ReleaseNoteItem = memo(({
               {releaseNote.status === 'deployment_started' ? 'deployment started' : releaseNote.status}
             </span>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 whitespace-pre-wrap">
-            {releaseNote.note}
-          </p>
+          <div className="mt-2">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Content</p>
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              >
+                {isExpanded ? (
+                  <>
+                    <ChevronUp className="w-4 h-4" />
+                    Collapse
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-4 h-4" />
+                    Expand
+                  </>
+                )}
+              </button>
+            </div>
+            {isExpanded ? (
+              <div
+                className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline whitespace-pre-wrap"
+                dangerouslySetInnerHTML={{ __html: releaseNote.note }}
+              />
+            ) : (
+              <div className="text-sm text-gray-500 dark:text-gray-400 italic">
+                Click "Expand" to view full content
+              </div>
+            )}
+          </div>
           {/* Service Link */}
           {releaseNote.service && (
             <div className="mt-4">
