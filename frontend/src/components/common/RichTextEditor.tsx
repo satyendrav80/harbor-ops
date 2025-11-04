@@ -8,6 +8,7 @@ import { Link } from '@tiptap/extension-link';
 import { LinkModal } from '../../features/services/components/LinkModal';
 import { FontSize } from '../../features/services/components/FontSizeExtension';
 import { SmartListInputRules } from '../../features/services/components/SmartListInputRules';
+import { useTheme } from './ThemeProvider';
 
 type RichTextEditorProps = {
   value: string;
@@ -51,6 +52,7 @@ export function RichTextEditor({
   maxHeight = '400px',
   className = '',
 }: RichTextEditorProps) {
+  const { isDark } = useTheme();
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [currentFontSize, setCurrentFontSize] = useState<string>('default');
 
@@ -215,25 +217,42 @@ export function RichTextEditor({
           </div>
           <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1" />
           {/* Font Color Picker */}
-          <div className="relative">
+          <div className="relative group">
             <input
               type="color"
               value={(() => {
                 const color = editor.getAttributes('textStyle').color;
-                if (!color) return '#000000';
+                if (!color) {
+                  // Use theme-appropriate default color
+                  // In light mode: black, in dark mode: white
+                  return isDark ? '#ffffff' : '#000000';
+                }
                 // Convert RGB to hex if needed
                 return rgbToHex(color);
               })()}
               onChange={(e) => {
                 const color = e.target.value;
-                if (color === '#000000' || !color) {
+                // Get theme default colors
+                const defaultColor = isDark ? '#ffffff' : '#000000';
+                
+                if (color === defaultColor || !color) {
                   editor.chain().focus().unsetColor().run();
                 } else {
                   editor.chain().focus().setColor(color).run();
                 }
               }}
               disabled={disabled}
-              className="w-8 h-8 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1C252E] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-8 h-8 rounded border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1C252E] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary dark:hover:border-primary transition-colors"
+              style={{
+                // Ensure the color input shows the color properly in both themes
+                WebkitAppearance: 'none',
+                appearance: 'none',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                // Add a subtle shadow to make the color picker more visible
+                boxShadow: isDark 
+                  ? '0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 0 0 1px rgba(0, 0, 0, 0.2)' 
+                  : '0 0 0 1px rgba(0, 0, 0, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.2)',
+              }}
               title="Font Color"
             />
           </div>
