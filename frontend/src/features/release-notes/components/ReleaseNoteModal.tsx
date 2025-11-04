@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal } from '../../../components/common/Modal';
+import { RichTextEditor } from '../../../components/common/RichTextEditor';
 import { useCreateReleaseNote, useUpdateReleaseNote } from '../hooks/useReleaseNoteMutations';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import type { Service } from '../../../services/services';
@@ -154,19 +155,16 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
 
           {/* Release Note - Expands to fill remaining space */}
           <div className="flex-1 flex flex-col min-h-0 mt-4">
-            <label htmlFor="release-note" className="block text-sm font-medium text-gray-900 dark:text-white mb-1 flex-shrink-0">
-              Release Note *
-            </label>
-            <textarea
-              id="release-note"
-              {...form.register('note')}
-              className="flex-1 w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none min-h-0"
+            <RichTextEditor
+              value={form.watch('note') || ''}
+              onChange={(value) => form.setValue('note', value, { shouldDirty: true })}
+              label="Release Note *"
               placeholder="Enter release note description..."
+              error={form.formState.errors.note?.message}
               disabled={isLoading}
+              maxHeight="100%"
+              className="flex-1 flex flex-col min-h-0"
             />
-            {form.formState.errors.note && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400 flex-shrink-0">{form.formState.errors.note.message}</p>
-            )}
           </div>
         </div>
 
