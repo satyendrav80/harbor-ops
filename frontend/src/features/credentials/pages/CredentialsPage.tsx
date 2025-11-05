@@ -15,6 +15,9 @@ import { usePageTitle } from '../../../hooks/usePageTitle';
 import { getServers } from '../../../services/servers';
 import { getServices } from '../../../services/services';
 import { useQuery } from '@tanstack/react-query';
+import { getGroups } from '../../../services/groups';
+import { ItemGroups } from '../../../components/common/ItemGroups';
+import { ItemTags } from '../../../components/common/ItemTags';
 
 /**
  * Debounce hook to delay search input
@@ -70,6 +73,20 @@ export function CredentialsPage() {
     queryFn: () => getServices(1, 1000),
     enabled: !!serviceId,
   });
+
+  // Fetch all groups to get names (for matching with group IDs)
+  const { data: groupsData } = useQuery({
+    queryKey: ['groups', 'all'],
+    queryFn: () => getGroups({ limit: 1000 }),
+    enabled: hasPermission('groups:view'),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Create a map of group IDs to group names
+  const groupsMap = useMemo(() => {
+    if (!groupsData?.data) return new Map<number, string>();
+    return new Map(groupsData.data.map((g) => [g.id, g.name]));
+  }, [groupsData]);
 
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
@@ -433,6 +450,21 @@ export function CredentialsPage() {
                             </button>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Groups */}
+                    {hasPermission('groups:view') && (
+                      <div className="mt-4">
+                        <ItemGroups itemType="credential" itemId={credential.id} groupsMap={groupsMap} />
+                      </div>
+                    )}
+
+                    {/* Tags */}
+                    {/* Note: Tags will be shown when backend supports tags for credentials */}
+                    {credential.tags && credential.tags.length > 0 && (
+                      <div className="mt-4">
+                        <ItemTags tags={credential.tags} />
                       </div>
                     )}
 

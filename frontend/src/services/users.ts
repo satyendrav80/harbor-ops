@@ -14,6 +14,12 @@ export type UserWithRoles = {
       name: string;
     };
   }>;
+  tags?: Array<{
+    id: number;
+    name: string;
+    value?: string | null;
+    color?: string | null;
+  }>;
 };
 
 export type RoleWithPermissions = {
@@ -156,7 +162,7 @@ export async function removePermissionFromRole(roleId: string, permissionId: str
 /**
  * Create a new user
  */
-export async function createUser(data: { email: string; password: string; name?: string; username?: string }): Promise<UserWithRoles> {
+export async function createUser(data: { email: string; password: string; name?: string; username?: string; tagIds?: number[] }): Promise<UserWithRoles> {
   return apiFetch<UserWithRoles>('/users', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -166,7 +172,7 @@ export async function createUser(data: { email: string; password: string; name?:
 /**
  * Update a user
  */
-export async function updateUser(id: string, data: { email?: string; name?: string; username?: string; password?: string }): Promise<UserWithRoles> {
+export async function updateUser(id: string, data: { email?: string; name?: string; username?: string; password?: string; tagIds?: number[] }): Promise<UserWithRoles> {
   return apiFetch<UserWithRoles>(`/users/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),

@@ -115,11 +115,14 @@ router.get('/:id', requirePermission('groups:view'), async (req, res) => {
   
   if (!group) return res.status(404).json({ error: 'Group not found' });
   
-  // Fetch all servers and services for the items
-  const serverIds = group.items.filter((item) => item.itemType === 'server').map((item) => item.itemId);
-  const serviceIds = group.items.filter((item) => item.itemType === 'service').map((item) => item.itemId);
+  // Fetch all items by type (itemId is now stored as string in DB, convert to number for numeric IDs)
+  const serverIds = group.items.filter((item) => item.itemType === 'server').map((item) => Number(item.itemId));
+  const serviceIds = group.items.filter((item) => item.itemType === 'service').map((item) => Number(item.itemId));
+  const credentialIds = group.items.filter((item) => item.itemType === 'credential').map((item) => Number(item.itemId));
+  const domainIds = group.items.filter((item) => item.itemType === 'domain').map((item) => Number(item.itemId));
+  const userIds = group.items.filter((item) => item.itemType === 'user').map((item) => item.itemId);
   
-  const [servers, services] = await Promise.all([
+  const [servers, services, credentials, domains, users] = await Promise.all([
     serverIds.length > 0 ? prisma.server.findMany({
       where: { id: { in: serverIds }, deleted: false },
       select: {
@@ -148,13 +151,39 @@ router.get('/:id', requirePermission('groups:view'), async (req, res) => {
         },
       },
     }) : [],
+    credentialIds.length > 0 ? prisma.credential.findMany({
+      where: { id: { in: credentialIds }, deleted: false },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+      },
+    }) : [],
+    domainIds.length > 0 ? prisma.domain.findMany({
+      where: { id: { in: domainIds }, deleted: false },
+      select: {
+        id: true,
+        name: true,
+      },
+    }) : [],
+    userIds.length > 0 ? prisma.user.findMany({
+      where: { id: { in: userIds }, deleted: false },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+    }) : [],
   ]);
   
-  // Create lookup maps
-  const serverMap = new Map(servers.map((s) => [s.id, s]));
-  const serviceMap = new Map(services.map((s) => [s.id, s]));
+  // Create lookup maps (use string keys for itemId matching)
+  const serverMap = new Map(servers.map((s) => [s.id.toString(), s]));
+  const serviceMap = new Map(services.map((s) => [s.id.toString(), s]));
+  const credentialMap = new Map(credentials.map((c) => [c.id.toString(), c]));
+  const domainMap = new Map(domains.map((d) => [d.id.toString(), d]));
+  const userMap = new Map(users.map((u) => [u.id, u]));
   
-  // Transform items to include actual server/service data
+  // Transform items to include actual item data
   const transformedItems = group.items.map((item) => {
     if (item.itemType === 'server') {
       const server = serverMap.get(item.itemId);
@@ -172,6 +201,30 @@ router.get('/:id', requirePermission('groups:view'), async (req, res) => {
         itemId: item.itemId,
         service: service || null,
       };
+    } else if (item.itemType === 'credential') {
+      const credential = credentialMap.get(item.itemId);
+      return {
+        id: item.id,
+        itemType: item.itemType,
+        itemId: item.itemId,
+        credential: credential || null,
+      };
+    } else if (item.itemType === 'domain') {
+      const domain = domainMap.get(item.itemId);
+      return {
+        id: item.id,
+        itemType: item.itemType,
+        itemId: item.itemId,
+        domain: domain || null,
+      };
+    } else if (item.itemType === 'user') {
+      const user = userMap.get(item.itemId);
+      return {
+        id: item.id,
+        itemType: item.itemType,
+        itemId: item.itemId,
+        user: user || null,
+      };
     }
     return {
       id: item.id,
@@ -186,13 +239,26 @@ router.get('/:id', requirePermission('groups:view'), async (req, res) => {
   });
 });
 
-// Get groups containing a specific server or service
+// Get groups containing a specific server, service, credential, domain, or user
 router.get('/by-item/:itemType/:itemId', requirePermission('groups:view'), async (req, res) => {
   const itemType = req.params.itemType;
-  const itemId = Number(req.params.itemId);
+  const itemId = req.params.itemId;
   
-  if (!['server', 'service'].includes(itemType) || isNaN(itemId)) {
-    return res.status(400).json({ error: 'Invalid item type or ID' });
+  const validItemTypes = ['server', 'service', 'credential', 'domain', 'user'];
+  if (!validItemTypes.includes(itemType)) {
+    return res.status(400).json({ error: 'Invalid item type. Must be one of: server, service, credential, domain, user' });
+  }
+
+  // For user, itemId is a string; for others, convert to string (database stores as TEXT)
+  let parsedItemId: string;
+  if (itemType === 'user') {
+    parsedItemId = itemId; // User IDs are strings (CUIDs)
+  } else {
+    const numId = Number(itemId);
+    if (isNaN(numId)) {
+      return res.status(400).json({ error: 'Invalid item ID' });
+    }
+    parsedItemId = numId.toString(); // Convert to string for database
   }
 
   const groups = await prisma.group.findMany({
@@ -200,8 +266,8 @@ router.get('/by-item/:itemType/:itemId', requirePermission('groups:view'), async
       deleted: false, // Exclude deleted groups
       items: {
         some: {
-          itemType: itemType as 'server' | 'service',
-          itemId: itemId,
+          itemType: itemType as 'server' | 'service' | 'credential' | 'domain' | 'user',
+          itemId: parsedItemId,
         },
       },
     },
@@ -299,7 +365,7 @@ router.delete('/:id', requirePermission('groups:delete'), async (req: AuthReques
   }
 });
 
-// Add item to group (server or service)
+// Add item to group (server, service, credential, domain, or user)
 router.post('/:id/items', requirePermission('groups:update'), async (req, res) => {
   const groupId = Number(req.params.id);
   if (isNaN(groupId)) {
@@ -307,11 +373,27 @@ router.post('/:id/items', requirePermission('groups:update'), async (req, res) =
   }
   const { itemType, itemId } = req.body;
   
-  if (!itemType || !['server', 'service'].includes(itemType)) {
-    return res.status(400).json({ error: 'Invalid item type. Must be "server" or "service"' });
+  const validItemTypes = ['server', 'service', 'credential', 'domain', 'user'];
+  if (!itemType || !validItemTypes.includes(itemType)) {
+    return res.status(400).json({ error: 'Invalid item type. Must be one of: server, service, credential, domain, user' });
   }
-  if (!itemId || typeof itemId !== 'number' || isNaN(itemId)) {
-    return res.status(400).json({ error: 'Valid item ID is required' });
+
+  // For user, itemId is a string; for others, convert to string (database stores as TEXT)
+  let parsedItemId: string;
+  if (itemType === 'user') {
+    if (!itemId || typeof itemId !== 'string') {
+      return res.status(400).json({ error: 'Valid user ID (string) is required' });
+    }
+    parsedItemId = itemId;
+  } else {
+    if (!itemId || (typeof itemId !== 'number' && typeof itemId !== 'string')) {
+      return res.status(400).json({ error: 'Valid item ID is required' });
+    }
+    const numId = typeof itemId === 'number' ? itemId : Number(itemId);
+    if (isNaN(numId)) {
+      return res.status(400).json({ error: 'Valid item ID (number) is required' });
+    }
+    parsedItemId = numId.toString(); // Convert to string for database
   }
 
   // Check if group exists
@@ -320,16 +402,31 @@ router.post('/:id/items', requirePermission('groups:update'), async (req, res) =
     return res.status(404).json({ error: 'Group not found' });
   }
 
-  // Check if item exists
+  // Check if item exists (convert string ID to number for numeric IDs)
   if (itemType === 'server') {
-    const server = await prisma.server.findUnique({ where: { id: itemId } });
+    const server = await prisma.server.findUnique({ where: { id: Number(parsedItemId) } });
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
     }
-  } else {
-    const service = await prisma.service.findUnique({ where: { id: itemId } });
+  } else if (itemType === 'service') {
+    const service = await prisma.service.findUnique({ where: { id: Number(parsedItemId) } });
     if (!service) {
       return res.status(404).json({ error: 'Service not found' });
+    }
+  } else if (itemType === 'credential') {
+    const credential = await prisma.credential.findUnique({ where: { id: Number(parsedItemId) } });
+    if (!credential) {
+      return res.status(404).json({ error: 'Credential not found' });
+    }
+  } else if (itemType === 'domain') {
+    const domain = await prisma.domain.findUnique({ where: { id: Number(parsedItemId) } });
+    if (!domain) {
+      return res.status(404).json({ error: 'Domain not found' });
+    }
+  } else if (itemType === 'user') {
+    const user = await prisma.user.findUnique({ where: { id: parsedItemId } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
   }
 
@@ -337,8 +434,8 @@ router.post('/:id/items', requirePermission('groups:update'), async (req, res) =
   const existing = await prisma.groupItem.findFirst({
     where: {
       groupId,
-      itemType,
-      itemId,
+      itemType: itemType as 'server' | 'service' | 'credential' | 'domain' | 'user',
+      itemId: parsedItemId,
     },
   });
   if (existing) {
@@ -349,8 +446,8 @@ router.post('/:id/items', requirePermission('groups:update'), async (req, res) =
     const item = await prisma.groupItem.create({
       data: {
         groupId,
-        itemType,
-        itemId,
+        itemType: itemType as 'server' | 'service' | 'credential' | 'domain' | 'user',
+        itemId: parsedItemId,
       },
     });
 
@@ -363,7 +460,7 @@ router.post('/:id/items', requirePermission('groups:update'), async (req, res) =
 
     if (itemType === 'server') {
       const server = await prisma.server.findUnique({
-        where: { id: itemId },
+        where: { id: Number(parsedItemId) },
         select: {
           id: true,
           name: true,
@@ -377,7 +474,7 @@ router.post('/:id/items', requirePermission('groups:update'), async (req, res) =
       }
     } else if (itemType === 'service') {
       const service = await prisma.service.findUnique({
-        where: { id: itemId },
+        where: { id: Number(parsedItemId) },
         select: {
           id: true,
           name: true,
@@ -397,6 +494,41 @@ router.post('/:id/items', requirePermission('groups:update'), async (req, res) =
       if (service) {
         response.service = service;
       }
+    } else if (itemType === 'credential') {
+      const credential = await prisma.credential.findUnique({
+        where: { id: Number(parsedItemId) },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+        },
+      });
+      if (credential) {
+        response.credential = credential;
+      }
+    } else if (itemType === 'domain') {
+      const domain = await prisma.domain.findUnique({
+        where: { id: Number(parsedItemId) },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+      if (domain) {
+        response.domain = domain;
+      }
+    } else if (itemType === 'user') {
+      const user = await prisma.user.findUnique({
+        where: { id: parsedItemId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      });
+      if (user) {
+        response.user = user;
+      }
     }
 
     res.status(201).json(response);
@@ -408,10 +540,10 @@ router.post('/:id/items', requirePermission('groups:update'), async (req, res) =
 // Remove item from group
 router.delete('/:id/items/:itemId', requirePermission('groups:update'), async (req, res) => {
   const groupId = Number(req.params.id);
-  const itemId = Number(req.params.itemId);
+  const itemId = req.params.itemId; // itemId is now a string (stored as TEXT in DB)
   
-  if (isNaN(groupId) || isNaN(itemId)) {
-    return res.status(400).json({ error: 'Invalid group or item ID' });
+  if (isNaN(groupId)) {
+    return res.status(400).json({ error: 'Invalid group ID' });
   }
 
   try {

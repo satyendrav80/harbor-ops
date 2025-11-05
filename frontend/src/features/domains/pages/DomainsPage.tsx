@@ -10,6 +10,10 @@ import { Search, Plus, Edit, Trash2, Globe } from 'lucide-react';
 import type { Domain } from '../../../services/domains';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
+import { useQuery } from '@tanstack/react-query';
+import { getGroups } from '../../../services/groups';
+import { ItemGroups } from '../../../components/common/ItemGroups';
+import { ItemTags } from '../../../components/common/ItemTags';
 
 /**
  * Debounce hook to delay search input
@@ -44,6 +48,20 @@ export function DomainsPage() {
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   }, []);
+
+  // Fetch all groups to get names (for matching with group IDs)
+  const { data: groupsData } = useQuery({
+    queryKey: ['groups', 'all'],
+    queryFn: () => getGroups({ limit: 1000 }),
+    enabled: hasPermission('groups:view'),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Create a map of group IDs to group names
+  const groupsMap = useMemo(() => {
+    if (!groupsData?.data) return new Map<number, string>();
+    return new Map(groupsData.data.map((g) => [g.id, g.name]));
+  }, [groupsData]);
 
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
@@ -195,24 +213,40 @@ export function DomainsPage() {
               className="rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] p-4 hover:shadow-md transition-shadow"
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Globe className="w-5 h-5 text-gray-400" />
-                  <div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Globe className="w-5 h-5 text-gray-400" />
                     <h3 className="text-sm font-medium text-gray-900 dark:text-white">{domain.name}</h3>
-                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      <p>Created {new Date(domain.createdAt).toLocaleString()}</p>
-                      {domain.createdByUser && (
-                        <p className="text-gray-400 dark:text-gray-500">by {domain.createdByUser.name || domain.createdByUser.email}</p>
-                      )}
-                      {domain.updatedAt && (
-                        <>
-                          <p className="mt-1">Updated {new Date(domain.updatedAt).toLocaleString()}</p>
-                          {domain.updatedByUser && (
-                            <p className="text-gray-400 dark:text-gray-500">by {domain.updatedByUser.name || domain.updatedByUser.email}</p>
-                          )}
-                        </>
-                      )}
+                  </div>
+                  
+                  {/* Groups */}
+                  {hasPermission('groups:view') && (
+                    <div className="mt-2">
+                      <ItemGroups itemType="domain" itemId={domain.id} groupsMap={groupsMap} />
                     </div>
+                  )}
+
+                  {/* Tags */}
+                  {/* Note: Tags will be shown when backend supports tags for domains */}
+                  {domain.tags && domain.tags.length > 0 && (
+                    <div className="mt-2">
+                      <ItemTags tags={domain.tags} />
+                    </div>
+                  )}
+
+                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    <p>Created {new Date(domain.createdAt).toLocaleString()}</p>
+                    {domain.createdByUser && (
+                      <p className="text-gray-400 dark:text-gray-500">by {domain.createdByUser.name || domain.createdByUser.email}</p>
+                    )}
+                    {domain.updatedAt && (
+                      <>
+                        <p className="mt-1">Updated {new Date(domain.updatedAt).toLocaleString()}</p>
+                        {domain.updatedByUser && (
+                          <p className="text-gray-400 dark:text-gray-500">by {domain.updatedByUser.name || domain.updatedByUser.email}</p>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

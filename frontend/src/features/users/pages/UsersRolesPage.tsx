@@ -1,5 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { getGroups } from '../../../services/groups';
+import { ItemGroups } from '../../../components/common/ItemGroups';
+import { ItemTags } from '../../../components/common/ItemTags';
 import { useUsers } from '../hooks/useUsers';
 import { useRoles } from '../hooks/useRoles';
 import { usePermissions } from '../hooks/usePermissions';
@@ -89,6 +93,20 @@ export function UsersRolesPage() {
   const rejectUser = useRejectUser();
   const assignPermission = useAssignPermissionToRole();
   const removePermission = useRemovePermissionFromRole();
+
+  // Fetch all groups to get names (for matching with group IDs)
+  const { data: groupsData } = useQuery({
+    queryKey: ['groups', 'all'],
+    queryFn: () => getGroups({ limit: 1000 }),
+    enabled: hasPermission('groups:view'),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Create a map of group IDs to group names
+  const groupsMap = useMemo(() => {
+    if (!groupsData?.data) return new Map<number, string>();
+    return new Map(groupsData.data.map((g) => [g.id, g.name]));
+  }, [groupsData]);
 
   // Flatten paginated data
   const users = useMemo(() => {
@@ -368,6 +386,7 @@ export function UsersRolesPage() {
                       assigningRole={assigningRole}
                       selectedUser={selectedUser}
                       setSelectedUser={setSelectedUser}
+                      groupsMap={groupsMap}
                     />
                   ))}
                 </tbody>
@@ -540,6 +559,7 @@ type UserRowProps = {
   assigningRole: string | null;
   selectedUser: string | null;
   setSelectedUser: (userId: string | null) => void;
+  groupsMap: Map<number, string>;
 };
 
 function UserRow({ 
@@ -558,7 +578,8 @@ function UserRow({
   rejectingUser,
   assigningRole, 
   selectedUser, 
-  setSelectedUser 
+  setSelectedUser,
+  groupsMap 
 }: UserRowProps) {
   const { hasPermission } = useAuth();
   const userRoles = user.roles.map((ur) => ur.role.id);
@@ -621,26 +642,36 @@ function UserRow({
           {getStatusBadge()}
         </td>
         <td className="px-6 py-4">
-          <div className="flex flex-wrap gap-2">
-            {user.roles.length === 0 ? (
-              <span className="text-xs text-gray-400 dark:text-gray-500">No roles assigned</span>
-            ) : (
-              user.roles.map((ur) => (
-                <span
-                  key={ur.role.id}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-primary/10 dark:bg-primary/20 text-primary"
-                >
-                  {ur.role.name}
-                  <button
-                    onClick={() => onRemoveRole(user.id, ur.role.id)}
-                    disabled={assigningRole === `${user.id}-${ur.role.id}` || !hasPermission('roles:manage')}
-                    className="hover:text-red-500 focus:outline-none disabled:opacity-50"
-                    aria-label={`Remove ${ur.role.name} role`}
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {user.roles.length === 0 ? (
+                <span className="text-xs text-gray-400 dark:text-gray-500">No roles assigned</span>
+              ) : (
+                user.roles.map((ur) => (
+                  <span
+                    key={ur.role.id}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-primary/10 dark:bg-primary/20 text-primary"
                   >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))
+                    {ur.role.name}
+                    <button
+                      onClick={() => onRemoveRole(user.id, ur.role.id)}
+                      disabled={assigningRole === `${user.id}-${ur.role.id}` || !hasPermission('roles:manage')}
+                      className="hover:text-red-500 focus:outline-none disabled:opacity-50"
+                      aria-label={`Remove ${ur.role.name} role`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+            {/* Groups */}
+            {hasPermission('groups:view') && (
+              <ItemGroups itemType="user" itemId={user.id} groupsMap={groupsMap} />
+            )}
+            {/* Tags */}
+            {user.tags && user.tags.length > 0 && (
+              <ItemTags tags={user.tags} />
             )}
           </div>
         </td>
@@ -722,23 +753,40 @@ function UserRow({
       {isExpanded && (
         <tr>
           <td colSpan={4} className="px-6 py-4 bg-gray-50 dark:bg-[#151B24]">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Assign Role:</p>
-              {availableRoles.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">All roles are already assigned</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {availableRoles.map((role) => (
-                    <button
-                      key={role.id}
-                      onClick={() => onAssignRole(user.id, role.id)}
-                      disabled={assigningRole === `${user.id}-${role.id}`}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md bg-white dark:bg-[#1C252E] border border-gray-300 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#151B24] focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Plus className="w-4 h-4" />
-                      {role.name}
-                    </button>
-                  ))}
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assign Role:</p>
+                {availableRoles.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">All roles are already assigned</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {availableRoles.map((role) => (
+                      <button
+                        key={role.id}
+                        onClick={() => onAssignRole(user.id, role.id)}
+                        disabled={assigningRole === `${user.id}-${role.id}`}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md bg-white dark:bg-[#1C252E] border border-gray-300 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#151B24] focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {role.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Groups */}
+              {hasPermission('groups:view') && (
+                <div>
+                  <ItemGroups itemType="user" itemId={user.id} groupsMap={groupsMap} />
+                </div>
+              )}
+
+              {/* Tags */}
+              {/* Note: Tags will be shown when backend supports tags for users */}
+              {user.tags && user.tags.length > 0 && (
+                <div>
+                  <ItemTags tags={user.tags} />
                 </div>
               )}
             </div>

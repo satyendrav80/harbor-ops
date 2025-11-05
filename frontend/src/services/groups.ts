@@ -111,11 +111,11 @@ export async function deleteGroup(id: number): Promise<void> {
 }
 
 /**
- * Add item (server or service) to group
+ * Add item (server, service, credential, domain, or user) to group
  */
 export async function addItemToGroup(
   groupId: number,
-  data: { itemType: 'server' | 'service'; itemId: number }
+  data: { itemType: 'server' | 'service' | 'credential' | 'domain' | 'user'; itemId: number | string }
 ): Promise<GroupItem> {
   return apiFetch<GroupItem>(`/groups/${groupId}/items`, {
     method: 'POST',
@@ -126,16 +126,19 @@ export async function addItemToGroup(
 /**
  * Remove item from group
  */
-export async function removeItemFromGroup(groupId: number, itemId: number): Promise<void> {
+export async function removeItemFromGroup(groupId: number, itemId: number | string): Promise<void> {
   return apiFetch<void>(`/groups/${groupId}/items/${itemId}`, {
     method: 'DELETE',
   });
 }
 
 /**
- * Get groups containing a specific server or service
+ * Get groups containing a specific server, service, credential, domain, or user
  */
-export async function getGroupsByItem(itemType: 'server' | 'service', itemId: number): Promise<number[]> {
+export async function getGroupsByItem(
+  itemType: 'server' | 'service' | 'credential' | 'domain' | 'user',
+  itemId: number | string
+): Promise<number[]> {
   return apiFetch<number[]>(`/groups/by-item/${itemType}/${itemId}`);
 }
 

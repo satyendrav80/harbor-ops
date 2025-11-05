@@ -53,7 +53,7 @@ export function useDeleteGroup() {
 }
 
 /**
- * Hook for adding an item (server or service) to a group
+ * Hook for adding an item (server, service, credential, domain, or user) to a group
  */
 export function useAddItemToGroup() {
   const queryClient = useQueryClient();
@@ -61,12 +61,13 @@ export function useAddItemToGroup() {
   return useMutation<
     GroupItem,
     Error,
-    { groupId: number; itemType: 'server' | 'service'; itemId: number }
+    { groupId: number; itemType: 'server' | 'service' | 'credential' | 'domain' | 'user'; itemId: number | string }
   >({
     mutationFn: ({ groupId, itemType, itemId }) => addItemToGroup(groupId, { itemType, itemId }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['groups'] });
       queryClient.invalidateQueries({ queryKey: ['groups', variables.groupId] });
+      queryClient.invalidateQueries({ queryKey: ['groups', variables.itemType, variables.itemId] });
     },
   });
 }
@@ -77,7 +78,7 @@ export function useAddItemToGroup() {
 export function useRemoveItemFromGroup() {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, { groupId: number; itemId: number }>({
+  return useMutation<void, Error, { groupId: number; itemId: number | string }>({
     mutationFn: ({ groupId, itemId }) => removeItemFromGroup(groupId, itemId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['groups'] });

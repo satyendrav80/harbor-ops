@@ -42,6 +42,7 @@ model User {
   updatedMeta                Meta[]              @relation("MetaUpdatedBy")
   audits                     Audit[]             @relation("AuditUser")
   roles                      UserRole[]
+  tags                       UserTag[]
   deleted                    Boolean             @default(false) @map("deleted")
   deletedAt                  DateTime?           @map("deleted_at")
   deletedBy                  String?             @map("deleted_by")
@@ -121,6 +122,7 @@ model Credential {
   deletedByUser User?               @relation("CredentialDeletedBy", fields: [deletedBy], references: [id])
   services      ServiceCredential[]
   servers       ServerCredential[]
+  tags          CredentialTag[]
 
   @@index([deleted])
   @@map("credentials")
@@ -213,6 +215,9 @@ model Service {
 enum GroupItemType {
   server
   service
+  credential
+  domain
+  user
 }
 
 model Group {
@@ -239,7 +244,7 @@ model GroupItem {
   groupId  Int           @map("group_id")
   group    Group         @relation(fields: [groupId], references: [id])
   itemType GroupItemType @map("item_type")
-  itemId   Int           @map("item_id")
+  itemId   String        @map("item_id") // Changed to String to support both numeric IDs (as strings) and user IDs (CUIDs)
 
   @@map("group_items")
 }
@@ -261,6 +266,9 @@ model Tag {
   deletedByUser User?        @relation("TagDeletedBy", fields: [deletedBy], references: [id])
   services      ServiceTag[]
   servers       ServerTag[]
+  credentials   CredentialTag[]
+  domains       DomainTag[]
+  users         UserTag[]
 
   @@unique([name, value])
   @@index([deleted])
@@ -285,6 +293,36 @@ model ServerTag {
 
   @@id([serverId, tagId])
   @@map("server_tags")
+}
+
+model CredentialTag {
+  credentialId Int        @map("credential_id")
+  tagId        Int        @map("tag_id")
+  credential   Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  tag          Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([credentialId, tagId])
+  @@map("credential_tags")
+}
+
+model DomainTag {
+  domainId Int    @map("domain_id")
+  tagId    Int    @map("tag_id")
+  domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([domainId, tagId])
+  @@map("domain_tags")
+}
+
+model UserTag {
+  userId String @map("user_id")
+  tagId  Int    @map("tag_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tagId])
+  @@map("user_tags")
 }
 
 enum ReleaseStatus {
@@ -332,6 +370,7 @@ model Domain {
   deletedByUser User?           @relation("DomainDeletedBy", fields: [deletedBy], references: [id])
   servers       ServerDomain[]
   services      ServiceDomain[]
+  tags          DomainTag[]
 
   @@index([deleted])
   @@map("domains")

@@ -12,7 +12,7 @@ const router = Router();
 router.use(requireAuth);
 
 // Get all users with their roles
-router.get('/users', async (req, res) => {
+router.get('/users', async (req: AuthRequest, res) => {
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 20;
   const search = (req.query.search as string) || '';
@@ -53,6 +53,18 @@ router.get('/users', async (req, res) => {
             },
           },
         },
+        tags: {
+          include: {
+            tag: {
+              select: {
+                id: true,
+                name: true,
+                value: true,
+                color: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -63,8 +75,14 @@ router.get('/users', async (req, res) => {
     prisma.user.count({ where: { ...searchConditions, deleted: false } }),
   ]);
 
+  // Transform users to include tags as array
+  const processedUsers = users.map((user) => ({
+    ...user,
+    tags: user.tags.map((ut: any) => ut.tag),
+  }));
+
   res.json({
-    data: users,
+    data: processedUsers,
     pagination: {
       page,
       limit,
@@ -383,8 +401,8 @@ router.delete('/roles/:roleId/permissions/:permissionId', requirePermission('rol
 });
 
 // Create a new user
-router.post('/users', requirePermission('users:create'), async (req, res) => {
-  const { email, password, name, username } = req.body;
+router.post('/users', requirePermission('users:create'), async (req: AuthRequest, res) => {
+  const { email, password, name, username, tagIds } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
   
   // Check if email already exists
@@ -401,43 +419,72 @@ router.post('/users', requirePermission('users:create'), async (req, res) => {
   const finalUsername = username?.trim() || email;
   
   try {
-    const user = await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        name: name || null,
-        username: finalUsername,
-        status: 'approved', // Admin-created users are automatically approved
-      },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        name: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-        roles: {
-          include: {
-            role: {
-              select: {
-                id: true,
-                name: true,
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          email,
+          passwordHash,
+          name: name || null,
+          username: finalUsername,
+          status: 'approved', // Admin-created users are automatically approved
+        },
+      });
+
+      // Assign default role "regular" to newly created user
+      const regularRole = await tx.role.findUnique({ where: { name: 'regular', deleted: false } });
+      if (regularRole) {
+        await tx.userRole.upsert({
+          where: { userId_roleId: { userId: createdUser.id, roleId: regularRole.id } },
+          update: {},
+          create: { userId: createdUser.id, roleId: regularRole.id },
+        });
+      }
+
+      // Attach tags if provided
+      if (tagIds && Array.isArray(tagIds) && tagIds.length > 0) {
+        const tagData = tagIds.map((tagId: number) => ({
+          userId: createdUser.id,
+          tagId: Number(tagId),
+        }));
+        await tx.userTag.createMany({ data: tagData, skipDuplicates: true });
+      }
+
+      // Return user with roles and tags
+      return await tx.user.findUnique({
+        where: { id: createdUser.id },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          name: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          roles: {
+            include: {
+              role: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          tags: {
+            include: {
+              tag: {
+                select: {
+                  id: true,
+                  name: true,
+                  value: true,
+                  color: true,
+                },
               },
             },
           },
         },
-      },
-    });
-    // Assign default role "regular" to newly created user
-    const regularRole = await prisma.role.findUnique({ where: { name: 'regular', deleted: false } });
-    if (regularRole) {
-      await prisma.userRole.upsert({
-        where: { userId_roleId: { userId: user.id, roleId: regularRole.id } },
-        update: {},
-        create: { userId: user.id, roleId: regularRole.id },
       });
-    }
+    });
     
     // Log audit
     const requestMetadata = getRequestMetadata(req);
@@ -462,7 +509,7 @@ router.post('/users', requirePermission('users:create'), async (req, res) => {
 // Update a user
 router.put('/users/:id', requirePermission('users:update'), async (req: AuthRequest, res) => {
   const { id } = req.params;
-  const { email, name, username, password } = req.body;
+  const { email, name, username, password, tagIds } = req.body;
   
   // Check if user exists
   const existingUser = await prisma.user.findUnique({ where: { id, deleted: false } });
@@ -492,28 +539,62 @@ router.put('/users/:id', requirePermission('users:update'), async (req: AuthRequ
   if (password) updateData.passwordHash = await bcrypt.hash(password, 10);
   
   try {
-    const user = await prisma.user.update({
-      where: { id },
-      data: updateData,
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        name: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-        roles: {
-          include: {
-            role: {
-              select: {
-                id: true,
-                name: true,
+    const user = await prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { id },
+        data: updateData,
+      });
+
+      // Update tags if provided
+      if (tagIds !== undefined) {
+        // Remove all existing tags
+        await tx.userTag.deleteMany({ where: { userId: id } });
+        
+        // Add new tags if provided
+        if (Array.isArray(tagIds) && tagIds.length > 0) {
+          const tagData = tagIds.map((tagId: number) => ({
+            userId: id,
+            tagId: Number(tagId),
+          }));
+          await tx.userTag.createMany({ data: tagData, skipDuplicates: true });
+        }
+      }
+
+      // Return user with roles and tags
+      return await tx.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          name: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          roles: {
+            include: {
+              role: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          tags: {
+            include: {
+              tag: {
+                select: {
+                  id: true,
+                  name: true,
+                  value: true,
+                  color: true,
+                },
               },
             },
           },
         },
-      },
+      });
     });
     
     // Log audit

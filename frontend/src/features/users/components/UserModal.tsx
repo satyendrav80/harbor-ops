@@ -2,9 +2,15 @@ import { useState, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
 import { Modal } from '../../../components/common/Modal';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { useCreateUser, useUpdateUser, useDeleteUser } from '../hooks/useUserMutations';
+import { useAddItemToGroup, useRemoveItemFromGroup } from '../../groups/hooks/useGroupMutations';
+import { getGroups, getGroupsByItem } from '../../../services/groups';
+import { getTags } from '../../../services/tags';
+import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
+import { useAuth } from '../../../features/auth/context/AuthContext';
 import { Eye, EyeOff, Trash2 } from 'lucide-react';
 import type { UserWithRoles } from '../../../services/users';
 
@@ -28,6 +34,8 @@ const userSchema = z.object({
       }
     )
     .optional(),
+  tagIds: z.array(z.number()).optional(),
+  groupIds: z.array(z.number()).optional(),
 });
 
 type UserFormValues = z.infer<typeof userSchema>;
@@ -44,10 +52,42 @@ export function UserModal({ isOpen, onClose, user, onDelete }: UserModalProps) {
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
+  const addItemToGroup = useAddItemToGroup();
+  const removeItemFromGroup = useRemoveItemFromGroup();
+  const { hasPermission } = useAuth();
 
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  // Fetch groups for multi-select
+  const { data: groupsData } = useQuery({
+    queryKey: ['groups', 'all'],
+    queryFn: () => getGroups({ limit: 1000 }),
+    staleTime: 5 * 60 * 1000,
+    enabled: isOpen && hasPermission('groups:view'),
+  });
+
+  // Fetch existing groups for this user (if editing)
+  const { data: existingGroupsData } = useQuery({
+    queryKey: ['groups', 'user', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      return getGroupsByItem('user', user.id);
+    },
+    enabled: isOpen && isEditing && !!user?.id && hasPermission('groups:view'),
+  });
+
+  // Fetch tags for multi-select
+  const { data: tagsData } = useQuery({
+    queryKey: ['tags', 'all'],
+    queryFn: async () => {
+      const response = await getTags(1, 1000);
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: isOpen && hasPermission('tags:view'),
+  });
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
@@ -56,6 +96,8 @@ export function UserModal({ isOpen, onClose, user, onDelete }: UserModalProps) {
       password: '',
       name: user?.name || '',
       username: user?.username || '',
+      tagIds: user?.tags?.map((t) => t.id) || [],
+      groupIds: [],
     },
   });
 
@@ -69,6 +111,8 @@ export function UserModal({ isOpen, onClose, user, onDelete }: UserModalProps) {
         password: '',
         name: user.name || '',
         username: user.username || '',
+        tagIds: user.tags?.map((t) => t.id) || [],
+        groupIds: existingGroupsData || [],
       });
     } else {
       form.reset({
@@ -76,20 +120,25 @@ export function UserModal({ isOpen, onClose, user, onDelete }: UserModalProps) {
         password: '',
         name: '',
         username: '',
+        tagIds: [],
+        groupIds: [],
       });
     }
     setShowPassword(false);
     setError(null);
     setDeleteConfirmOpen(false);
-  }, [isOpen, user, form]);
+  }, [isOpen, user, form, existingGroupsData]);
 
   const onSubmit = async (values: UserFormValues) => {
     setError(null);
     try {
+      let createdOrUpdatedUser: UserWithRoles;
+
       if (isEditing) {
         const updateData: any = {
           email: values.email,
           name: values.name || undefined,
+          tagIds: values.tagIds || [],
         };
         if (values.username !== undefined) {
           updateData.username = values.username.trim() || values.email;
@@ -97,19 +146,50 @@ export function UserModal({ isOpen, onClose, user, onDelete }: UserModalProps) {
         if (values.password && values.password.length >= 8) {
           updateData.password = values.password;
         }
-        await updateUser.mutateAsync({ id: user!.id, data: updateData });
+        createdOrUpdatedUser = await updateUser.mutateAsync({ id: user!.id, data: updateData });
       } else {
         // Enforce password requirement on creation
         if (!values.password || values.password.length < 8) {
           setError('Password must be at least 8 characters');
           return;
         }
-        await createUser.mutateAsync({
+        createdOrUpdatedUser = await createUser.mutateAsync({
           email: values.email,
           password: values.password,
           name: values.name,
           username: values.username,
+          tagIds: values.tagIds || [],
         });
+      }
+
+      // Update groups membership
+      if (hasPermission('groups:update')) {
+        const existingGroupIds = existingGroupsData || [];
+        const newGroupIds = values.groupIds || [];
+        
+        // Groups to add (in new list but not in existing)
+        const groupsToAdd = newGroupIds.filter((id) => !existingGroupIds.includes(id));
+        
+        // Groups to remove (in existing but not in new list)
+        const groupsToRemove = existingGroupIds.filter((id) => !newGroupIds.includes(id));
+        
+        // Add to new groups
+        await Promise.all(
+          groupsToAdd.map((groupId) =>
+            addItemToGroup.mutateAsync({
+              groupId,
+              itemType: 'user',
+              itemId: createdOrUpdatedUser.id,
+            })
+          )
+        );
+        
+        // Remove from groups
+        await Promise.all(
+          groupsToRemove.map((groupId) =>
+            removeItemFromGroup.mutateAsync({ groupId, itemId: createdOrUpdatedUser.id })
+          )
+        );
       }
       
       // Reset form after successful submission (only for create, not update)
@@ -119,6 +199,8 @@ export function UserModal({ isOpen, onClose, user, onDelete }: UserModalProps) {
           password: '',
           name: '',
           username: '',
+          tagIds: [],
+          groupIds: [],
         });
         setShowPassword(false);
       }
@@ -140,6 +222,8 @@ export function UserModal({ isOpen, onClose, user, onDelete }: UserModalProps) {
       setError(err?.message || 'Failed to delete user');
     }
   };
+
+  const isLoading = createUser.isPending || updateUser.isPending || deleteUser.isPending || addItemToGroup.isPending || removeItemFromGroup.isPending;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit User' : 'Create User'}>
@@ -214,6 +298,38 @@ export function UserModal({ isOpen, onClose, user, onDelete }: UserModalProps) {
           </p>
         </div>
 
+        {hasPermission('tags:view') && tagsData && tagsData.length > 0 && (
+          <div>
+            <SearchableMultiSelect
+              options={tagsData.map((t) => ({ id: t.id, name: t.value ? `${t.name}:${t.value}` : t.name }))}
+              selectedIds={form.watch('tagIds') || []}
+              onChange={(selectedIds) => form.setValue('tagIds', selectedIds)}
+              placeholder="Search and select tags..."
+              label="Tags (Optional)"
+              disabled={isLoading}
+            />
+            {form.formState.errors.tagIds && (
+              <p className="mt-1 text-sm text-red-500">{form.formState.errors.tagIds?.message}</p>
+            )}
+          </div>
+        )}
+
+        {hasPermission('groups:update') && groupsData?.data && groupsData.data.length > 0 && (
+          <div>
+            <SearchableMultiSelect
+              options={groupsData.data.map((g) => ({ id: g.id, name: g.name }))}
+              selectedIds={form.watch('groupIds') || []}
+              onChange={(selectedIds) => form.setValue('groupIds', selectedIds)}
+              placeholder="Search and select groups..."
+              label="Groups"
+              disabled={isLoading}
+            />
+            {form.formState.errors.groupIds && (
+              <p className="mt-1 text-sm text-red-500">{form.formState.errors.groupIds?.message}</p>
+            )}
+          </div>
+        )}
+
         {/* Error Message */}
         {error && (
           <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
@@ -245,10 +361,10 @@ export function UserModal({ isOpen, onClose, user, onDelete }: UserModalProps) {
             </button>
             <button
               type="submit"
-              disabled={createUser.isPending || updateUser.isPending}
+              disabled={isLoading}
               className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {createUser.isPending || updateUser.isPending ? 'Saving...' : isEditing ? 'Update' : 'Create'}
+              {isLoading ? 'Saving...' : isEditing ? 'Update' : 'Create'}
             </button>
           </div>
         </div>

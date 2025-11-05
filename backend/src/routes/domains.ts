@@ -30,6 +30,7 @@ router.get('/', requirePermission('domains:view'), async (req, res) => {
         deleted: false, // Exclude deleted records
       },
       include: {
+        tags: { include: { tag: { select: { id: true, name: true, value: true, color: true } } } },
         createdByUser: { select: { id: true, name: true, email: true } },
         updatedByUser: { select: { id: true, name: true, email: true } },
       },
@@ -40,8 +41,14 @@ router.get('/', requirePermission('domains:view'), async (req, res) => {
     prisma.domain.count({ where: { ...searchConditions, deleted: false } }),
   ]);
 
+  // Transform items to include tags as array
+  const processedItems = items.map((item) => ({
+    ...item,
+    tags: item.tags.map((dt: any) => dt.tag),
+  }));
+
   res.json({
-    data: items,
+    data: processedItems,
     pagination: {
       page,
       limit,
@@ -53,18 +60,40 @@ router.get('/', requirePermission('domains:view'), async (req, res) => {
 
 // Create a new domain
 router.post('/', requirePermission('domains:create'), async (req: AuthRequest, res) => {
-  const { name } = req.body;
+  const { name, tagIds } = req.body;
   
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'Domain name is required' });
   }
   
   try {
-    const created = await prisma.domain.create({ 
-      data: { 
-        name: name.trim(),
-        createdBy: req.user?.id || null,
-      } 
+    const created = await prisma.$transaction(async (tx) => {
+      const domain = await tx.domain.create({ 
+        data: { 
+          name: name.trim(),
+          createdBy: req.user?.id || null,
+        } 
+      });
+
+      // Attach tags if provided
+      if (tagIds && Array.isArray(tagIds) && tagIds.length > 0) {
+        const tagData = tagIds.map((tagId: number) => ({
+          domainId: domain.id,
+          tagId: Number(tagId),
+        }));
+        await tx.domainTag.createMany({ data: tagData, skipDuplicates: true });
+      }
+
+      // Return domain with tags
+      const tags = await tx.domainTag.findMany({
+        where: { domainId: domain.id },
+        include: { tag: true },
+      });
+
+      return {
+        ...domain,
+        tags: tags.map((dt) => dt.tag),
+      };
     });
     
     // Log audit
@@ -108,19 +137,47 @@ router.put('/:id', requirePermission('domains:update'), async (req: AuthRequest,
   if (!domain) return res.status(404).json({ error: 'Domain not found' });
   
   const oldDomain = { ...domain };
-  const { name } = req.body;
+  const { name, tagIds } = req.body;
   
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'Domain name is required' });
   }
   
   try {
-    const updated = await prisma.domain.update({ 
-      where: { id }, 
-      data: { 
-        name: name.trim(),
-        updatedBy: req.user?.id || null,
-      } 
+    const updated = await prisma.$transaction(async (tx) => {
+      const domain = await tx.domain.update({ 
+        where: { id }, 
+        data: { 
+          name: name.trim(),
+          updatedBy: req.user?.id || null,
+        } 
+      });
+
+      // Update tags if provided
+      if (tagIds !== undefined) {
+        // Remove all existing tags
+        await tx.domainTag.deleteMany({ where: { domainId: id } });
+        
+        // Add new tags if provided
+        if (Array.isArray(tagIds) && tagIds.length > 0) {
+          const tagData = tagIds.map((tagId: number) => ({
+            domainId: id,
+            tagId: Number(tagId),
+          }));
+          await tx.domainTag.createMany({ data: tagData, skipDuplicates: true });
+        }
+      }
+
+      // Return domain with tags
+      const tags = await tx.domainTag.findMany({
+        where: { domainId: id },
+        include: { tag: true },
+      });
+
+      return {
+        ...domain,
+        tags: tags.map((dt) => dt.tag),
+      };
     });
     
     // Log audit

@@ -12,7 +12,12 @@ const router = Router();
 router.use(requireAuth);
 
 function mask(cred: any) {
-  return { ...cred, data: 'hidden' };
+  // Preserve tags when masking
+  return { 
+    ...cred, 
+    data: 'hidden',
+    tags: cred.tags || [],
+  };
 }
 
 // Helper to convert Meta records to data object (masked)
@@ -146,6 +151,7 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
       include: {
         servers: { include: { server: { select: { id: true, name: true, type: true } } } },
         services: { include: { service: { select: { id: true, name: true, port: true } } } },
+        tags: { include: { tag: { select: { id: true, name: true, value: true, color: true } } } },
         createdByUser: { select: { id: true, name: true, email: true } },
         updatedByUser: { select: { id: true, name: true, email: true } },
       },
@@ -178,12 +184,22 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
 
   // Check if user can view full credential data (has view permission)
   const hasFullView = await hasCredentialsViewPermission(req);
-  const processedItems = hasFullView 
-    ? items.map((item) => ({
-        ...item,
-        data: metaToMaskedData(metaByCredentialId[item.id] || []), // Mask all values
-      }))
-    : items.map(mask);
+  const processedItems = items.map((item) => {
+    const baseItem = hasFullView 
+      ? {
+          ...item,
+          data: metaToMaskedData(metaByCredentialId[item.id] || []), // Mask all values
+        }
+      : mask(item);
+    
+    // Transform tags from CredentialTag[] to Tag[]
+    const tags = item.tags ? item.tags.map((ct: any) => ct.tag) : [];
+    
+    return {
+      ...baseItem,
+      tags,
+    };
+  });
   
   res.json({
     data: processedItems,
@@ -197,14 +213,14 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
 });
 
 router.post('/', requirePermission('credentials:create'), async (req: AuthRequest, res) => {
-  const { name, type, data } = req.body;
+  const { name, type, data, tagIds } = req.body;
   
   // Validate data is provided
   if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
     return res.status(400).json({ error: 'Credential data is required. Please add at least one key-value pair.' });
   }
 
-  // Create credential with meta in a transaction
+  // Create credential with meta and tags in a transaction
   const created = await prisma.$transaction(async (tx) => {
     const credential = await tx.credential.create({
       data: { 
@@ -217,7 +233,16 @@ router.post('/', requirePermission('credentials:create'), async (req: AuthReques
     // Save meta records (with encrypted values)
     await saveCredentialMeta(credential.id, data, tx);
 
-    // Return credential with meta
+    // Attach tags if provided
+    if (tagIds && Array.isArray(tagIds) && tagIds.length > 0) {
+      const tagData = tagIds.map((tagId: number) => ({
+        credentialId: credential.id,
+        tagId: Number(tagId),
+      }));
+      await tx.credentialTag.createMany({ data: tagData, skipDuplicates: true });
+    }
+
+    // Return credential with meta and tags
     const metaRecords = await tx.meta.findMany({
       where: {
         resourceType: 'credential',
@@ -225,9 +250,15 @@ router.post('/', requirePermission('credentials:create'), async (req: AuthReques
       },
     });
 
+    const tags = await tx.credentialTag.findMany({
+      where: { credentialId: credential.id },
+      include: { tag: true },
+    });
+
     return {
       ...credential,
       data: metaToMaskedData(metaRecords),
+      tags: tags.map((ct) => ct.tag),
     };
   });
   
@@ -288,7 +319,7 @@ router.put('/:id', requirePermission('credentials:update'), async (req: AuthRequ
   }
   
   const oldCredential = { ...existingCredential };
-  const { name, type, data } = req.body;
+  const { name, type, data, tagIds } = req.body;
   
   // Update credential and meta in a transaction
   const updated = await prisma.$transaction(async (tx) => {
@@ -350,7 +381,22 @@ router.put('/:id', requirePermission('credentials:update'), async (req: AuthRequ
       // To delete keys, they would need to be explicitly passed as null/empty
     }
 
-    // Return credential with updated meta
+    // Update tags if provided
+    if (tagIds !== undefined) {
+      // Remove all existing tags
+      await tx.credentialTag.deleteMany({ where: { credentialId: id } });
+      
+      // Add new tags if provided
+      if (Array.isArray(tagIds) && tagIds.length > 0) {
+        const tagData = tagIds.map((tagId: number) => ({
+          credentialId: id,
+          tagId: Number(tagId),
+        }));
+        await tx.credentialTag.createMany({ data: tagData, skipDuplicates: true });
+      }
+    }
+
+    // Return credential with updated meta and tags
     const metaRecords = await tx.meta.findMany({
       where: {
         resourceType: 'credential',
@@ -358,9 +404,15 @@ router.put('/:id', requirePermission('credentials:update'), async (req: AuthRequ
       },
     });
 
+    const tags = await tx.credentialTag.findMany({
+      where: { credentialId: id },
+      include: { tag: true },
+    });
+
     return {
       ...credential,
       data: metaToMaskedData(metaRecords),
+      tags: tags.map((ct) => ct.tag),
     };
   });
   

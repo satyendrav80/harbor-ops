@@ -33,6 +33,12 @@ export type Credential = {
       port: number;
     };
   }>;
+  tags?: Array<{
+    id: number;
+    name: string;
+    value?: string | null;
+    color?: string | null;
+  }>;
 };
 
 export type CredentialsResponse = {
@@ -63,7 +69,7 @@ export async function getCredential(id: number): Promise<Credential> {
 /**
  * Create a new credential
  */
-export async function createCredential(data: Omit<Credential, 'id' | 'createdAt'>): Promise<Credential> {
+export async function createCredential(data: Omit<Credential, 'id' | 'createdAt'> & { tagIds?: number[] }): Promise<Credential> {
   return apiFetch<Credential>('/credentials', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -73,7 +79,7 @@ export async function createCredential(data: Omit<Credential, 'id' | 'createdAt'
 /**
  * Update a credential
  */
-export async function updateCredential(id: number, data: Partial<Omit<Credential, 'id' | 'createdAt'>>): Promise<Credential> {
+export async function updateCredential(id: number, data: Partial<Omit<Credential, 'id' | 'createdAt'>> & { tagIds?: number[] }): Promise<Credential> {
   return apiFetch<Credential>(`/credentials/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),

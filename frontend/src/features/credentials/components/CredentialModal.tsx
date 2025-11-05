@@ -2,9 +2,15 @@ import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
 import { Modal } from '../../../components/common/Modal';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { useCreateCredential, useUpdateCredential, useDeleteCredential } from '../hooks/useCredentialMutations';
+import { useAddItemToGroup, useRemoveItemFromGroup } from '../../groups/hooks/useGroupMutations';
+import { getGroups, getGroupsByItem } from '../../../services/groups';
+import { getTags } from '../../../services/tags';
+import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
+import { useAuth } from '../../../features/auth/context/AuthContext';
 import { Trash2 } from 'lucide-react';
 import type { Credential } from '../../../services/credentials';
 
@@ -19,6 +25,8 @@ const credentialSchema = z.object({
   name: z.string().min(1, 'Credential name is required').max(100, 'Credential name must be 100 characters or less'),
   type: z.string().min(1, 'Credential type is required').max(50, 'Credential type must be 50 characters or less'),
   data: z.record(z.any()).refine((data) => Object.keys(data).length > 0, 'Credential data is required'),
+  tagIds: z.array(z.number()).optional(),
+  groupIds: z.array(z.number()).optional(),
 });
 
 type CredentialFormValues = z.infer<typeof credentialSchema>;
@@ -28,11 +36,43 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
   const createCredential = useCreateCredential();
   const updateCredential = useUpdateCredential();
   const deleteCredential = useDeleteCredential();
+  const addItemToGroup = useAddItemToGroup();
+  const removeItemFromGroup = useRemoveItemFromGroup();
+  const { hasPermission } = useAuth();
   
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [dataKeys, setDataKeys] = useState<string[]>([]);
   const [dataValues, setDataValues] = useState<Record<string, string>>({});
+
+  // Fetch groups for multi-select
+  const { data: groupsData } = useQuery({
+    queryKey: ['groups', 'all'],
+    queryFn: () => getGroups({ limit: 1000 }),
+    staleTime: 5 * 60 * 1000,
+    enabled: isOpen && hasPermission('groups:view'),
+  });
+
+  // Fetch existing groups for this credential (if editing)
+  const { data: existingGroupsData } = useQuery({
+    queryKey: ['groups', 'credential', credential?.id],
+    queryFn: async () => {
+      if (!credential?.id) return [];
+      return getGroupsByItem('credential', credential.id);
+    },
+    enabled: isOpen && isEditing && !!credential?.id && hasPermission('groups:view'),
+  });
+
+  // Fetch tags for multi-select
+  const { data: tagsData } = useQuery({
+    queryKey: ['tags', 'all'],
+    queryFn: async () => {
+      const response = await getTags(1, 1000);
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: isOpen && hasPermission('tags:view'),
+  });
 
   const form = useForm<CredentialFormValues>({
     resolver: zodResolver(credentialSchema),
@@ -40,6 +80,8 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
       name: credential?.name || '',
       type: credential?.type || '',
       data: {},
+      tagIds: credential?.tags?.map((t) => t.id) || [],
+      groupIds: [],
     },
   });
 
@@ -52,6 +94,8 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
         name: credential.name,
         type: credential.type,
         data: {},
+        tagIds: credential.tags?.map((t) => t.id) || [],
+        groupIds: existingGroupsData || [],
       });
       
       // Parse credential data (it's masked, but we'll show keys for editing)
@@ -80,13 +124,15 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
         name: '',
         type: '',
         data: {},
+        tagIds: [],
+        groupIds: [],
       });
       setDataKeys([]);
       setDataValues({});
     }
     setError(null);
     setDeleteConfirmOpen(false);
-  }, [isOpen, credential, form, isEditing]);
+  }, [isOpen, credential, form, isEditing, existingGroupsData]);
 
   const addDataField = () => {
     const newKey = `key${dataKeys.length + 1}`;
@@ -155,22 +201,56 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
     
     try {
 
+      let createdOrUpdatedCredential: Credential;
+
       if (isEditing && credential) {
-        await updateCredential.mutateAsync({
+        createdOrUpdatedCredential = await updateCredential.mutateAsync({
           id: credential.id,
           data: {
             name: values.name,
             type: values.type,
             // Only send data if there are changes (allow partial updates)
             ...(Object.keys(dataObject).length > 0 ? { data: dataObject } : {}),
+            tagIds: values.tagIds || [],
           },
         });
       } else {
-        await createCredential.mutateAsync({
+        createdOrUpdatedCredential = await createCredential.mutateAsync({
           name: values.name,
           type: values.type,
           data: dataObject,
+          tagIds: values.tagIds || [],
         });
+      }
+
+      // Update groups membership
+      if (hasPermission('groups:update')) {
+        const existingGroupIds = existingGroupsData || [];
+        const newGroupIds = values.groupIds || [];
+        
+        // Groups to add (in new list but not in existing)
+        const groupsToAdd = newGroupIds.filter((id) => !existingGroupIds.includes(id));
+        
+        // Groups to remove (in existing but not in new list)
+        const groupsToRemove = existingGroupIds.filter((id) => !newGroupIds.includes(id));
+        
+        // Add to new groups
+        await Promise.all(
+          groupsToAdd.map((groupId) =>
+            addItemToGroup.mutateAsync({
+              groupId,
+              itemType: 'credential',
+              itemId: createdOrUpdatedCredential.id,
+            })
+          )
+        );
+        
+        // Remove from groups
+        await Promise.all(
+          groupsToRemove.map((groupId) =>
+            removeItemFromGroup.mutateAsync({ groupId, itemId: createdOrUpdatedCredential.id })
+          )
+        );
       }
 
       // Reset form after successful submission (only for create, not update)
@@ -179,6 +259,8 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
           name: '',
           type: '',
           data: {},
+          tagIds: [],
+          groupIds: [],
         });
         setDataKeys([]);
         setDataValues({});
@@ -202,7 +284,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
     }
   };
 
-  const isLoading = createCredential.isPending || updateCredential.isPending || deleteCredential.isPending;
+  const isLoading = createCredential.isPending || updateCredential.isPending || deleteCredential.isPending || addItemToGroup.isPending || removeItemFromGroup.isPending;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Credential' : 'Create Credential'} size="full">
@@ -311,6 +393,38 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
             <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.data.message}</p>
           )}
         </div>
+
+        {hasPermission('tags:view') && tagsData && tagsData.length > 0 && (
+          <div>
+            <SearchableMultiSelect
+              options={tagsData.map((t) => ({ id: t.id, name: t.value ? `${t.name}:${t.value}` : t.name }))}
+              selectedIds={form.watch('tagIds') || []}
+              onChange={(selectedIds) => form.setValue('tagIds', selectedIds)}
+              placeholder="Search and select tags..."
+              label="Tags (Optional)"
+              disabled={isLoading}
+            />
+            {form.formState.errors.tagIds && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.tagIds?.message}</p>
+            )}
+          </div>
+        )}
+
+        {hasPermission('groups:update') && groupsData?.data && groupsData.data.length > 0 && (
+          <div>
+            <SearchableMultiSelect
+              options={groupsData.data.map((g) => ({ id: g.id, name: g.name }))}
+              selectedIds={form.watch('groupIds') || []}
+              onChange={(selectedIds) => form.setValue('groupIds', selectedIds)}
+              placeholder="Search and select groups..."
+              label="Groups"
+              disabled={isLoading}
+            />
+            {form.formState.errors.groupIds && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.groupIds?.message}</p>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700/50">
           <div>

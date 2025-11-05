@@ -17,6 +17,12 @@ export type Domain = {
     name: string | null;
     email: string;
   } | null;
+  tags?: Array<{
+    id: number;
+    name: string;
+    value?: string | null;
+    color?: string | null;
+  }>;
 };
 
 export type DomainsResponse = {
@@ -50,7 +56,7 @@ export async function getDomain(id: number): Promise<Domain> {
 /**
  * Create a new domain
  */
-export async function createDomain(data: Omit<Domain, 'id' | 'createdAt' | 'updatedAt'>): Promise<Domain> {
+export async function createDomain(data: Omit<Domain, 'id' | 'createdAt' | 'updatedAt'> & { tagIds?: number[] }): Promise<Domain> {
   return apiFetch<Domain>('/domains', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -60,7 +66,7 @@ export async function createDomain(data: Omit<Domain, 'id' | 'createdAt' | 'upda
 /**
  * Update a domain
  */
-export async function updateDomain(id: number, data: Partial<Omit<Domain, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Domain> {
+export async function updateDomain(id: number, data: Partial<Omit<Domain, 'id' | 'createdAt' | 'updatedAt'>> & { tagIds?: number[] }): Promise<Domain> {
   return apiFetch<Domain>(`/domains/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),

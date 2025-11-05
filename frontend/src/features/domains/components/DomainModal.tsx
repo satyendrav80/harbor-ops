@@ -2,14 +2,22 @@ import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
 import { Modal } from '../../../components/common/Modal';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { useCreateDomain, useUpdateDomain, useDeleteDomain } from '../hooks/useDomainMutations';
+import { useAddItemToGroup, useRemoveItemFromGroup } from '../../groups/hooks/useGroupMutations';
+import { getGroups, getGroupsByItem } from '../../../services/groups';
+import { getTags } from '../../../services/tags';
+import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
+import { useAuth } from '../../../features/auth/context/AuthContext';
 import { Trash2 } from 'lucide-react';
 import type { Domain } from '../../../services/domains';
 
 const domainSchema = z.object({
   name: z.string().min(1, 'Domain name is required').max(255, 'Domain name must be 255 characters or less'),
+  tagIds: z.array(z.number()).optional(),
+  groupIds: z.array(z.number()).optional(),
 });
 
 type DomainFormValues = z.infer<typeof domainSchema>;
@@ -26,14 +34,48 @@ export function DomainModal({ isOpen, onClose, domain, onDelete }: DomainModalPr
   const createDomain = useCreateDomain();
   const updateDomain = useUpdateDomain();
   const deleteDomain = useDeleteDomain();
+  const addItemToGroup = useAddItemToGroup();
+  const removeItemFromGroup = useRemoveItemFromGroup();
+  const { hasPermission } = useAuth();
 
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  // Fetch groups for multi-select
+  const { data: groupsData } = useQuery({
+    queryKey: ['groups', 'all'],
+    queryFn: () => getGroups({ limit: 1000 }),
+    staleTime: 5 * 60 * 1000,
+    enabled: isOpen && hasPermission('groups:view'),
+  });
+
+  // Fetch existing groups for this domain (if editing)
+  const { data: existingGroupsData } = useQuery({
+    queryKey: ['groups', 'domain', domain?.id],
+    queryFn: async () => {
+      if (!domain?.id) return [];
+      return getGroupsByItem('domain', domain.id);
+    },
+    enabled: isOpen && isEditing && !!domain?.id && hasPermission('groups:view'),
+  });
+
+  // Fetch tags for multi-select
+  const { data: tagsData } = useQuery({
+    queryKey: ['tags', 'all'],
+    queryFn: async () => {
+      const response = await getTags(1, 1000);
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: isOpen && hasPermission('tags:view'),
+  });
 
   const form = useForm<DomainFormValues>({
     resolver: zodResolver(domainSchema),
     defaultValues: {
       name: domain?.name || '',
+      tagIds: domain?.tags?.map((t) => t.id) || [],
+      groupIds: [],
     },
   });
 
@@ -44,28 +86,73 @@ export function DomainModal({ isOpen, onClose, domain, onDelete }: DomainModalPr
     if (domain) {
       form.reset({
         name: domain.name,
+        tagIds: domain.tags?.map((t) => t.id) || [],
+        groupIds: existingGroupsData || [],
       });
     } else {
       form.reset({
         name: '',
+        tagIds: [],
+        groupIds: [],
       });
     }
     setError(null);
     setDeleteConfirmOpen(false);
-  }, [isOpen, domain, form]);
+  }, [isOpen, domain, form, existingGroupsData]);
 
   const onSubmit = async (values: DomainFormValues) => {
     setError(null);
     try {
+      let createdOrUpdatedDomain: Domain;
+
       if (isEditing && domain) {
-        await updateDomain.mutateAsync({ id: domain.id, data: { name: values.name } });
+        createdOrUpdatedDomain = await updateDomain.mutateAsync({ 
+          id: domain.id, 
+          data: { 
+            name: values.name,
+            tagIds: values.tagIds || [],
+          } 
+        });
       } else {
-        await createDomain.mutateAsync({ name: values.name });
+        createdOrUpdatedDomain = await createDomain.mutateAsync({ 
+          name: values.name,
+          tagIds: values.tagIds || [],
+        });
+      }
+
+      // Update groups membership
+      if (hasPermission('groups:update')) {
+        const existingGroupIds = existingGroupsData || [];
+        const newGroupIds = values.groupIds || [];
+        
+        // Groups to add (in new list but not in existing)
+        const groupsToAdd = newGroupIds.filter((id) => !existingGroupIds.includes(id));
+        
+        // Groups to remove (in existing but not in new list)
+        const groupsToRemove = existingGroupIds.filter((id) => !newGroupIds.includes(id));
+        
+        // Add to new groups
+        await Promise.all(
+          groupsToAdd.map((groupId) =>
+            addItemToGroup.mutateAsync({
+              groupId,
+              itemType: 'domain',
+              itemId: createdOrUpdatedDomain.id,
+            })
+          )
+        );
+        
+        // Remove from groups
+        await Promise.all(
+          groupsToRemove.map((groupId) =>
+            removeItemFromGroup.mutateAsync({ groupId, itemId: createdOrUpdatedDomain.id })
+          )
+        );
       }
       
       // Reset form after successful submission (only for create, not update)
       if (!isEditing) {
-        form.reset({ name: '' });
+        form.reset({ name: '', tagIds: [], groupIds: [] });
       }
       onClose();
     } catch (err: any) {
@@ -86,7 +173,7 @@ export function DomainModal({ isOpen, onClose, domain, onDelete }: DomainModalPr
     }
   };
 
-  const isLoading = createDomain.isPending || updateDomain.isPending || deleteDomain.isPending;
+  const isLoading = createDomain.isPending || updateDomain.isPending || deleteDomain.isPending || addItemToGroup.isPending || removeItemFromGroup.isPending;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Domain' : 'Create Domain'}>
@@ -109,6 +196,38 @@ export function DomainModal({ isOpen, onClose, domain, onDelete }: DomainModalPr
             <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.name.message}</p>
           )}
         </div>
+
+        {hasPermission('tags:view') && tagsData && tagsData.length > 0 && (
+          <div>
+            <SearchableMultiSelect
+              options={tagsData.map((t) => ({ id: t.id, name: t.value ? `${t.name}:${t.value}` : t.name }))}
+              selectedIds={form.watch('tagIds') || []}
+              onChange={(selectedIds) => form.setValue('tagIds', selectedIds)}
+              placeholder="Search and select tags..."
+              label="Tags (Optional)"
+              disabled={isLoading}
+            />
+            {form.formState.errors.tagIds && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.tagIds?.message}</p>
+            )}
+          </div>
+        )}
+
+        {hasPermission('groups:update') && groupsData?.data && groupsData.data.length > 0 && (
+          <div>
+            <SearchableMultiSelect
+              options={groupsData.data.map((g) => ({ id: g.id, name: g.name }))}
+              selectedIds={form.watch('groupIds') || []}
+              onChange={(selectedIds) => form.setValue('groupIds', selectedIds)}
+              placeholder="Search and select groups..."
+              label="Groups"
+              disabled={isLoading}
+            />
+            {form.formState.errors.groupIds && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.groupIds?.message}</p>
+            )}
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (
