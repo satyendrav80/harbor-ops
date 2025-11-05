@@ -12,6 +12,8 @@ export type Server = {
   sshPort?: number | null;
   username?: string | null;
   password?: string;
+  documentationUrl?: string | null;
+  documentation?: string | null;
   credentials?: Array<{
     credential: {
       id: number;

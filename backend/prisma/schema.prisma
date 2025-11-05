@@ -159,6 +159,8 @@ model Server {
   sshPort       Int?               @map("ssh_port")
   username      String?            @map("username")
   password      String?            @map("password")
+  documentationUrl String?         @map("documentation_url")
+  documentation   String?          @map("documentation") @db.Text
   createdAt     DateTime           @default(now()) @map("created_at")
   updatedAt     DateTime           @updatedAt @map("updated_at")
   createdBy     String?            @map("created_by")

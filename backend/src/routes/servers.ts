@@ -77,7 +77,7 @@ router.get('/', requirePermission('servers:view'), async (req, res) => {
 });
 
 router.post('/', requirePermission('servers:create'), async (req: AuthRequest, res) => {
-  const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds, domainIds, tagIds } = req.body;
+  const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds, domainIds, tagIds, documentationUrl, documentation } = req.body;
   const encryptedPassword = password ? encrypt(password) : null;
   
   const data: any = {
@@ -116,6 +116,10 @@ router.post('/', requirePermission('servers:create'), async (req: AuthRequest, r
   if (encryptedPassword) {
     data.password = encryptedPassword;
   }
+  
+  // Documentation fields (optional)
+  data.documentationUrl = documentationUrl || null;
+  data.documentation = documentation || null;
   
   // Set created_by from authenticated user
   if (req.user?.id) {
@@ -221,7 +225,7 @@ router.put('/:id', requirePermission('servers:update'), async (req: AuthRequest,
   
   const oldServer = { ...server };
   
-  const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds, domainIds, tagIds } = req.body;
+  const { name, type, publicIp, privateIp, endpoint, port, sshPort, username, password, credentialIds, domainIds, tagIds, documentationUrl, documentation } = req.body;
   
   const updateData: any = {
     name,
@@ -265,6 +269,14 @@ router.put('/:id', requirePermission('servers:update'), async (req: AuthRequest,
   // Only update password if provided
   if (password !== undefined && password !== null && password !== '') {
     updateData.password = encrypt(password);
+  }
+
+  // Documentation fields (optional)
+  if (documentationUrl !== undefined) {
+    updateData.documentationUrl = documentationUrl || null;
+  }
+  if (documentation !== undefined) {
+    updateData.documentation = documentation || null;
   }
 
   // Set updated_by from authenticated user

@@ -17,6 +17,7 @@ import { useAuth } from '../../auth/context/AuthContext';
 import { getCredentials } from '../../../services/credentials';
 import { getDomains, getDomainsByItem } from '../../../services/domains';
 import { getTags } from '../../../services/tags';
+import { RichTextEditor } from '../../../components/common/RichTextEditor';
 
 type ServerModalProps = {
   isOpen: boolean;
@@ -111,6 +112,10 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
       domainIds: z.array(z.number()).optional(),
       tagIds: z.array(z.number()).optional(),
       groupIds: z.array(z.number()).optional(),
+      documentationUrl: z.string().optional().refine((val) => !val || val === '' || z.string().url().safeParse(val).success, {
+        message: 'Invalid URL',
+      }),
+      documentation: z.string().optional().nullable(),
     }).refine((data) => {
       // OS and EC2: require IP fields and SSH port
       if (data.type === 'os' || data.type === 'ec2') {
@@ -158,6 +163,8 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
       domainIds: [],
       tagIds: server?.tags?.map((st) => st.tag.id) || [],
       groupIds: [],
+      documentationUrl: server?.documentationUrl || '',
+      documentation: server?.documentation || '',
     },
   });
 
@@ -181,6 +188,8 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         domainIds: existingDomainsData || [],
         tagIds: server.tags?.map((st) => st.tag.id) || [],
         groupIds: existingGroupsData || [],
+        documentationUrl: server.documentationUrl || '',
+        documentation: server.documentation || '',
       });
     } else {
       form.reset({
@@ -197,6 +206,8 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         domainIds: [],
         tagIds: [],
         groupIds: [],
+        documentationUrl: '',
+        documentation: '',
       });
     }
     setError(null);
@@ -220,6 +231,8 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         credentialIds: values.credentialIds || [],
         domainIds: values.domainIds || [],
         tagIds: values.tagIds || [],
+        documentationUrl: values.documentationUrl || null,
+        documentation: values.documentation || null,
       };
       
       // OS and EC2: IP fields + SSH port + optional username/password
@@ -298,6 +311,8 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
                 credentialIds: [],
                 domainIds: [],
                 groupIds: [],
+                documentationUrl: '',
+                documentation: '',
               });
       }
       onClose();
@@ -572,6 +587,45 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
                     )}
                   </div>
                 )}
+
+        {/* Documentation Section */}
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Documentation & Rules</h3>
+            
+            {/* External Documentation Link */}
+            <div className="mb-4">
+              <label className="flex flex-col">
+                <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">
+                  External Documentation Link (Optional)
+                </span>
+                <input
+                  className="form-input flex w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-10 px-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                  placeholder="https://docs.example.com/server-rules"
+                  type="url"
+                  autoComplete="off"
+                  {...form.register('documentationUrl')}
+                />
+              </label>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Provide a link to external documentation or rules for this server
+              </p>
+              {form.formState.errors.documentationUrl && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.documentationUrl.message}</p>
+              )}
+            </div>
+
+            {/* Inline Documentation Editor */}
+            <RichTextEditor
+              value={form.watch('documentation') || ''}
+              onChange={(value) => form.setValue('documentation', value, { shouldDirty: true })}
+              label="Inline Documentation (Optional)"
+              placeholder="Use the editor above to write documentation, rules, or guidelines directly"
+              error={form.formState.errors.documentation?.message}
+              maxHeight="400px"
+            />
+          </div>
+        </div>
 
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700/50">
           <div>
