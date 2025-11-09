@@ -16,7 +16,8 @@ import { EmptyState } from '../../../components/common/EmptyState';
 import { ReleaseNoteModal } from '../components/ReleaseNoteModal';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { BulkSelectionToolbar } from '../../../components/common/BulkSelectionToolbar';
-import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { ExpandableContent } from '../../../components/common/ExpandableContent';
+import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle } from 'lucide-react';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
@@ -127,7 +128,6 @@ const ReleaseNoteItem = memo(({
   onDeselect: (id: number) => void;
 }) => {
   const navigate = useNavigate();
-  const [isExpanded, setIsExpanded] = useState(false);
   
   // Strip HTML tags for preview
   const getPlainText = (html: string) => {
@@ -144,71 +144,106 @@ const ReleaseNoteItem = memo(({
     <div className={`bg-white dark:bg-[#1C252E] border rounded-xl p-6 ${
       isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 dark:border-gray-700/50'
     }`}>
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-3 flex-1">
-          <label className="flex items-center pt-1 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={(e) => {
-                if (e.target.checked) {
-                  onSelect(releaseNote.id);
-                } else {
-                  onDeselect(releaseNote.id);
-                }
-              }}
-              className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </label>
-          <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {preview}
-            </h3>
-            <span
-              className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
-                releaseNote.status === 'deployed'
-                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                  : releaseNote.status === 'deployment_started'
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                  : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-              }`}
-            >
-              {releaseNote.status === 'deployment_started' ? 'deployment started' : releaseNote.status}
-            </span>
+      <div className="flex items-start gap-4">
+        <label className="flex items-center pt-1 cursor-pointer flex-shrink-0">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => {
+              if (e.target.checked) {
+                onSelect(releaseNote.id);
+              } else {
+                onDeselect(releaseNote.id);
+              }
+            }}
+            className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </label>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start gap-3 mb-2 flex-wrap">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white break-words flex-1 min-w-0">
+                {preview}
+              </h3>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span
+                className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
+                  releaseNote.status === 'deployed'
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                    : releaseNote.status === 'deployment_started'
+                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                    : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                }`}
+              >
+                {releaseNote.status === 'deployment_started' ? 'deployment started' : releaseNote.status}
+              </span>
+              <div className="flex items-center gap-2">
+                {/* Edit button - only for pending notes, requires update permission */}
+                {hasPermission('release-notes:update') && releaseNote.status === 'pending' && (
+                  <button
+                    onClick={() => onEdit(releaseNote)}
+                    className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
+                    aria-label="Edit release note"
+                    title="Edit release note"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                )}
+                
+                {/* Delete button - only for pending notes, requires delete permission */}
+                {hasPermission('release-notes:delete') && releaseNote.status === 'pending' && (
+                  <button
+                    onClick={() => onDelete(releaseNote.id)}
+                    disabled={deletePending}
+                    className="text-gray-400 dark:text-gray-500 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 rounded p-1 disabled:opacity-50"
+                    aria-label="Delete release note"
+                    title="Delete release note"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+                
+                {/* Deployment Started button - only for pending notes, requires deploy permission */}
+                {hasPermission('release-notes:deploy') && releaseNote.status === 'pending' && (
+                  <button
+                    onClick={() => onMarkDeploymentStarted(releaseNote.id)}
+                    disabled={markDeploymentStartedPending}
+                    className="text-gray-400 dark:text-gray-500 hover:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 rounded p-1 disabled:opacity-50"
+                    aria-label="Mark deployment started"
+                    title="Mark deployment started"
+                  >
+                    <PlayCircle className="w-4 h-4" />
+                  </button>
+                )}
+                
+                {/* Mark as Deployed button - for pending or deployment_started notes, requires deploy permission */}
+                {hasPermission('release-notes:deploy') && (releaseNote.status === 'pending' || releaseNote.status === 'deployment_started') && (
+                  <button
+                    onClick={() => onMarkDeployed(releaseNote.id)}
+                    disabled={markDeployedPending}
+                    className="text-gray-400 dark:text-gray-500 hover:text-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 rounded p-1 disabled:opacity-50"
+                    aria-label="Mark as deployed"
+                    title="Mark as deployed"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
           <div className="mt-2">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-gray-500 dark:text-gray-400">Content</p>
-              <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-              >
-                {isExpanded ? (
-                  <>
-                    <ChevronUp className="w-4 h-4" />
-                    Collapse
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="w-4 h-4" />
-                    Expand
-                  </>
-                )}
-              </button>
-            </div>
-            {isExpanded ? (
+            <ExpandableContent
+              label="Content"
+              placeholder='Click "Expand" to view full content'
+            >
               <div
                 className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline whitespace-pre-wrap"
                 dangerouslySetInnerHTML={{ __html: releaseNote.note }}
               />
-            ) : (
-              <div className="text-sm text-gray-500 dark:text-gray-400 italic">
-                Click "Expand" to view full content
-              </div>
-            )}
+            </ExpandableContent>
           </div>
           {/* Service Link */}
           {releaseNote.service && (
@@ -253,59 +288,6 @@ const ReleaseNoteItem = memo(({
               </span>
             )}
           </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 ml-4">
-          {/* Edit button - only for pending notes, requires update permission */}
-          {hasPermission('release-notes:update') && releaseNote.status === 'pending' && (
-            <button
-              onClick={() => onEdit(releaseNote)}
-              className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
-              aria-label="Edit release note"
-              title="Edit release note"
-            >
-              <Edit className="w-4 h-4" />
-            </button>
-          )}
-          
-          {/* Delete button - only for pending notes, requires delete permission */}
-          {hasPermission('release-notes:delete') && releaseNote.status === 'pending' && (
-            <button
-              onClick={() => onDelete(releaseNote.id)}
-              disabled={deletePending}
-              className="text-gray-400 dark:text-gray-500 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 rounded p-1 disabled:opacity-50"
-              aria-label="Delete release note"
-              title="Delete release note"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
-          
-          {/* Deployment Started button - only for pending notes, requires deploy permission */}
-          {hasPermission('release-notes:deploy') && releaseNote.status === 'pending' && (
-            <button
-              onClick={() => onMarkDeploymentStarted(releaseNote.id)}
-              disabled={markDeploymentStartedPending}
-              className="text-gray-400 dark:text-gray-500 hover:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 rounded p-1 disabled:opacity-50"
-              aria-label="Mark deployment started"
-              title="Mark deployment started"
-            >
-              <PlayCircle className="w-4 h-4" />
-            </button>
-          )}
-          
-          {/* Mark as Deployed button - for pending or deployment_started notes, requires deploy permission */}
-          {hasPermission('release-notes:deploy') && (releaseNote.status === 'pending' || releaseNote.status === 'deployment_started') && (
-            <button
-              onClick={() => onMarkDeployed(releaseNote.id)}
-              disabled={markDeployedPending}
-              className="text-gray-400 dark:text-gray-500 hover:text-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 rounded p-1 disabled:opacity-50"
-              aria-label="Mark as deployed"
-              title="Mark as deployed"
-            >
-              <CheckCircle className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </div>
     </div>

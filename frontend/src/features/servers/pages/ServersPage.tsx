@@ -9,7 +9,8 @@ import { EmptyState } from '../../../components/common/EmptyState';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { ServerModal } from '../components/ServerModal';
 import { ServerGroups } from '../components/ServerGroups';
-import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Eye, EyeOff, Cloud, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Eye, EyeOff, Cloud } from 'lucide-react';
+import { ExpandableContent } from '../../../components/common/ExpandableContent';
 import { useQuery } from '@tanstack/react-query';
 import { getGroups } from '../../../services/groups';
 import type { Server } from '../../../services/servers';
@@ -476,37 +477,7 @@ export function ServersPage() {
                   {/* Documentation Section */}
                   {(server.documentationUrl || server.documentation) && (
                     <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Documentation & Rules</h4>
-                        {server.documentation && (
-                          <button
-                            onClick={() => {
-                              setExpandedDocumentation((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(server.id)) {
-                                  next.delete(server.id);
-                                } else {
-                                  next.add(server.id);
-                                }
-                                return next;
-                              });
-                            }}
-                            className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-                          >
-                            {expandedDocumentation.has(server.id) ? (
-                              <>
-                                <ChevronUp className="w-4 h-4" />
-                                Collapse
-                              </>
-                            ) : (
-                              <>
-                                <ChevronDown className="w-4 h-4" />
-                                Expand
-                              </>
-                            )}
-                          </button>
-                        )}
-                      </div>
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Documentation & Rules</h4>
                       
                       {server.documentationUrl && (
                         <div className="mb-3">
@@ -526,19 +497,29 @@ export function ServersPage() {
                       )}
 
                       {server.documentation && (
-                        <div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Inline Documentation</p>
-                          {expandedDocumentation.has(server.id) ? (
-                            <div
-                              className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline"
-                              dangerouslySetInnerHTML={{ __html: server.documentation }}
-                            />
-                          ) : (
-                            <div className="text-sm text-gray-500 dark:text-gray-400 italic">
-                              Click "Expand" to view documentation
-                            </div>
-                          )}
-                        </div>
+                        <ExpandableContent
+                          label="Inline Documentation"
+                          placeholder='Click "Expand" to view documentation'
+                          isExpanded={expandedDocumentation.has(server.id)}
+                          onToggle={(isExpanded) => {
+                            setExpandedDocumentation((prev) => {
+                              const next = new Set(prev);
+                              if (isExpanded) {
+                                next.add(server.id);
+                              } else {
+                                next.delete(server.id);
+                              }
+                              return next;
+                            });
+                          }}
+                          labelAs="p"
+                          labelClassName="text-xs text-gray-500 dark:text-gray-400"
+                        >
+                          <div
+                            className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline"
+                            dangerouslySetInnerHTML={{ __html: server.documentation }}
+                          />
+                        </ExpandableContent>
                       )}
                     </div>
                   )}
