@@ -21,8 +21,8 @@ export function useCreateReleaseNote() {
 export function useUpdateReleaseNote() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, note, publishDate }: { id: number; note?: string; publishDate?: string }) =>
-      updateReleaseNote(id, note, publishDate),
+    mutationFn: ({ id, note, publishDate, serviceId }: { id: number; note?: string; publishDate?: string; serviceId?: number }) =>
+      updateReleaseNote(id, note, publishDate, serviceId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['release-notes'] });
     },

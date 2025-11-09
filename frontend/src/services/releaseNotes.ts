@@ -75,10 +75,10 @@ export async function createReleaseNote(serviceId: number, note: string, publish
 /**
  * Update a release note (only if pending)
  */
-export async function updateReleaseNote(id: number, note?: string, publishDate?: string): Promise<ReleaseNote> {
+export async function updateReleaseNote(id: number, note?: string, publishDate?: string, serviceId?: number): Promise<ReleaseNote> {
   return apiFetch<ReleaseNote>(`/release-notes/${id}`, {
     method: 'PUT',
-    body: JSON.stringify({ note, publishDate }),
+    body: JSON.stringify({ note, publishDate, serviceId }),
   });
 }
 

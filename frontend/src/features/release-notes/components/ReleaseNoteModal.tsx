@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal } from '../../../components/common/Modal';
 import { RichTextEditor } from '../../../components/common/RichTextEditor';
+import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
 import { useCreateReleaseNote, useUpdateReleaseNote } from '../hooks/useReleaseNoteMutations';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import type { Service } from '../../../services/services';
@@ -71,6 +72,7 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
           id: releaseNote.id,
           note: values.note,
           publishDate: values.publishDate,
+          serviceId: values.serviceId,
         });
       } else {
         await createReleaseNote.mutateAsync({
@@ -108,32 +110,29 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
               </div>
             )}
 
-            {/* Service Selection (only on create) */}
-            {!isEditing && (
-              <div>
-                <label htmlFor="service-id" className="block text-sm font-medium text-gray-900 dark:text-white mb-1">
-                  Service *
-                </label>
-                <select
-                  id="service-id"
-                  {...form.register('serviceId', { valueAsNumber: true })}
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  disabled={isLoading}
-                >
-                  <option value={0}>Select a service</option>
-                  {services.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name} (:{service.port})
-                    </option>
-                  ))}
-                </select>
-                {form.formState.errors.serviceId && (
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                    {form.formState.errors.serviceId.message}
-                  </p>
-                )}
-              </div>
-            )}
+            {/* Service Selection (shown for both create and edit) */}
+            <div>
+              <SearchableMultiSelect
+                options={services.map((service) => ({
+                  id: service.id,
+                  name: `${service.name} (:${service.port})`,
+                }))}
+                selectedIds={form.watch('serviceId') ? [form.watch('serviceId')] : []}
+                onChange={(selectedIds) => {
+                  // Only allow single selection - take the last selected item (most recently clicked)
+                  const serviceId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : 0;
+                  form.setValue('serviceId', serviceId, { shouldDirty: true });
+                }}
+                label="Service *"
+                placeholder="Search and select a service..."
+                disabled={isLoading}
+              />
+              {form.formState.errors.serviceId && (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {form.formState.errors.serviceId.message}
+                </p>
+              )}
+            </div>
 
             {/* Publish Date */}
             <div>

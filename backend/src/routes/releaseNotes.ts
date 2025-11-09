@@ -99,12 +99,13 @@ router.put('/:id', requirePermission('release-notes:update'), async (req: AuthRe
   if (existing.status !== ReleaseStatus.pending) {
     return res.status(400).json({ error: 'Can only edit pending release notes' });
   }
-  const { note, publishDate } = req.body as { note?: string; publishDate?: string };
+  const { note, publishDate, serviceId } = req.body as { note?: string; publishDate?: string; serviceId?: number };
   const updateData: any = {
     updatedBy: req.user?.id || null,
   };
   if (note !== undefined) updateData.note = note;
   if (publishDate !== undefined) updateData.publishDate = new Date(publishDate);
+  if (serviceId !== undefined) updateData.serviceId = Number(serviceId);
   const updated = await prisma.releaseNote.update({ where: { id }, data: updateData });
   res.json(updated);
 });
