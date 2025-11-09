@@ -59,3 +59,51 @@ export function useDeleteReleaseNote() {
   });
 }
 
+/**
+ * Bulk delete release notes
+ */
+export function useBulkDeleteReleaseNotes() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: number[]) => {
+      // Execute all deletions in parallel
+      await Promise.all(ids.map(id => deleteReleaseNote(id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['release-notes'] });
+    },
+  });
+}
+
+/**
+ * Bulk mark release notes as deployment started
+ */
+export function useBulkMarkReleaseNotesDeploymentStarted() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: number[]) => {
+      // Execute all operations in parallel
+      await Promise.all(ids.map(id => markReleaseNoteDeploymentStarted(id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['release-notes'] });
+    },
+  });
+}
+
+/**
+ * Bulk mark release notes as deployed
+ */
+export function useBulkMarkReleaseNotesDeployed() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: number[]) => {
+      // Execute all operations in parallel
+      await Promise.all(ids.map(id => markReleaseNoteDeployed(id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['release-notes'] });
+    },
+  });
+}
+

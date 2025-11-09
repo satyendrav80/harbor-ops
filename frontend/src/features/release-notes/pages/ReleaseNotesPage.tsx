@@ -7,11 +7,15 @@ import {
   useMarkReleaseNoteDeployed,
   useMarkReleaseNoteDeploymentStarted,
   useDeleteReleaseNote,
+  useBulkDeleteReleaseNotes,
+  useBulkMarkReleaseNotesDeploymentStarted,
+  useBulkMarkReleaseNotesDeployed,
 } from '../hooks/useReleaseNoteMutations';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ReleaseNoteModal } from '../components/ReleaseNoteModal';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
+import { BulkSelectionToolbar } from '../../../components/common/BulkSelectionToolbar';
 import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
@@ -20,6 +24,7 @@ import { useDebounce } from '../../../hooks/useDebounce';
 import { useQuery } from '@tanstack/react-query';
 import { getServices } from '../../../services/services';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+
 
 // Memoized header component - doesn't re-render when data changes
 const ReleaseNotesHeader = memo(({
@@ -104,6 +109,9 @@ const ReleaseNoteItem = memo(({
   markDeployedPending,
   markDeploymentStartedPending,
   deletePending,
+  isSelected,
+  onSelect,
+  onDeselect,
 }: {
   releaseNote: ReleaseNote;
   onEdit: (releaseNote: ReleaseNote) => void;
@@ -114,6 +122,9 @@ const ReleaseNoteItem = memo(({
   markDeployedPending: boolean;
   markDeploymentStartedPending: boolean;
   deletePending: boolean;
+  isSelected: boolean;
+  onSelect: (id: number) => void;
+  onDeselect: (id: number) => void;
 }) => {
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -130,9 +141,27 @@ const ReleaseNoteItem = memo(({
   const preview = plainText.length > 100 ? `${plainText.substring(0, 100)}...` : plainText;
   
   return (
-    <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6">
+    <div className={`bg-white dark:bg-[#1C252E] border rounded-xl p-6 ${
+      isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 dark:border-gray-700/50'
+    }`}>
       <div className="flex items-start justify-between">
-        <div className="flex-1">
+        <div className="flex items-start gap-3 flex-1">
+          <label className="flex items-center pt-1 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  onSelect(releaseNote.id);
+                } else {
+                  onDeselect(releaseNote.id);
+                }
+              }}
+              className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </label>
+          <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
             <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -224,6 +253,7 @@ const ReleaseNoteItem = memo(({
               </span>
             )}
           </div>
+          </div>
         </div>
         <div className="flex items-center gap-2 ml-4">
           {/* Edit button - only for pending notes, requires update permission */}
@@ -301,6 +331,7 @@ const ReleaseNoteItem = memo(({
   return (
     releaseNoteEqual &&
     serviceEqual &&
+    prevProps.isSelected === nextProps.isSelected &&
     prevProps.markDeployedPending === nextProps.markDeployedPending &&
     prevProps.markDeploymentStartedPending === nextProps.markDeploymentStartedPending &&
     prevProps.deletePending === nextProps.deletePending &&
@@ -308,7 +339,9 @@ const ReleaseNoteItem = memo(({
     prevProps.onEdit === nextProps.onEdit &&
     prevProps.onMarkDeployed === nextProps.onMarkDeployed &&
     prevProps.onMarkDeploymentStarted === nextProps.onMarkDeploymentStarted &&
-    prevProps.onDelete === nextProps.onDelete
+    prevProps.onDelete === nextProps.onDelete &&
+    prevProps.onSelect === nextProps.onSelect &&
+    prevProps.onDeselect === nextProps.onDeselect
   );
 });
 ReleaseNoteItem.displayName = 'ReleaseNoteItem';
@@ -326,6 +359,9 @@ const ReleaseNotesList = memo(({
   deletePending,
   observerTarget,
   isFetchingNextPage,
+  selectedIds,
+  onSelect,
+  onDeselect,
 }: {
   releaseNotes: ReleaseNote[];
   onEdit: (releaseNote: ReleaseNote) => void;
@@ -338,6 +374,9 @@ const ReleaseNotesList = memo(({
   deletePending: boolean;
   observerTarget: React.RefObject<HTMLDivElement>;
   isFetchingNextPage: boolean;
+  selectedIds: Set<number>;
+  onSelect: (id: number) => void;
+  onDeselect: (id: number) => void;
 }) => {
   return (
     <div className="space-y-4">
@@ -353,6 +392,9 @@ const ReleaseNotesList = memo(({
           markDeployedPending={markDeployedPending}
           markDeploymentStartedPending={markDeploymentStartedPending}
           deletePending={deletePending}
+          isSelected={selectedIds.has(releaseNote.id)}
+          onSelect={onSelect}
+          onDeselect={onDeselect}
         />
       ))}
       <div ref={observerTarget} className="h-4" />
@@ -376,8 +418,14 @@ const ReleaseNotesList = memo(({
     return false;
   }
   
+  // Check if selectedIds changed
+  const selectedIdsEqual = 
+    prevProps.selectedIds.size === nextProps.selectedIds.size &&
+    Array.from(prevProps.selectedIds).every(id => nextProps.selectedIds.has(id));
+  
   // Check other props
   return (
+    selectedIdsEqual &&
     prevProps.onEdit === nextProps.onEdit &&
     prevProps.onMarkDeployed === nextProps.onMarkDeployed &&
     prevProps.onMarkDeploymentStarted === nextProps.onMarkDeploymentStarted &&
@@ -386,7 +434,9 @@ const ReleaseNotesList = memo(({
     prevProps.markDeployedPending === nextProps.markDeployedPending &&
     prevProps.markDeploymentStartedPending === nextProps.markDeploymentStartedPending &&
     prevProps.deletePending === nextProps.deletePending &&
-    prevProps.isFetchingNextPage === nextProps.isFetchingNextPage
+    prevProps.isFetchingNextPage === nextProps.isFetchingNextPage &&
+    prevProps.onSelect === nextProps.onSelect &&
+    prevProps.onDeselect === nextProps.onDeselect
   );
 });
 ReleaseNotesList.displayName = 'ReleaseNotesList';
@@ -458,6 +508,13 @@ export function ReleaseNotesPage() {
   const markDeployed = useMarkReleaseNoteDeployed();
   const markDeploymentStarted = useMarkReleaseNoteDeploymentStarted();
   const deleteReleaseNote = useDeleteReleaseNote();
+  const bulkDeleteReleaseNotes = useBulkDeleteReleaseNotes();
+  const bulkMarkDeploymentStarted = useBulkMarkReleaseNotesDeploymentStarted();
+  const bulkMarkDeployed = useBulkMarkReleaseNotesDeployed();
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
 
   // Keep previous data during refetches to prevent flicker
   const previousDataRef = useRef<ReleaseNote[]>([]);
@@ -536,6 +593,93 @@ export function ReleaseNotesPage() {
     }
   }, [releaseNoteToDelete, deleteReleaseNote]);
 
+  // Selection handlers
+  const handleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) => new Set(prev).add(id));
+  }, []);
+
+  const handleDeselect = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedIds(new Set(releaseNotes.map((note) => note.id)));
+  }, [releaseNotes]);
+
+  const handleDeselectAll = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  // Clear selection when filters change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [debouncedSearch, statusFilter, serviceId]);
+
+  // Bulk action handlers
+  const handleBulkDelete = useCallback(() => {
+    setBulkDeleteConfirmOpen(true);
+  }, []);
+
+  const confirmBulkDelete = useCallback(async () => {
+    if (selectedIds.size > 0) {
+      try {
+        await bulkDeleteReleaseNotes.mutateAsync(Array.from(selectedIds));
+        setSelectedIds(new Set());
+        setBulkDeleteConfirmOpen(false);
+      } catch (err) {
+        // Error handled by global error handler
+      }
+    }
+  }, [selectedIds, bulkDeleteReleaseNotes]);
+
+  const handleBulkMarkDeploymentStarted = useCallback(async () => {
+    if (selectedIds.size > 0) {
+      try {
+        await bulkMarkDeploymentStarted.mutateAsync(Array.from(selectedIds));
+        setSelectedIds(new Set());
+      } catch (err) {
+        // Error handled by global error handler
+      }
+    }
+  }, [selectedIds, bulkMarkDeploymentStarted]);
+
+  const handleBulkMarkDeployed = useCallback(async () => {
+    if (selectedIds.size > 0) {
+      try {
+        await bulkMarkDeployed.mutateAsync(Array.from(selectedIds));
+        setSelectedIds(new Set());
+      } catch (err) {
+        // Error handled by global error handler
+      }
+    }
+  }, [selectedIds, bulkMarkDeployed]);
+
+  // Determine which bulk actions are available based on selected items
+  const selectedReleaseNotes = useMemo(() => {
+    return releaseNotes.filter((note) => selectedIds.has(note.id));
+  }, [releaseNotes, selectedIds]);
+
+  const canBulkDelete = useMemo(() => {
+    return selectedReleaseNotes.every((note) => note.status === 'pending');
+  }, [selectedReleaseNotes]);
+
+  const canBulkMarkDeploymentStarted = useMemo(() => {
+    return selectedReleaseNotes.every((note) => note.status === 'pending');
+  }, [selectedReleaseNotes]);
+
+  const canBulkMarkDeployed = useMemo(() => {
+    return selectedReleaseNotes.every(
+      (note) => note.status === 'pending' || note.status === 'deployment_started'
+    );
+  }, [selectedReleaseNotes]);
+
+  const isAllSelected = selectedIds.size > 0 && selectedIds.size === releaseNotes.length;
+  const isProcessing = bulkDeleteReleaseNotes.isPending || bulkMarkDeploymentStarted.isPending || bulkMarkDeployed.isPending;
+
   // Only show loading on initial load when there's truly no data
   // placeholderData keeps previous data during refetches, so we don't flicker
   if (releaseNotesLoading && releaseNotes.length === 0) {
@@ -569,6 +713,45 @@ export function ReleaseNotesPage() {
         onCreateClick={handleCreateReleaseNote}
         hasPermission={hasPermission}
       />
+
+      {/* Bulk Selection Toolbar - combines select all and bulk actions */}
+      {releaseNotes.length > 0 && (
+        <BulkSelectionToolbar
+          totalCount={releaseNotes.length}
+          selectedCount={selectedIds.size}
+          isAllSelected={isAllSelected}
+          onSelectAll={handleSelectAll}
+          onDeselectAll={handleDeselectAll}
+          onClearSelection={handleDeselectAll}
+          isProcessing={isProcessing}
+          actions={[
+            {
+              id: 'delete',
+              label: 'Delete',
+              icon: <Trash2 className="w-4 h-4" />,
+              onClick: handleBulkDelete,
+              variant: 'danger',
+              show: hasPermission('release-notes:delete') && canBulkDelete,
+            },
+            {
+              id: 'mark-deployment-started',
+              label: 'Mark Deployment Started',
+              icon: <PlayCircle className="w-4 h-4" />,
+              onClick: handleBulkMarkDeploymentStarted,
+              variant: 'primary',
+              show: hasPermission('release-notes:deploy') && canBulkMarkDeploymentStarted,
+            },
+            {
+              id: 'mark-deployed',
+              label: 'Mark Deployed',
+              icon: <CheckCircle className="w-4 h-4" />,
+              onClick: handleBulkMarkDeployed,
+              variant: 'success',
+              show: hasPermission('release-notes:deploy') && canBulkMarkDeployed,
+            },
+          ]}
+        />
+      )}
 
       {/* Release Notes List */}
       {releaseNotes.length === 0 ? (
@@ -604,6 +787,9 @@ export function ReleaseNotesPage() {
           deletePending={deleteReleaseNote.isPending}
           observerTarget={releaseNotesObserverTarget}
           isFetchingNextPage={isFetchingNextReleaseNotesPage}
+          selectedIds={selectedIds}
+          onSelect={handleSelect}
+          onDeselect={handleDeselect}
         />
       )}
 
@@ -630,6 +816,19 @@ export function ReleaseNotesPage() {
         cancelText="Cancel"
         variant="danger"
         isLoading={deleteReleaseNote.isPending}
+      />
+      <ConfirmationDialog
+        isOpen={bulkDeleteConfirmOpen}
+        onClose={() => {
+          setBulkDeleteConfirmOpen(false);
+        }}
+        onConfirm={confirmBulkDelete}
+        title="Delete Release Notes"
+        message={`Are you sure you want to delete ${selectedIds.size} release note${selectedIds.size === 1 ? '' : 's'}? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={bulkDeleteReleaseNotes.isPending}
       />
     </div>
   );
