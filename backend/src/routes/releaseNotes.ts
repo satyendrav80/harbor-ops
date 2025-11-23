@@ -1,11 +1,43 @@
 import { Router } from 'express';
 import { PrismaClient, ReleaseStatus } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
+import { list, getMetadata } from '../controllers/releaseNotesController';
 
 const prisma = new PrismaClient();
 const router = Router();
 
 router.use(requireAuth);
+
+/**
+ * GET /release-notes/filter-metadata
+ * Returns metadata about all filterable fields, relations, and supported operators
+ * This enables the UI to dynamically build filter interfaces
+ */
+router.get('/filter-metadata', getMetadata);
+
+/**
+ * POST /release-notes/list
+ * Advanced filtering endpoint with generic filter operators
+ * 
+ * Request body:
+ * {
+ *   filters?: Filter[],
+ *   search?: string,
+ *   page?: number,
+ *   limit?: number,
+ *   orderBy?: OrderByItem | OrderByItem[]
+ * }
+ * 
+ * Filter structure supports nested AND/OR/NOT conditions:
+ * {
+ *   condition: "and" | "or" | "not",
+ *   childs: [
+ *     { key: "status", type: "STRING", operator: "in", value: ["pending", "deployed"] },
+ *     { condition: "or", childs: [...] }
+ *   ]
+ * }
+ */
+router.post('/list', list);
 
 // GET /release-notes?status=pending&serviceId=123
 router.get('/', async (req, res) => {

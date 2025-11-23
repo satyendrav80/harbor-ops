@@ -30,7 +30,9 @@ export function SearchableMultiSelect({
 }: SearchableMultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -52,6 +54,13 @@ export function SearchableMultiSelect({
 
   const selectedOptions = options.filter((option) => selectedIds.includes(option.id));
 
+  // Reset highlighted index when search changes or dropdown opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      setHighlightedIndex(-1);
+    }
+  }, [searchQuery, isOpen]);
+
   const handleToggle = (optionId: number) => {
     if (disabled) return;
     const newSelectedIds = selectedIds.includes(optionId)
@@ -66,15 +75,73 @@ export function SearchableMultiSelect({
     onChange(selectedIds.filter((id) => id !== optionId));
   };
 
-  // Handle ESC key to close dropdown
+  // Handle keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && isOpen) {
+      if (event.key === 'Escape') {
         setIsOpen(false);
         setSearchQuery('');
+        setHighlightedIndex(-1);
         event.stopPropagation(); // Prevent modal from closing
+        return;
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setHighlightedIndex((prev) => {
+          const next = prev < filteredOptions.length - 1 ? prev + 1 : 0;
+          // Scroll into view
+          const optionElement = containerRef.current?.querySelector(
+            `[data-option-index="${next}"]`
+          ) as HTMLElement;
+          if (optionElement) {
+            optionElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }
+          return next;
+        });
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setHighlightedIndex((prev) => {
+          const next = prev > 0 ? prev - 1 : filteredOptions.length - 1;
+          // Scroll into view
+          const optionElement = containerRef.current?.querySelector(
+            `[data-option-index="${next}"]`
+          ) as HTMLElement;
+          if (optionElement) {
+            optionElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }
+          return next;
+        });
+        return;
+      }
+
+      if (event.key === 'Enter' && highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
+        event.preventDefault();
+        const option = filteredOptions[highlightedIndex];
+        if (option) {
+          const newSelectedIds = selectedIds.includes(option.id)
+            ? selectedIds.filter((id) => id !== option.id)
+            : [...selectedIds, option.id];
+          onChange(newSelectedIds);
+        }
+        return;
+      }
+
+      if (event.key === ' ' && highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
+        event.preventDefault();
+        const option = filteredOptions[highlightedIndex];
+        if (option) {
+          const newSelectedIds = selectedIds.includes(option.id)
+            ? selectedIds.filter((id) => id !== option.id)
+            : [...selectedIds, option.id];
+          onChange(newSelectedIds);
+        }
+        return;
       }
     }
 
@@ -82,7 +149,7 @@ export function SearchableMultiSelect({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, filteredOptions, highlightedIndex, selectedIds, onChange]);
 
   return (
     <div className={`relative ${className}`} ref={containerRef} data-dropdown-open={isOpen}>
@@ -98,21 +165,21 @@ export function SearchableMultiSelect({
         onClick={() => !disabled && setIsOpen(!isOpen)}
       >
         {/* Selected items display */}
-        <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+        <div className="flex flex-wrap gap-1 flex-1 min-w-0 overflow-y-auto max-h-20">
           {selectedOptions.length === 0 ? (
             <span className="text-sm text-gray-400 dark:text-gray-500 py-1">{placeholder}</span>
           ) : (
             selectedOptions.map((option) => (
               <span
                 key={option.id}
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-primary/10 text-primary rounded border border-primary/20"
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-primary/10 text-primary rounded border border-primary/20 flex-shrink-0"
               >
-                {option.name}
+                <span className="truncate max-w-[120px]">{option.name}</span>
                 {!disabled && (
                   <button
                     type="button"
                     onClick={(e) => handleRemove(option.id, e)}
-                    className="hover:text-primary/80 focus:outline-none"
+                    className="hover:text-primary/80 focus:outline-none flex-shrink-0"
                     aria-label={`Remove ${option.name}`}
                   >
                     <X className="w-3 h-3" />
@@ -149,6 +216,7 @@ export function SearchableMultiSelect({
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
               <input
+                ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -156,6 +224,13 @@ export function SearchableMultiSelect({
                 className="w-full pl-10 pr-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
                 autoFocus
                 onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  // Prevent default behavior for arrow keys in search input
+                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    // Focus will move to options via the document-level handler
+                  }
+                }}
               />
             </div>
           </div>
@@ -167,15 +242,22 @@ export function SearchableMultiSelect({
                 No options found
               </div>
             ) : (
-              filteredOptions.map((option) => {
+              filteredOptions.map((option, index) => {
                 const isSelected = selectedIds.includes(option.id);
+                const isHighlighted = highlightedIndex === index;
                 return (
                   <button
                     key={option.id}
                     type="button"
+                    data-option-index={index}
                     onClick={() => handleToggle(option.id)}
-                    className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-2 ${
-                      isSelected ? 'bg-primary/5 text-primary' : 'text-gray-900 dark:text-white'
+                    onMouseEnter={() => setHighlightedIndex(index)}
+                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                      isHighlighted
+                        ? 'bg-primary/10 text-primary'
+                        : isSelected
+                        ? 'bg-primary/5 text-primary hover:bg-primary/10'
+                        : 'text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-white/5'
                     }`}
                   >
                     <div className={`flex-shrink-0 w-4 h-4 border rounded flex items-center justify-center ${

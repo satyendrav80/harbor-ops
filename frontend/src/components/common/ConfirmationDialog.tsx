@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, ReactNode } from 'react';
 import { X, AlertTriangle, Trash2 } from 'lucide-react';
 
 type ConfirmationDialogProps = {
@@ -6,7 +6,7 @@ type ConfirmationDialogProps = {
   onClose: () => void;
   onConfirm: () => void;
   title?: string;
-  message: string;
+  message: string | ReactNode;
   confirmText?: string;
   cancelText?: string;
   variant?: 'danger' | 'warning' | 'info';
@@ -28,21 +28,24 @@ export function ConfirmationDialog({
   variant = 'danger',
   isLoading = false,
 }: ConfirmationDialogProps) {
-  // Handle ESC key
+  // Handle ESC key - use capture phase to handle ESC before parent modals/panels
   useEffect(() => {
     if (!isOpen) return;
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape' && !isLoading) {
         event.preventDefault();
-        event.stopPropagation();
+        event.stopPropagation(); // Stop propagation to prevent closing parent modals/panels
+        event.stopImmediatePropagation(); // Also stop immediate propagation
         onClose();
       }
     }
 
-    document.addEventListener('keydown', handleKeyDown);
+    // Use capture phase (true) to handle ESC before other components (like SidePanel)
+    // This ensures confirmation dialogs close first, then parent panels on second ESC
+    document.addEventListener('keydown', handleKeyDown, true);
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keydown', handleKeyDown, true);
     };
   }, [isOpen, isLoading, onClose]);
 
@@ -102,9 +105,15 @@ export function ConfirmationDialog({
                 {title}
               </h3>
             )}
-            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-              {message}
-            </p>
+            {typeof message === 'string' ? (
+              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                {message}
+              </p>
+            ) : (
+              <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                {message}
+              </div>
+            )}
           </div>
           <button
             onClick={onClose}

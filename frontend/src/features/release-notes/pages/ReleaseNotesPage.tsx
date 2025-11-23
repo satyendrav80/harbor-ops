@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useReleaseNotes } from '../hooks/useReleaseNotes';
+import { useReleaseNotesAdvanced } from '../hooks/useReleaseNotesAdvanced';
 import { 
   useCreateReleaseNote, 
   useUpdateReleaseNote, 
@@ -17,14 +18,19 @@ import { ReleaseNoteModal } from '../components/ReleaseNoteModal';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { BulkSelectionToolbar } from '../../../components/common/BulkSelectionToolbar';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
-import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle } from 'lucide-react';
+import { AdvancedFiltersPanel } from '../components/AdvancedFiltersPanel';
+import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle, Filter as FilterIcon } from 'lucide-react';
 import type { ReleaseNote } from '../../../services/releaseNotes';
+import { getReleaseNotesFilterMetadata } from '../../../services/releaseNotes';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { useQuery } from '@tanstack/react-query';
 import { getServices } from '../../../services/services';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import type { Filter } from '../types/filters';
+import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../utils/urlSync';
+import { hasActiveFilters } from '../utils/filterState';
 
 
 // Memoized header component - doesn't re-render when data changes
@@ -34,6 +40,8 @@ const ReleaseNotesHeader = memo(({
   statusFilter,
   onStatusFilterChange,
   onCreateClick,
+  onAdvancedFiltersClick,
+  hasActiveAdvancedFilters,
   hasPermission,
 }: {
   searchQuery: string;
@@ -41,6 +49,8 @@ const ReleaseNotesHeader = memo(({
   statusFilter: 'pending' | 'deployed' | 'deployment_started' | 'all';
   onStatusFilterChange: (value: 'pending' | 'deployed' | 'deployment_started' | 'all') => void;
   onCreateClick: () => void;
+  onAdvancedFiltersClick: () => void;
+  hasActiveAdvancedFilters: boolean;
   hasPermission: (permission: string) => boolean;
 }) => {
   return (
@@ -74,6 +84,23 @@ const ReleaseNotesHeader = memo(({
           <option value="deployment_started">Deployment Started</option>
           <option value="deployed">Deployed</option>
         </select>
+        {/* Advanced Filters Button */}
+        <button
+          onClick={onAdvancedFiltersClick}
+          className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+            hasActiveAdvancedFilters
+              ? 'bg-primary/10 border-primary text-primary dark:bg-primary/20'
+              : 'bg-white dark:bg-[#1C252E] border-gray-200 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+          }`}
+        >
+          <FilterIcon className="w-4 h-4" />
+          Filters
+          {hasActiveAdvancedFilters && (
+            <span className="ml-1 px-1.5 py-0.5 text-xs font-medium bg-primary text-white rounded-full">
+              Active
+            </span>
+          )}
+        </button>
         {hasPermission('release-notes:create') && (
           <button
             onClick={onCreateClick}
@@ -91,10 +118,12 @@ const ReleaseNotesHeader = memo(({
   return (
     prevProps.searchQuery === nextProps.searchQuery &&
     prevProps.statusFilter === nextProps.statusFilter &&
+    prevProps.hasActiveAdvancedFilters === nextProps.hasActiveAdvancedFilters &&
     prevProps.hasPermission === nextProps.hasPermission &&
     prevProps.onSearchChange === nextProps.onSearchChange &&
     prevProps.onStatusFilterChange === nextProps.onStatusFilterChange &&
-    prevProps.onCreateClick === nextProps.onCreateClick
+    prevProps.onCreateClick === nextProps.onCreateClick &&
+    prevProps.onAdvancedFiltersClick === nextProps.onAdvancedFiltersClick
   );
 });
 ReleaseNotesHeader.displayName = 'ReleaseNotesHeader';
@@ -434,24 +463,33 @@ export function ReleaseNotesPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   
-  // Read filters from URL params
-  const serviceIdParam = searchParams.get('serviceId');
-  const serviceId = serviceIdParam ? Number(serviceIdParam) : undefined;
+  // Initialize from URL params
+  const urlFilters = useMemo(() => deserializeFiltersFromUrl(searchParams), [searchParams]);
+  const [advancedFilters, setAdvancedFilters] = useState<Filter | undefined>(urlFilters.filters);
+  const [orderBy, setOrderBy] = useState(urlFilters.orderBy);
   
-  // Initialize status filter from URL params
+  // Initialize status filter from URL params (for backward compatibility)
   const initialStatusFilter = (searchParams.get('status') as 'pending' | 'deployed' | 'deployment_started' | 'all') || 'all';
   const [statusFilter, setStatusFilter] = useState<'pending' | 'deployed' | 'deployment_started' | 'all'>(initialStatusFilter);
   const [releaseNoteModalOpen, setReleaseNoteModalOpen] = useState(false);
   const [selectedReleaseNoteForEdit, setSelectedReleaseNoteForEdit] = useState<ReleaseNote | null>(null);
 
-  // Update status filter when URL params change
+  // Fetch filter metadata
+  const { data: filterMetadata } = useQuery({
+    queryKey: ['release-notes', 'filter-metadata'],
+    queryFn: () => getReleaseNotesFilterMetadata(),
+  });
+
+  // Update filters when URL changes
   useEffect(() => {
-    const statusParam = searchParams.get('status');
-    if (statusParam === 'pending' || statusParam === 'deployed' || statusParam === 'deployment_started') {
-      setStatusFilter(statusParam);
-    } else {
-      setStatusFilter('all');
+    const urlFilters = deserializeFiltersFromUrl(searchParams);
+    if (urlFilters.filters) {
+      setAdvancedFilters(urlFilters.filters);
+    }
+    if (urlFilters.orderBy) {
+      setOrderBy(urlFilters.orderBy);
     }
   }, [searchParams]);
 
@@ -469,7 +507,28 @@ export function ReleaseNotesPage() {
     queryFn: () => getServices(1, 1000),
   });
 
-  // Fetch release notes with infinite scroll
+  // Use advanced filtering if advanced filters are active, otherwise use legacy
+  const useAdvancedFiltering = hasActiveFilters(advancedFilters) || orderBy !== undefined;
+  
+  // Advanced filtering hook
+  const {
+    data: advancedReleaseNotesData,
+    isLoading: advancedReleaseNotesLoading,
+    isFetching: isFetchingAdvancedReleaseNotes,
+    error: advancedReleaseNotesError,
+    fetchNextPage: fetchNextAdvancedReleaseNotesPage,
+    hasNextPage: hasNextAdvancedReleaseNotesPage,
+    isFetchingNextPage: isFetchingNextAdvancedReleaseNotesPage,
+  } = useReleaseNotesAdvanced(
+    {
+      filters: advancedFilters,
+      search: debouncedSearch || undefined,
+      orderBy,
+    },
+    20
+  );
+
+  // Legacy filtering hook (for backward compatibility)
   const {
     data: releaseNotesData,
     isLoading: releaseNotesLoading,
@@ -482,8 +541,17 @@ export function ReleaseNotesPage() {
     debouncedSearch,
     statusFilter === 'all' ? undefined : statusFilter,
     20,
-    serviceId
+    undefined
   );
+
+  // Choose which data to use
+  const releaseNotesDataToUse = useAdvancedFiltering ? advancedReleaseNotesData : releaseNotesData;
+  const releaseNotesLoadingToUse = useAdvancedFiltering ? advancedReleaseNotesLoading : releaseNotesLoading;
+  const isFetchingReleaseNotesToUse = useAdvancedFiltering ? isFetchingAdvancedReleaseNotes : isFetchingReleaseNotes;
+  const releaseNotesErrorToUse = useAdvancedFiltering ? advancedReleaseNotesError : releaseNotesError;
+  const fetchNextReleaseNotesPageToUse = useAdvancedFiltering ? fetchNextAdvancedReleaseNotesPage : fetchNextReleaseNotesPage;
+  const hasNextReleaseNotesPageToUse = useAdvancedFiltering ? hasNextAdvancedReleaseNotesPage : hasNextReleaseNotesPage;
+  const isFetchingNextReleaseNotesPageToUse = useAdvancedFiltering ? isFetchingNextAdvancedReleaseNotesPage : isFetchingNextReleaseNotesPage;
 
   const createReleaseNote = useCreateReleaseNote();
   const updateReleaseNote = useUpdateReleaseNote();
@@ -504,32 +572,51 @@ export function ReleaseNotesPage() {
   // Flatten release notes from all pages
   // Use previous data if current data is undefined (during refetch)
   const releaseNotes = useMemo(() => {
-    if (!releaseNotesData?.pages) {
+    if (!releaseNotesDataToUse?.pages) {
       // During refetch, return previous data to prevent flicker
       return previousDataRef.current;
     }
-    const flattened = releaseNotesData.pages.flatMap((page) => page.data);
+    const flattened = releaseNotesDataToUse.pages.flatMap((page) => page.data);
     // Update ref with new data
     previousDataRef.current = flattened;
     return flattened;
-  }, [releaseNotesData]);
+  }, [releaseNotesDataToUse]);
 
   // Infinite scroll observer
   const releaseNotesObserverTarget = useInfiniteScroll({
-    hasNextPage: hasNextReleaseNotesPage ?? false,
-    isFetchingNextPage: isFetchingNextReleaseNotesPage,
-    fetchNextPage: fetchNextReleaseNotesPage,
+    hasNextPage: hasNextReleaseNotesPageToUse ?? false,
+    isFetchingNextPage: isFetchingNextReleaseNotesPageToUse,
+    fetchNextPage: fetchNextReleaseNotesPageToUse,
   });
 
   // Memoize handlers to prevent re-renders - MUST be called before any conditional returns
   const handleStatusFilterChange = useCallback((value: 'pending' | 'deployed' | 'deployment_started' | 'all') => {
     setStatusFilter(value);
+    // Clear advanced filters when using quick status filter
+    setAdvancedFilters(undefined);
+    setOrderBy(undefined);
     // Update URL params
     if (value === 'all') {
       setSearchParams({}, { replace: true });
     } else {
       setSearchParams({ status: value }, { replace: true });
     }
+  }, [setSearchParams]);
+
+  const handleAdvancedFiltersApply = useCallback((filters: Filter | undefined) => {
+    setAdvancedFilters(filters);
+    // Clear status filter when using advanced filters
+    setStatusFilter('all');
+    // Update URL params
+    const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, orderBy);
+    setSearchParams(params, { replace: true });
+  }, [debouncedSearch, orderBy, setSearchParams]);
+
+  const handleAdvancedFiltersClear = useCallback(() => {
+    setAdvancedFilters(undefined);
+    setOrderBy(undefined);
+    setStatusFilter('all');
+    setSearchParams({}, { replace: true });
   }, [setSearchParams]);
 
   const handleCreateReleaseNote = useCallback(() => {
@@ -599,7 +686,7 @@ export function ReleaseNotesPage() {
   // Clear selection when filters change
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [debouncedSearch, statusFilter, serviceId]);
+  }, [debouncedSearch, statusFilter, advancedFilters]);
 
   // Bulk action handlers
   const handleBulkDelete = useCallback(() => {
@@ -664,7 +751,7 @@ export function ReleaseNotesPage() {
 
   // Only show loading on initial load when there's truly no data
   // placeholderData keeps previous data during refetches, so we don't flicker
-  if (releaseNotesLoading && releaseNotes.length === 0) {
+  if (releaseNotesLoadingToUse && releaseNotes.length === 0) {
     return (
       <div className="max-w-7xl mx-auto">
         <Loading className="h-64" />
@@ -672,7 +759,7 @@ export function ReleaseNotesPage() {
     );
   }
 
-  if (releaseNotesError) {
+  if (releaseNotesErrorToUse) {
     return (
       <div className="max-w-7xl mx-auto">
         <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
@@ -693,6 +780,8 @@ export function ReleaseNotesPage() {
         statusFilter={statusFilter}
         onStatusFilterChange={handleStatusFilterChange}
         onCreateClick={handleCreateReleaseNote}
+        onAdvancedFiltersClick={() => setAdvancedFiltersOpen(true)}
+        hasActiveAdvancedFilters={hasActiveFilters(advancedFilters) || false}
         hasPermission={hasPermission}
       />
 
@@ -772,6 +861,18 @@ export function ReleaseNotesPage() {
           selectedIds={selectedIds}
           onSelect={handleSelect}
           onDeselect={handleDeselect}
+        />
+      )}
+
+      {/* Advanced Filters Panel */}
+      {filterMetadata && (
+        <AdvancedFiltersPanel
+          isOpen={advancedFiltersOpen}
+          onClose={() => setAdvancedFiltersOpen(false)}
+          fields={filterMetadata.fields || []}
+          filters={advancedFilters}
+          onApply={handleAdvancedFiltersApply}
+          onClear={handleAdvancedFiltersClear}
         />
       )}
 

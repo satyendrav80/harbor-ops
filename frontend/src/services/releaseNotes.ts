@@ -109,3 +109,34 @@ export async function deleteReleaseNote(id: number): Promise<void> {
   });
 }
 
+/**
+ * Advanced filtering endpoint
+ * POST /release-notes/list
+ */
+export async function listReleaseNotesAdvanced(request: {
+  filters?: any;
+  search?: string;
+  page?: number;
+  limit?: number;
+  orderBy?: any;
+}): Promise<ReleaseNotesResponse> {
+  return apiFetch<ReleaseNotesResponse>('/release-notes/list', {
+    method: 'POST',
+    body: JSON.stringify({
+      filters: request.filters,
+      search: request.search,
+      page: request.page || 1,
+      limit: request.limit || 20,
+      orderBy: request.orderBy,
+    }),
+  });
+}
+
+/**
+ * Get filter metadata
+ * GET /release-notes/filter-metadata
+ */
+export async function getReleaseNotesFilterMetadata(): Promise<any> {
+  return apiFetch<any>('/release-notes/filter-metadata');
+}
+
