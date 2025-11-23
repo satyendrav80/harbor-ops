@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getServices } from '../../../../services/services';
 import { SearchableMultiSelect } from '../../../../components/common/SearchableMultiSelect';
+import { SPECIAL_DATE_OPTIONS, isSpecialDateValue, type SpecialDateValue } from '../../utils/dateHelpers';
 import type { FilterRow } from './types';
 import type { FilterFieldMetadata } from '../../types/filters';
 
@@ -45,33 +46,37 @@ export function FilterRowComponent({ row, fields, onUpdate, onRemove }: FilterRo
 
   return (
     <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-      <div className="flex items-start gap-3">
-        <div className="flex-1 grid grid-cols-3 gap-2 min-w-0">
+      <div className="flex items-start gap-2">
+        <div className="flex-1 grid grid-cols-[1fr_1fr_2fr] gap-2 min-w-0">
           {/* Field Select */}
-          <select
-            value={row.fieldKey}
-            onChange={(e) => handleFieldChange(e.target.value)}
-            className="px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50 min-w-0"
-          >
-            {fields.map((f) => (
-              <option key={f.key} value={f.key}>
-                {f.label}
-              </option>
-            ))}
-          </select>
+          <div className="min-w-0">
+            <select
+              value={row.fieldKey}
+              onChange={(e) => handleFieldChange(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
+            >
+              {fields.map((f) => (
+                <option key={f.key} value={f.key}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* Operator Select */}
-          <select
-            value={row.operator}
-            onChange={(e) => handleOperatorChange(e.target.value)}
-            className="px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50 min-w-0"
-          >
-            {operators.map((op) => (
-              <option key={op} value={op}>
-                {formatOperator(op)}
-              </option>
-            ))}
-          </select>
+          <div className="min-w-0">
+            <select
+              value={row.operator}
+              onChange={(e) => handleOperatorChange(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
+            >
+              {operators.map((op) => (
+                <option key={op} value={op}>
+                  {formatOperator(op)}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* Value Input */}
           {isValueRequired && (
@@ -139,19 +144,102 @@ function renderValueInput(
   }
 
   if (operator === 'between') {
+    const fromValue = Array.isArray(value) ? value[0] : '';
+    const toValue = Array.isArray(value) ? value[1] : '';
+    const fromIsSpecial = isSpecialDateValue(fromValue);
+    const toIsSpecial = isSpecialDateValue(toValue);
+    
+    if (field.ui.inputType === 'date' || field.ui.inputType === 'datetime') {
+      return (
+        <div className="w-full min-w-0 space-y-1.5">
+          <div className="flex gap-1.5 items-center">
+            <select
+              value={fromIsSpecial ? 'special' : 'custom'}
+              onChange={(e) => {
+                const newFrom = e.target.value === 'special' ? SPECIAL_DATE_OPTIONS[0].value : '';
+                onChange([newFrom, toValue]);
+              }}
+              className="px-2 py-2 text-xs bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50 flex-shrink-0"
+              title="From date type"
+            >
+              <option value="custom">Date</option>
+              <option value="special">Special</option>
+            </select>
+            {fromIsSpecial ? (
+              <select
+                value={fromValue}
+                onChange={(e) => onChange([e.target.value as SpecialDateValue, toValue])}
+                className="flex-1 min-w-0 px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                {SPECIAL_DATE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="date"
+                value={typeof fromValue === 'string' && !isSpecialDateValue(fromValue) ? fromValue : ''}
+                onChange={(e) => onChange([e.target.value, toValue])}
+                className="flex-1 min-w-0 px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
+                placeholder="From"
+              />
+            )}
+          </div>
+          <div className="flex gap-1.5 items-center">
+            <select
+              value={toIsSpecial ? 'special' : 'custom'}
+              onChange={(e) => {
+                const newTo = e.target.value === 'special' ? SPECIAL_DATE_OPTIONS[0].value : '';
+                onChange([fromValue, newTo]);
+              }}
+              className="px-2 py-2 text-xs bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50 flex-shrink-0"
+              title="To date type"
+            >
+              <option value="custom">Date</option>
+              <option value="special">Special</option>
+            </select>
+            {toIsSpecial ? (
+              <select
+                value={toValue}
+                onChange={(e) => onChange([fromValue, e.target.value as SpecialDateValue])}
+                className="flex-1 min-w-0 px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                {SPECIAL_DATE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="date"
+                value={typeof toValue === 'string' && !isSpecialDateValue(toValue) ? toValue : ''}
+                onChange={(e) => onChange([fromValue, e.target.value])}
+                className="flex-1 min-w-0 px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
+                placeholder="To"
+              />
+            )}
+          </div>
+        </div>
+      );
+    }
+    
+    // Non-date between (fallback to original)
     return (
       <div className="flex gap-2">
         <input
-          type={field.ui.inputType === 'date' || field.ui.inputType === 'datetime' ? 'date' : 'text'}
-          value={Array.isArray(value) ? value[0] || '' : ''}
-          onChange={(e) => onChange([e.target.value, Array.isArray(value) ? value[1] : ''])}
+          type="text"
+          value={fromValue || ''}
+          onChange={(e) => onChange([e.target.value, toValue])}
           className="flex-1 px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
           placeholder="From"
         />
         <input
-          type={field.ui.inputType === 'date' || field.ui.inputType === 'datetime' ? 'date' : 'text'}
-          value={Array.isArray(value) ? value[1] || '' : ''}
-          onChange={(e) => onChange([Array.isArray(value) ? value[0] : '', e.target.value])}
+          type="text"
+          value={toValue || ''}
+          onChange={(e) => onChange([fromValue, e.target.value])}
           className="flex-1 px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
           placeholder="To"
         />
@@ -211,13 +299,58 @@ function renderValueInput(
   }
 
   if (field.ui.inputType === 'date' || field.ui.inputType === 'datetime') {
+    const isSpecialValue = isSpecialDateValue(value);
+    // Extract date value - handle both string dates and Date objects
+    let dateValue = '';
+    if (value && !isSpecialValue) {
+      if (typeof value === 'string') {
+        dateValue = value;
+      } else if (value instanceof Date) {
+        // Convert Date to YYYY-MM-DD format for date input
+        dateValue = value.toISOString().split('T')[0];
+      }
+    }
+    
     return (
-      <input
-        type="date"
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
-      />
+      <div className="w-full min-w-0 overflow-hidden">
+        <div className="flex gap-1 items-center min-w-0">
+          <select
+            value={isSpecialValue ? 'special' : 'custom'}
+            onChange={(e) => {
+              if (e.target.value === 'special') {
+                onChange(SPECIAL_DATE_OPTIONS[0].value);
+              } else {
+                onChange('');
+              }
+            }}
+            className="px-1.5 py-2 text-xs bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50 flex-shrink-0"
+            title={isSpecialValue ? 'Switch to custom date' : 'Switch to special value'}
+          >
+            <option value="custom">Date</option>
+            <option value="special">Special</option>
+          </select>
+          {isSpecialValue ? (
+            <select
+              value={value || SPECIAL_DATE_OPTIONS[0].value}
+              onChange={(e) => onChange(e.target.value as SpecialDateValue)}
+              className="flex-1 min-w-0 px-2 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50 overflow-hidden"
+            >
+              {SPECIAL_DATE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="date"
+              value={dateValue}
+              onChange={(e) => onChange(e.target.value || undefined)}
+              className="flex-1 min-w-0 px-2 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          )}
+        </div>
+      </div>
     );
   }
 

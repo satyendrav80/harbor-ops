@@ -16,6 +16,55 @@ function isFilterGroupNode(node: FilterNode): node is FilterGroup {
 }
 
 /**
+ * Resolve special date values to actual Date objects
+ * Special values are evaluated at query time, not at save time
+ */
+function resolveSpecialDateValue(value: string): Date {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  switch (value) {
+    case 'now':
+      return now;
+    case 'today':
+      return today;
+    case 'yesterday':
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return yesterday;
+    case 'tomorrow':
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return tomorrow;
+    case 'thisWeek':
+      // Start of this week (Sunday)
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay());
+      return weekStart;
+    case 'lastWeek':
+      // Start of last week
+      const lastWeekStart = new Date(today);
+      lastWeekStart.setDate(today.getDate() - today.getDay() - 7);
+      return lastWeekStart;
+    case 'thisMonth':
+      // Start of this month
+      return new Date(today.getFullYear(), today.getMonth(), 1);
+    case 'lastMonth':
+      // Start of last month
+      return new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    case 'thisYear':
+      // Start of this year
+      return new Date(today.getFullYear(), 0, 1);
+    case 'lastYear':
+      // Start of last year
+      return new Date(today.getFullYear() - 1, 0, 1);
+    default:
+      // Regular date string, parse it
+      return new Date(value);
+  }
+}
+
+/**
  * Process and transform a single filter condition for release notes
  * - Converts status strings to ReleaseStatus enum
  * - Converts date strings to Date objects
@@ -47,17 +96,18 @@ function processCondition(condition: FilterCondition): FilterCondition {
   }
 
   // Convert date strings to Date objects for date fields
+  // Handle special date values (now, today, yesterday, etc.)
   if (['createdAt', 'updatedAt', 'publishDate'].includes(condition.key) && 
       (condition.type === 'DATE' || condition.type === 'DATETIME')) {
     if (condition.operator === 'between' && Array.isArray(condition.value)) {
       return {
         ...condition,
-        value: condition.value.map((v: string) => new Date(v)),
+        value: condition.value.map((v: string) => resolveSpecialDateValue(v)),
       };
     } else if (typeof condition.value === 'string' && condition.operator !== 'isNull' && condition.operator !== 'isNotNull') {
       return {
         ...condition,
-        value: new Date(condition.value),
+        value: resolveSpecialDateValue(condition.value),
       };
     }
   }
