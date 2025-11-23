@@ -2,13 +2,15 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useCredentials } from '../hooks/useCredentials';
+import { useCredentialsAdvanced } from '../hooks/useCredentialsAdvanced';
 import { useCreateCredential, useUpdateCredential, useDeleteCredential } from '../hooks/useCredentialMutations';
-import { revealCredentialData } from '../../../services/credentials';
+import { revealCredentialData, getCredentialsFilterMetadata } from '../../../services/credentials';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { CredentialModal } from '../components/CredentialModal';
-import { Search, Plus, Edit, Trash2, Key, X, Eye, EyeOff, Server, Cloud } from 'lucide-react';
+import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
+import { Search, Plus, Edit, Trash2, Key, X, Eye, EyeOff, Server, Cloud, Filter as FilterIcon } from 'lucide-react';
 import type { Credential } from '../../../services/credentials';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
@@ -18,25 +20,11 @@ import { useQuery } from '@tanstack/react-query';
 import { getGroups } from '../../../services/groups';
 import { ItemGroups } from '../../../components/common/ItemGroups';
 import { ItemTags } from '../../../components/common/ItemTags';
+import { useDebounce } from '../../../hooks/useDebounce';
+import type { Filter } from '../../release-notes/types/filters';
+import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../../release-notes/utils/urlSync';
+import { hasActiveFilters } from '../../release-notes/utils/filterState';
 
-/**
- * Debounce hook to delay search input
- */
-function useDebounce<T>(value: T, delay: number = 500): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
 
 /**
  * CredentialsPage component for managing credentials
@@ -51,6 +39,12 @@ export function CredentialsPage() {
   const serviceId = searchParams.get('serviceId');
   
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+  
+  // Initialize from URL params
+  const urlFilters = useMemo(() => deserializeFiltersFromUrl(searchParams), [searchParams]);
+  const [advancedFilters, setAdvancedFilters] = useState<Filter | undefined>(urlFilters.filters);
+  const [orderBy, setOrderBy] = useState(urlFilters.orderBy);
   
   // Memoize search handler to prevent input from losing focus
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,6 +54,23 @@ export function CredentialsPage() {
   const [selectedCredentialForEdit, setSelectedCredentialForEdit] = useState<Credential | null>(null);
   const [revealedData, setRevealedData] = useState<Record<number, any>>({});
   const [revealingData, setRevealingData] = useState<Record<number, boolean>>({});
+
+  // Fetch filter metadata
+  const { data: filterMetadata } = useQuery({
+    queryKey: ['credentials', 'filter-metadata'],
+    queryFn: () => getCredentialsFilterMetadata(),
+  });
+
+  // Update filters when URL changes
+  useEffect(() => {
+    const urlFilters = deserializeFiltersFromUrl(searchParams);
+    if (urlFilters.filters) {
+      setAdvancedFilters(urlFilters.filters);
+    }
+    if (urlFilters.orderBy) {
+      setOrderBy(urlFilters.orderBy);
+    }
+  }, [searchParams]);
 
   // Fetch servers and services for filter display
   const { data: serversData } = useQuery({
@@ -91,27 +102,47 @@ export function CredentialsPage() {
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
 
-  // Update URL when search changes
-  useEffect(() => {
-    const params = new URLSearchParams(searchParams);
-    if (debouncedSearch) {
-      params.set('search', debouncedSearch);
-    } else {
-      params.delete('search');
-    }
-    setSearchParams(params, { replace: true });
-  }, [debouncedSearch]);
+  // Use advanced filtering if advanced filters are active, otherwise use legacy
+  const useAdvancedFiltering = hasActiveFilters(advancedFilters) || orderBy !== undefined;
+  
+  // Advanced filtering hook
+  const {
+    data: advancedCredentialsData,
+    isLoading: advancedCredentialsLoading,
+    isFetching: isFetchingAdvancedCredentials,
+    error: advancedCredentialsError,
+    fetchNextPage: fetchNextAdvancedCredentialsPage,
+    hasNextPage: hasNextAdvancedCredentialsPage,
+    isFetchingNextPage: isFetchingNextAdvancedCredentialsPage,
+  } = useCredentialsAdvanced(
+    {
+      filters: advancedFilters,
+      search: debouncedSearch || undefined,
+      orderBy,
+    },
+    20
+  );
 
-  // Fetch credentials with infinite scroll (filtered by server/service/credentialId if provided)
+  // Legacy filtering hook (for backward compatibility)
   const credentialIdNum = credentialId ? Number(credentialId) : undefined;
   const {
     data: credentialsData,
     isLoading: credentialsLoading,
+    isFetching: isFetchingCredentials,
     error: credentialsError,
     fetchNextPage: fetchNextCredentialsPage,
     hasNextPage: hasNextCredentialsPage,
     isFetchingNextPage: isFetchingNextCredentialsPage,
   } = useCredentials(debouncedSearch, 20, serverId ? Number(serverId) : undefined, serviceId ? Number(serviceId) : undefined, credentialIdNum);
+
+  // Choose which data to use
+  const credentialsDataToUse = useAdvancedFiltering ? advancedCredentialsData : credentialsData;
+  const credentialsLoadingToUse = useAdvancedFiltering ? advancedCredentialsLoading : credentialsLoading;
+  const isFetchingCredentialsToUse = useAdvancedFiltering ? isFetchingAdvancedCredentials : isFetchingCredentials;
+  const credentialsErrorToUse = useAdvancedFiltering ? advancedCredentialsError : credentialsError;
+  const fetchNextCredentialsPageToUse = useAdvancedFiltering ? fetchNextAdvancedCredentialsPage : fetchNextCredentialsPage;
+  const hasNextCredentialsPageToUse = useAdvancedFiltering ? hasNextAdvancedCredentialsPage : hasNextCredentialsPage;
+  const isFetchingNextCredentialsPageToUse = useAdvancedFiltering ? isFetchingNextAdvancedCredentialsPage : isFetchingNextCredentialsPage;
 
   // Keep previous data during refetches to prevent flicker
   const previousDataRef = useRef<Credential[]>([]);
@@ -119,15 +150,15 @@ export function CredentialsPage() {
   // Flatten credentials from all pages
   // Use previous data if current data is undefined (during refetch)
   const credentials = useMemo(() => {
-    if (!credentialsData?.pages) {
+    if (!credentialsDataToUse?.pages) {
       // During refetch, return previous data to prevent flicker
       return previousDataRef.current;
     }
-    const flattened = credentialsData.pages.flatMap((page) => page.data);
+    const flattened = credentialsDataToUse.pages.flatMap((page) => page.data);
     // Update ref with new data
     previousDataRef.current = flattened;
     return flattened;
-  }, [credentialsData]);
+  }, [credentialsDataToUse]);
 
   // Auto-scroll to credential if credentialId is in URL (wait for data to load)
   useEffect(() => {
@@ -159,10 +190,24 @@ export function CredentialsPage() {
 
   // Infinite scroll observer
   const credentialsObserverTarget = useInfiniteScroll({
-    hasNextPage: hasNextCredentialsPage ?? false,
-    isFetchingNextPage: isFetchingNextCredentialsPage,
-    fetchNextPage: fetchNextCredentialsPage,
+    hasNextPage: hasNextCredentialsPageToUse ?? false,
+    isFetchingNextPage: isFetchingNextCredentialsPageToUse,
+    fetchNextPage: fetchNextCredentialsPageToUse,
   });
+
+  // Advanced filter handlers
+  const handleAdvancedFiltersApply = useCallback((filters: Filter | undefined) => {
+    setAdvancedFilters(filters);
+    // Update URL params
+    const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, orderBy);
+    setSearchParams(params, { replace: true });
+  }, [debouncedSearch, orderBy, setSearchParams]);
+
+  const handleAdvancedFiltersClear = useCallback(() => {
+    setAdvancedFilters(undefined);
+    setOrderBy(undefined);
+    setSearchParams({}, { replace: true });
+  }, [setSearchParams]);
 
   const handleCreateCredential = () => {
     setSelectedCredentialForEdit(null);
@@ -237,7 +282,7 @@ export function CredentialsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [credentialId, credentials]);
 
-  if (credentialsLoading && credentials.length === 0) {
+  if (credentialsLoadingToUse && credentials.length === 0) {
     return (
       <div className="max-w-7xl mx-auto">
         <Loading className="h-64" />
@@ -245,7 +290,7 @@ export function CredentialsPage() {
     );
   }
 
-  if (credentialsError) {
+  if (credentialsErrorToUse) {
     return (
       <div className="max-w-7xl mx-auto">
         <EmptyState
@@ -260,32 +305,46 @@ export function CredentialsPage() {
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
-      <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
+      <header className="flex flex-col gap-4 mb-8">
         <div className="flex flex-col">
           <p className="text-gray-900 dark:text-white text-3xl font-bold leading-tight">Credentials</p>
           <p className="text-gray-500 dark:text-gray-400 text-base font-normal leading-normal">
             Manage your credentials and API keys securely.
           </p>
         </div>
-        <div className="flex items-center gap-4 flex-1 justify-end min-w-[300px]">
-          <label className="flex flex-col h-12 w-full max-w-sm">
-            <div className="flex w-full flex-1 items-stretch rounded-lg h-full">
-              <div className="text-gray-400 dark:text-gray-500 flex bg-white dark:bg-[#1C252E] items-center justify-center pl-4 rounded-l-lg border border-gray-200 dark:border-gray-700/50 border-r-0">
-                <Search className="w-5 h-5" />
-              </div>
-              <input
-                key="credential-search-input"
-                className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-full placeholder:text-gray-400 dark:placeholder:text-gray-500 px-4 text-sm font-normal leading-normal"
-                placeholder="Search credentials..."
-                value={searchQuery}
-                onChange={handleSearchChange}
-              />
-            </div>
-          </label>
+        <div className="flex items-center gap-3 justify-end">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder="Search credentials..."
+              className="pl-10 pr-4 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 w-64"
+            />
+          </div>
+          {/* Advanced Filters Button */}
+          <button
+            onClick={() => setAdvancedFiltersOpen(true)}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+              hasActiveFilters(advancedFilters)
+                ? 'bg-primary/10 border-primary text-primary dark:bg-primary/20'
+                : 'bg-white dark:bg-[#1C252E] border-gray-200 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
+          >
+            <FilterIcon className="w-4 h-4" />
+            Filters
+            {hasActiveFilters(advancedFilters) && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs font-medium bg-primary text-white rounded-full">
+                Active
+              </span>
+            )}
+          </button>
           {hasPermission('credentials:create') && (
             <button
               onClick={handleCreateCredential}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
             >
               <Plus className="w-4 h-4" />
               Create Credential
@@ -530,6 +589,19 @@ export function CredentialsPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Advanced Filters Panel */}
+      {filterMetadata && (
+        <AdvancedFiltersPanel
+          pageId="credentials"
+          isOpen={advancedFiltersOpen}
+          onClose={() => setAdvancedFiltersOpen(false)}
+          fields={filterMetadata.fields || []}
+          filters={advancedFilters}
+          onApply={handleAdvancedFiltersApply}
+          onClear={handleAdvancedFiltersClear}
+        />
       )}
 
       {/* Credential Modal */}

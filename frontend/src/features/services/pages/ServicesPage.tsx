@@ -1,13 +1,15 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useServices } from '../hooks/useServices';
+import { useServicesAdvanced } from '../hooks/useServicesAdvanced';
 import { useCreateService, useUpdateService, useDeleteService } from '../hooks/useServiceMutations';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { ServiceModal } from '../components/ServiceModal';
 import { ServiceGroups } from '../components/ServiceGroups';
-import { Search, Plus, Edit, Trash2, Server as ServerIcon, X } from 'lucide-react';
+import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
+import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Filter as FilterIcon } from 'lucide-react';
 import type { Service } from '../../../services/services';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
@@ -17,25 +19,11 @@ import { useQuery } from '@tanstack/react-query';
 import { getServers } from '../../../services/servers';
 import { getGroups, getGroupsByItem } from '../../../services/groups';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
-
-/**
- * Debounce hook to delay search input
- */
-function useDebounce<T>(value: T, delay: number = 500): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
+import { getServicesFilterMetadata } from '../../../services/services';
+import { useDebounce } from '../../../hooks/useDebounce';
+import type { Filter } from '../../release-notes/types/filters';
+import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../../release-notes/utils/urlSync';
+import { hasActiveFilters } from '../../release-notes/utils/filterState';
 
 /**
  * ServicesPage component for managing services
@@ -45,13 +33,19 @@ export function ServicesPage() {
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
   const { data: constants } = useConstants();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const serverIdParam = searchParams.get('serverId');
   const serviceIdParam = searchParams.get('serviceId');
   const serverId = serverIdParam ? Number(serverIdParam) : undefined;
   const serviceId = serviceIdParam ? Number(serviceIdParam) : undefined;
   
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+  
+  // Initialize from URL params
+  const urlFilters = useMemo(() => deserializeFiltersFromUrl(searchParams), [searchParams]);
+  const [advancedFilters, setAdvancedFilters] = useState<Filter | undefined>(urlFilters.filters);
+  const [orderBy, setOrderBy] = useState(urlFilters.orderBy);
   
   // Memoize search handler to prevent input from losing focus
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,6 +54,23 @@ export function ServicesPage() {
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
   const [selectedServiceForEdit, setSelectedServiceForEdit] = useState<Service | null>(null);
   const [expandedDocumentation, setExpandedDocumentation] = useState<Set<number>>(new Set());
+
+  // Fetch filter metadata
+  const { data: filterMetadata } = useQuery({
+    queryKey: ['services', 'filter-metadata'],
+    queryFn: () => getServicesFilterMetadata(),
+  });
+
+  // Update filters when URL changes
+  useEffect(() => {
+    const urlFilters = deserializeFiltersFromUrl(searchParams);
+    if (urlFilters.filters) {
+      setAdvancedFilters(urlFilters.filters);
+    }
+    if (urlFilters.orderBy) {
+      setOrderBy(urlFilters.orderBy);
+    }
+  }, [searchParams]);
 
   // Fetch servers for filter display
   const { data: serversData } = useQuery({
@@ -85,21 +96,52 @@ export function ServicesPage() {
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
 
-  // Fetch services with infinite scroll
+  // Use advanced filtering if advanced filters are active, otherwise use legacy
+  const useAdvancedFiltering = hasActiveFilters(advancedFilters) || orderBy !== undefined;
+  
+  // Advanced filtering hook
+  const {
+    data: advancedServicesData,
+    isLoading: advancedServicesLoading,
+    isFetching: isFetchingAdvancedServices,
+    error: advancedServicesError,
+    fetchNextPage: fetchNextAdvancedServicesPage,
+    hasNextPage: hasNextAdvancedServicesPage,
+    isFetchingNextPage: isFetchingNextAdvancedServicesPage,
+  } = useServicesAdvanced(
+    {
+      filters: advancedFilters,
+      search: debouncedSearch || undefined,
+      orderBy,
+    },
+    20
+  );
+
+  // Legacy filtering hook (for backward compatibility)
   const {
     data: servicesData,
     isLoading: servicesLoading,
+    isFetching: isFetchingServices,
     error: servicesError,
     fetchNextPage: fetchNextServicesPage,
     hasNextPage: hasNextServicesPage,
     isFetchingNextPage: isFetchingNextServicesPage,
   } = useServices(debouncedSearch, 20, serviceId, serverId);
 
+  // Choose which data to use
+  const servicesDataToUse = useAdvancedFiltering ? advancedServicesData : servicesData;
+  const servicesLoadingToUse = useAdvancedFiltering ? advancedServicesLoading : servicesLoading;
+  const isFetchingServicesToUse = useAdvancedFiltering ? isFetchingAdvancedServices : isFetchingServices;
+  const servicesErrorToUse = useAdvancedFiltering ? advancedServicesError : servicesError;
+  const fetchNextServicesPageToUse = useAdvancedFiltering ? fetchNextAdvancedServicesPage : fetchNextServicesPage;
+  const hasNextServicesPageToUse = useAdvancedFiltering ? hasNextAdvancedServicesPage : hasNextServicesPage;
+  const isFetchingNextServicesPageToUse = useAdvancedFiltering ? isFetchingNextAdvancedServicesPage : isFetchingNextServicesPage;
+
   // Auto-scroll to service if serviceId is in URL (wait for data to load)
   useEffect(() => {
-    if (serviceId && servicesData?.pages) {
+    if (serviceId && servicesDataToUse?.pages) {
       // Check if service exists in loaded pages
-      const allServices = servicesData.pages.flatMap((page) => page.data);
+      const allServices = servicesDataToUse.pages.flatMap((page) => page.data);
       const foundService = allServices.find((s) => s.id === serviceId);
       
       if (foundService) {
@@ -114,12 +156,12 @@ export function ServicesPage() {
             }, 3000);
           }
         }, 500);
-      } else if (hasNextServicesPage && !isFetchingNextServicesPage) {
+      } else if (hasNextServicesPageToUse && !isFetchingNextServicesPageToUse) {
         // Service might be on next page, try to fetch it
-        fetchNextServicesPage();
+        fetchNextServicesPageToUse();
       }
     }
-  }, [serviceId, servicesData, hasNextServicesPage, isFetchingNextServicesPage, fetchNextServicesPage]);
+  }, [serviceId, servicesDataToUse, hasNextServicesPageToUse, isFetchingNextServicesPageToUse, fetchNextServicesPageToUse]);
 
   const deleteService = useDeleteService();
 
@@ -129,22 +171,36 @@ export function ServicesPage() {
   // Flatten services from all pages
   // Use previous data if current data is undefined (during refetch)
   const services = useMemo(() => {
-    if (!servicesData?.pages) {
+    if (!servicesDataToUse?.pages) {
       // During refetch, return previous data to prevent flicker
       return previousDataRef.current;
     }
-    const flattened = servicesData.pages.flatMap((page) => page.data);
+    const flattened = servicesDataToUse.pages.flatMap((page) => page.data);
     // Update ref with new data
     previousDataRef.current = flattened;
     return flattened;
-  }, [servicesData]);
+  }, [servicesDataToUse]);
 
   // Infinite scroll observer
   const servicesObserverTarget = useInfiniteScroll({
-    hasNextPage: hasNextServicesPage ?? false,
-    isFetchingNextPage: isFetchingNextServicesPage,
-    fetchNextPage: fetchNextServicesPage,
+    hasNextPage: hasNextServicesPageToUse ?? false,
+    isFetchingNextPage: isFetchingNextServicesPageToUse,
+    fetchNextPage: fetchNextServicesPageToUse,
   });
+
+  // Advanced filter handlers
+  const handleAdvancedFiltersApply = useCallback((filters: Filter | undefined) => {
+    setAdvancedFilters(filters);
+    // Update URL params
+    const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, orderBy);
+    setSearchParams(params, { replace: true });
+  }, [debouncedSearch, orderBy, setSearchParams]);
+
+  const handleAdvancedFiltersClear = useCallback(() => {
+    setAdvancedFilters(undefined);
+    setOrderBy(undefined);
+    setSearchParams({}, { replace: true });
+  }, [setSearchParams]);
 
   const handleCreateService = () => {
     setSelectedServiceForEdit(null);
@@ -176,7 +232,7 @@ export function ServicesPage() {
     }
   };
 
-  if (servicesLoading && services.length === 0) {
+  if (servicesLoadingToUse && services.length === 0) {
     return (
       <div className="max-w-7xl mx-auto">
         <Loading className="h-64" />
@@ -184,7 +240,7 @@ export function ServicesPage() {
     );
   }
 
-  if (servicesError) {
+  if (servicesErrorToUse) {
     return (
       <div className="max-w-7xl mx-auto">
         <EmptyState
@@ -199,42 +255,46 @@ export function ServicesPage() {
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
-      <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
+      <header className="flex flex-col gap-4 mb-8">
         <div className="flex flex-col">
           <p className="text-gray-900 dark:text-white text-3xl font-bold leading-tight">Services</p>
           <p className="text-gray-500 dark:text-gray-400 text-base font-normal leading-normal">
             Manage services running on your servers.
           </p>
         </div>
-        <div className="flex items-center gap-4 flex-1 justify-end min-w-[300px]">
-          <label className="flex flex-col h-12 w-full max-w-sm">
-            <div className="flex w-full flex-1 items-stretch rounded-lg h-full">
-              <div className="text-gray-400 dark:text-gray-500 flex bg-white dark:bg-[#1C252E] items-center justify-center pl-4 rounded-l-lg border border-gray-200 dark:border-gray-700/50 border-r-0">
-                <Search className="w-4 h-4" />
-              </div>
-              <input
-                key="service-search-input"
-                type="text"
-                value={searchQuery}
-                onChange={handleSearchChange}
-                placeholder="Search services..."
-                className="flex-1 px-4 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 border border-gray-200 dark:border-gray-700/50 border-l-0 rounded-r-lg focus:outline-0 focus:ring-2 focus:ring-primary/50"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="px-3 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-                  aria-label="Clear search"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </label>
+        <div className="flex items-center gap-3 justify-end">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder="Search services..."
+              className="pl-10 pr-4 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 w-64"
+            />
+          </div>
+          {/* Advanced Filters Button */}
+          <button
+            onClick={() => setAdvancedFiltersOpen(true)}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+              hasActiveFilters(advancedFilters)
+                ? 'bg-primary/10 border-primary text-primary dark:bg-primary/20'
+                : 'bg-white dark:bg-[#1C252E] border-gray-200 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
+          >
+            <FilterIcon className="w-4 h-4" />
+            Filters
+            {hasActiveFilters(advancedFilters) && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs font-medium bg-primary text-white rounded-full">
+                Active
+              </span>
+            )}
+          </button>
           {hasPermission('services:create') && (
             <button
               onClick={handleCreateService}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
             >
               <Plus className="w-4 h-4" />
               Create Service
@@ -564,6 +624,19 @@ export function ServicesPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Advanced Filters Panel */}
+      {filterMetadata && (
+        <AdvancedFiltersPanel
+          pageId="services"
+          isOpen={advancedFiltersOpen}
+          onClose={() => setAdvancedFiltersOpen(false)}
+          fields={filterMetadata.fields || []}
+          filters={advancedFilters}
+          onApply={handleAdvancedFiltersApply}
+          onClear={handleAdvancedFiltersClear}
+        />
       )}
 
       {/* Service Modal */}

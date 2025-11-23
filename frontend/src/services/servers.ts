@@ -118,3 +118,34 @@ export async function revealServerPassword(id: number): Promise<{ password: stri
   return apiFetch<{ password: string | null }>(`/servers/${id}/reveal-password`);
 }
 
+/**
+ * Advanced filtering endpoint
+ * POST /servers/list
+ */
+export async function listServersAdvanced(request: {
+  filters?: any;
+  search?: string;
+  page?: number;
+  limit?: number;
+  orderBy?: any;
+}): Promise<ServersResponse> {
+  return apiFetch<ServersResponse>('/servers/list', {
+    method: 'POST',
+    body: JSON.stringify({
+      filters: request.filters,
+      search: request.search,
+      page: request.page || 1,
+      limit: request.limit || 20,
+      orderBy: request.orderBy,
+    }),
+  });
+}
+
+/**
+ * Get filter metadata
+ * GET /servers/filter-metadata
+ */
+export async function getServersFilterMetadata(): Promise<any> {
+  return apiFetch<any>('/servers/filter-metadata');
+}
+

@@ -4,6 +4,7 @@ import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth'
 import { encrypt, decrypt } from '../utils/encryption';
 import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
 import { AuditResourceType, AuditAction } from '@prisma/client';
+import { list, getMetadata } from '../controllers/serversController';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -16,6 +17,37 @@ function removePassword(server: any) {
 }
 
 router.use(requireAuth);
+
+/**
+ * GET /servers/filter-metadata
+ * Returns metadata about all filterable fields, relations, and supported operators
+ * This enables the UI to dynamically build filter interfaces
+ */
+router.get('/filter-metadata', getMetadata);
+
+/**
+ * POST /servers/list
+ * Advanced filtering endpoint with generic filter operators
+ * 
+ * Request body:
+ * {
+ *   filters?: Filter[],
+ *   search?: string,
+ *   page?: number,
+ *   limit?: number,
+ *   orderBy?: OrderByItem | OrderByItem[]
+ * }
+ * 
+ * Filter structure supports nested AND/OR/NOT conditions:
+ * {
+ *   condition: "and" | "or" | "not",
+ *   childs: [
+ *     { key: "name", type: "STRING", operator: "contains", value: "api" },
+ *     { condition: "or", childs: [...] }
+ *   ]
+ * }
+ */
+router.post('/list', requirePermission('servers:view'), list);
 
 router.get('/', requirePermission('servers:view'), async (req, res) => {
   const page = parseInt(req.query.page as string) || 1;

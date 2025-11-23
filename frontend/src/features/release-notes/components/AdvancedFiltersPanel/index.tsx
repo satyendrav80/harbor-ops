@@ -13,6 +13,7 @@ import type { FilterFieldMetadata, Filter, ConditionType } from '../../types/fil
 import { createFilterGroup, createFilterCondition, hasActiveFilters } from '../../utils/filterState';
 
 type AdvancedFiltersPanelProps = {
+  pageId: string;
   isOpen: boolean;
   onClose: () => void;
   fields: FilterFieldMetadata[];
@@ -22,6 +23,7 @@ type AdvancedFiltersPanelProps = {
 };
 
 export function AdvancedFiltersPanel({
+  pageId,
   isOpen,
   onClose,
   fields,
@@ -127,13 +129,51 @@ export function AdvancedFiltersPanel({
   };
 
   const handleRemoveGroup = (groupId: string) => {
-    if (rootGroups.length > 1) {
-      setRootGroups(rootGroups.filter((group) => group.id !== groupId));
+    // Check if it's a root group
+    const isRootGroup = rootGroups.some((g) => g.id === groupId);
+    
+    if (isRootGroup) {
+      // Remove root group
+      if (rootGroups.length > 1) {
+        setRootGroups(rootGroups.filter((group) => group.id !== groupId));
+      } else {
+        // If it's the last root group, just clear it
+        setRootGroups([{ id: 'group-0', condition: 'and', rows: [], groups: [] }]);
+      }
     } else {
-      // If it's the last root group, just clear it
-      setRootGroups([{ id: 'group-0', condition: 'and', rows: [], groups: [] }]);
+      // It's a nested group - find and remove it recursively
+      setRootGroups(removeGroupRecursive(rootGroups, groupId));
     }
   };
+
+  // Helper function to recursively remove a nested group
+  function removeGroupRecursive(
+    groups: ConditionGroupState[],
+    targetId: string
+  ): ConditionGroupState[] {
+    return groups.map((group) => {
+      // Check if this group contains the target group
+      const hasTargetGroup = group.groups.some((g) => g.id === targetId);
+      
+      if (hasTargetGroup) {
+        // Remove the target group from this group's nested groups
+        return {
+          ...group,
+          groups: group.groups.filter((g) => g.id !== targetId),
+        };
+      }
+      
+      // Recursively check nested groups
+      if (group.groups.length > 0) {
+        return {
+          ...group,
+          groups: removeGroupRecursive(group.groups, targetId),
+        };
+      }
+      
+      return group;
+    });
+  }
 
   const handleApply = () => {
     const allFilters = rootGroups
@@ -170,6 +210,7 @@ export function AdvancedFiltersPanel({
         {/* Filter Presets */}
         <div className="pb-4 border-b border-gray-200 dark:border-gray-700/50">
           <FilterPresets
+            pageId={pageId}
             currentFilters={(() => {
               const allFilters = rootGroups
                 .map((group) => buildFilterFromGroup(group, fields))

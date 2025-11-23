@@ -54,6 +54,7 @@ model User {
   deletedTags                Tag[]               @relation("TagDeletedBy")
   deletedDomains             Domain[]            @relation("DomainDeletedBy")
   deletedUsers               User[]              @relation("UserDeletedBy")
+  filterPresets              FilterPreset[]      @relation("FilterPresetUser")
 
   @@map("users")
 }
@@ -524,4 +525,21 @@ model Audit {
   @@index([userId])
   @@index([createdAt])
   @@map("audits")
+}
+
+model FilterPreset {
+  id          Int       @id @default(autoincrement()) @map("id")
+  userId      String    @map("user_id")
+  user        User      @relation("FilterPresetUser", fields: [userId], references: [id], onDelete: Cascade)
+  pageId      String    @map("page_id") // 'release-notes', 'services', 'servers', 'credentials', 'domains'
+  name        String    @map("name")
+  filters     Json?     @map("filters") // Store the filter object as JSON (nullable)
+  isShared    Boolean   @default(false) @map("is_shared") // Optional: allow sharing with other users
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  
+  @@index([userId, pageId])
+  @@index([userId])
+  @@index([pageId, isShared])
+  @@map("filter_presets")
 }

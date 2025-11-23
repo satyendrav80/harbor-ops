@@ -12,10 +12,108 @@ export function isFilterGroup(node: FilterNode): node is FilterGroup {
 }
 
 /**
+ * Check if a key represents a many-to-many relationship
+ * Many-to-many relations use the pattern: relationName.field (e.g., 'servers.id', 'tags.name')
+ * Or nested: relationName.nestedRelation.field (e.g., 'dependencies.dependencyService.name')
+ * Special case: groups (filtered through GroupItem)
+ */
+function isManyToManyRelation(key: string): { isMany: boolean; relationName?: string; nestedKey?: string; isGroup?: boolean } {
+  const fieldParts = key.split('.');
+  
+  // Many-to-many relations: servers, tags, services, dependencies
+  const manyToManyRelations = ['servers', 'tags', 'services', 'dependencies'];
+  
+  // Special case: groups (filtered through GroupItem, not direct relation)
+  if (fieldParts.length >= 2 && fieldParts[0] === 'groups') {
+    return {
+      isMany: true,
+      relationName: 'groups',
+      nestedKey: fieldParts.slice(1).join('.'),
+      isGroup: true,
+    };
+  }
+  
+  if (fieldParts.length >= 2 && manyToManyRelations.includes(fieldParts[0])) {
+    // For simple many-to-many: 'servers.id' -> relationName: 'servers', nestedKey: 'id'
+    // For nested: 'dependencies.dependencyService.name' -> relationName: 'dependencies', nestedKey: 'dependencyService.name'
+    return {
+      isMany: true,
+      relationName: fieldParts[0],
+      nestedKey: fieldParts.slice(1).join('.'), // Join remaining parts
+    };
+  }
+  
+  return { isMany: false };
+}
+
+/**
  * Build Prisma where clause for a single condition
  */
 export function buildConditionClause(condition: FilterCondition): any {
   const { key, operator, value, caseSensitive = false } = condition;
+
+  // Check if this is a many-to-many relation
+  const manyToMany = isManyToManyRelation(key);
+  
+  // Special handling for groups (filtered through GroupItem, not direct relation)
+  if (manyToMany.isMany && manyToMany.isGroup && manyToMany.relationName === 'groups') {
+    // Groups are filtered through GroupItem, which requires special handling
+    // This will be handled separately in the list service functions
+    // Return a marker object that can be detected and processed
+    return {
+      __groupFilter: true,
+      field: manyToMany.nestedKey,
+      operator,
+      value,
+    };
+  }
+  
+  if (manyToMany.isMany && manyToMany.relationName && manyToMany.nestedKey) {
+    // Handle many-to-many relations using Prisma's 'some' operator
+    // The nestedKey can be a simple field (e.g., 'id') or nested relation (e.g., 'dependencyService.name')
+    
+    // Check if this is a join table relation that needs a nested relation name
+    // Join tables: ServiceServer, ServerTag, ServiceTag, etc.
+    // For these, we need to access the nested relation (service, server, tag)
+    const joinTableNestedRelations: Record<string, string> = {
+      'services': 'service',  // ServiceServer -> service
+      'servers': 'server',    // ServiceServer -> server
+      'tags': 'tag',          // ServerTag/ServiceTag -> tag
+    };
+    
+    const nestedRelationName = joinTableNestedRelations[manyToMany.relationName];
+    
+    // If we have a nested relation name and the nestedKey is a simple field (not already nested)
+    if (nestedRelationName && !manyToMany.nestedKey.includes('.')) {
+      // Build the clause for the nested relation field
+      const innerClause = buildConditionClause({
+        ...condition,
+        key: manyToMany.nestedKey, // Use the nested key for inner clause
+      });
+      
+      // Wrap in nested relation, then in 'some' for many-to-many
+      return {
+        [manyToMany.relationName]: {
+          some: {
+            [nestedRelationName]: innerClause,
+          },
+        },
+      };
+    } else {
+      // For nested relations (e.g., 'dependencyService.name') or when no nested relation needed
+      const innerClause = buildConditionClause({
+        ...condition,
+        key: manyToMany.nestedKey, // Use the nested key for inner clause
+      });
+      
+      // Wrap in 'some' for many-to-many
+      return {
+        [manyToMany.relationName]: {
+          some: innerClause,
+        },
+      };
+    }
+  }
 
   // Handle nested fields (e.g., 'service.id', 'createdByUser.name')
   const fieldParts = key.split('.');
@@ -51,7 +149,7 @@ export function buildConditionClause(condition: FilterCondition): any {
 
     case 'in':
       if (Array.isArray(value) && value.length > 0) {
-        clause[finalField] = value.length === 1 ? value[0] : { in: value };
+        clause[finalField] = { in: value };
       }
       break;
 
@@ -62,24 +160,30 @@ export function buildConditionClause(condition: FilterCondition): any {
       break;
 
     case 'contains':
-      clause[finalField] = { 
-        contains: value,
-        mode: caseSensitive ? 'default' : 'insensitive'
-      };
+      if (value != null && value !== '') {
+        clause[finalField] = { 
+          contains: value,
+          mode: caseSensitive ? 'default' : 'insensitive'
+        };
+      }
       break;
 
     case 'startsWith':
-      clause[finalField] = { 
-        startsWith: value,
-        mode: caseSensitive ? 'default' : 'insensitive'
-      };
+      if (value != null && value !== '') {
+        clause[finalField] = { 
+          startsWith: value,
+          mode: caseSensitive ? 'default' : 'insensitive'
+        };
+      }
       break;
 
     case 'endsWith':
-      clause[finalField] = { 
-        endsWith: value,
-        mode: caseSensitive ? 'default' : 'insensitive'
-      };
+      if (value != null && value !== '') {
+        clause[finalField] = { 
+          endsWith: value,
+          mode: caseSensitive ? 'default' : 'insensitive'
+        };
+      }
       break;
 
     case 'between':
@@ -112,7 +216,7 @@ export function buildConditionClause(condition: FilterCondition): any {
       return {};
   }
 
-  // Handle nested field structure
+  // Handle nested field structure (for one-to-one or one-to-many relations)
   if (fieldParts.length > 1) {
     let nestedClause = clause;
     for (let i = fieldParts.length - 2; i >= 0; i--) {

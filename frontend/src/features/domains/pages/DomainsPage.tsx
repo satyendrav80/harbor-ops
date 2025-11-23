@@ -1,12 +1,14 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useDomains } from '../hooks/useDomains';
+import { useDomainsAdvanced } from '../hooks/useDomainsAdvanced';
 import { useCreateDomain, useUpdateDomain, useDeleteDomain } from '../hooks/useDomainMutations';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { DomainModal } from '../components/DomainModal';
-import { Search, Plus, Edit, Trash2, Globe } from 'lucide-react';
+import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
+import { Search, Plus, Edit, Trash2, Globe, X, Filter as FilterIcon } from 'lucide-react';
 import type { Domain } from '../../../services/domains';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
@@ -14,25 +16,13 @@ import { useQuery } from '@tanstack/react-query';
 import { getGroups } from '../../../services/groups';
 import { ItemGroups } from '../../../components/common/ItemGroups';
 import { ItemTags } from '../../../components/common/ItemTags';
+import { useDebounce } from '../../../hooks/useDebounce';
+import { useSearchParams } from 'react-router-dom';
+import { getDomainsFilterMetadata } from '../../../services/domains';
+import type { Filter } from '../../release-notes/types/filters';
+import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../../release-notes/utils/urlSync';
+import { hasActiveFilters } from '../../release-notes/utils/filterState';
 
-/**
- * Debounce hook to delay search input
- */
-function useDebounce<T>(value: T, delay: number = 500): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
 
 /**
  * DomainsPage component for managing domains
@@ -40,7 +30,15 @@ function useDebounce<T>(value: T, delay: number = 500): T {
 export function DomainsPage() {
   usePageTitle('Domains');
   const { hasPermission } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+  
+  // Initialize from URL params
+  const urlFilters = useMemo(() => deserializeFiltersFromUrl(searchParams), [searchParams]);
+  const [advancedFilters, setAdvancedFilters] = useState<Filter | undefined>(urlFilters.filters);
+  const [orderBy, setOrderBy] = useState(urlFilters.orderBy);
+  
   const [domainModalOpen, setDomainModalOpen] = useState(false);
   const [selectedDomainForEdit, setSelectedDomainForEdit] = useState<Domain | null>(null);
 
@@ -48,6 +46,23 @@ export function DomainsPage() {
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   }, []);
+
+  // Fetch filter metadata
+  const { data: filterMetadata } = useQuery({
+    queryKey: ['domains', 'filter-metadata'],
+    queryFn: () => getDomainsFilterMetadata(),
+  });
+
+  // Update filters when URL changes
+  useEffect(() => {
+    const urlFilters = deserializeFiltersFromUrl(searchParams);
+    if (urlFilters.filters) {
+      setAdvancedFilters(urlFilters.filters);
+    }
+    if (urlFilters.orderBy) {
+      setOrderBy(urlFilters.orderBy);
+    }
+  }, [searchParams]);
 
   // Fetch all groups to get names (for matching with group IDs)
   const { data: groupsData } = useQuery({
@@ -66,15 +81,46 @@ export function DomainsPage() {
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
 
-  // Fetch domains with infinite scroll
+  // Use advanced filtering if advanced filters are active, otherwise use legacy
+  const useAdvancedFiltering = hasActiveFilters(advancedFilters) || orderBy !== undefined;
+  
+  // Advanced filtering hook
+  const {
+    data: advancedDomainsData,
+    isLoading: advancedDomainsLoading,
+    isFetching: isFetchingAdvancedDomains,
+    error: advancedDomainsError,
+    fetchNextPage: fetchNextAdvancedDomainsPage,
+    hasNextPage: hasNextAdvancedDomainsPage,
+    isFetchingNextPage: isFetchingNextAdvancedDomainsPage,
+  } = useDomainsAdvanced(
+    {
+      filters: advancedFilters,
+      search: debouncedSearch || undefined,
+      orderBy,
+    },
+    20
+  );
+
+  // Legacy filtering hook (for backward compatibility)
   const {
     data: domainsData,
     isLoading: domainsLoading,
+    isFetching: isFetchingDomains,
     error: domainsError,
     fetchNextPage: fetchNextDomainsPage,
     hasNextPage: hasNextDomainsPage,
     isFetchingNextPage: isFetchingNextDomainsPage,
   } = useDomains(debouncedSearch, 20);
+
+  // Choose which data to use
+  const domainsDataToUse = useAdvancedFiltering ? advancedDomainsData : domainsData;
+  const domainsLoadingToUse = useAdvancedFiltering ? advancedDomainsLoading : domainsLoading;
+  const isFetchingDomainsToUse = useAdvancedFiltering ? isFetchingAdvancedDomains : isFetchingDomains;
+  const domainsErrorToUse = useAdvancedFiltering ? advancedDomainsError : domainsError;
+  const fetchNextDomainsPageToUse = useAdvancedFiltering ? fetchNextAdvancedDomainsPage : fetchNextDomainsPage;
+  const hasNextDomainsPageToUse = useAdvancedFiltering ? hasNextAdvancedDomainsPage : hasNextDomainsPage;
+  const isFetchingNextDomainsPageToUse = useAdvancedFiltering ? isFetchingNextAdvancedDomainsPage : isFetchingNextDomainsPage;
 
   const deleteDomain = useDeleteDomain();
 
@@ -84,22 +130,36 @@ export function DomainsPage() {
   // Flatten domains from all pages
   // Use previous data if current data is undefined (during refetch)
   const domains = useMemo(() => {
-    if (!domainsData?.pages) {
+    if (!domainsDataToUse?.pages) {
       // During refetch, return previous data to prevent flicker
       return previousDataRef.current;
     }
-    const flattened = domainsData.pages.flatMap((page) => page.data);
+    const flattened = domainsDataToUse.pages.flatMap((page) => page.data);
     // Update ref with new data
     previousDataRef.current = flattened;
     return flattened;
-  }, [domainsData]);
+  }, [domainsDataToUse]);
 
   // Infinite scroll observer
   const domainsObserverTarget = useInfiniteScroll({
-    hasNextPage: hasNextDomainsPage ?? false,
-    isFetchingNextPage: isFetchingNextDomainsPage,
-    fetchNextPage: fetchNextDomainsPage,
+    hasNextPage: hasNextDomainsPageToUse ?? false,
+    isFetchingNextPage: isFetchingNextDomainsPageToUse,
+    fetchNextPage: fetchNextDomainsPageToUse,
   });
+
+  // Advanced filter handlers
+  const handleAdvancedFiltersApply = useCallback((filters: Filter | undefined) => {
+    setAdvancedFilters(filters);
+    // Update URL params
+    const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, orderBy);
+    setSearchParams(params, { replace: true });
+  }, [debouncedSearch, orderBy, setSearchParams]);
+
+  const handleAdvancedFiltersClear = useCallback(() => {
+    setAdvancedFilters(undefined);
+    setOrderBy(undefined);
+    setSearchParams({}, { replace: true });
+  }, [setSearchParams]);
 
   const handleCreateDomain = () => {
     setSelectedDomainForEdit(null);
@@ -131,7 +191,7 @@ export function DomainsPage() {
     }
   };
 
-  if (domainsLoading && domains.length === 0) {
+  if (domainsLoadingToUse && domains.length === 0) {
     return (
       <div className="max-w-7xl mx-auto">
         <Loading className="h-64" />
@@ -139,7 +199,7 @@ export function DomainsPage() {
     );
   }
 
-  if (domainsError) {
+  if (domainsErrorToUse) {
     return (
       <div className="max-w-7xl mx-auto">
         <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
@@ -154,38 +214,53 @@ export function DomainsPage() {
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Domains</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+      <header className="flex flex-col gap-4 mb-8">
+        <div className="flex flex-col">
+          <p className="text-gray-900 dark:text-white text-3xl font-bold leading-tight">Domains</p>
+          <p className="text-gray-500 dark:text-gray-400 text-base font-normal leading-normal">
             Manage domain names and their associations with servers and services
           </p>
         </div>
-        {hasPermission('domains:create') && (
+        <div className="flex items-center gap-3 justify-end">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder="Search domains..."
+              className="pl-10 pr-4 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 w-64"
+            />
+          </div>
+          {/* Advanced Filters Button */}
           <button
-            onClick={handleCreateDomain}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            onClick={() => setAdvancedFiltersOpen(true)}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+              hasActiveFilters(advancedFilters)
+                ? 'bg-primary/10 border-primary text-primary dark:bg-primary/20'
+                : 'bg-white dark:bg-[#1C252E] border-gray-200 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
           >
-            <Plus className="w-4 h-4" />
-            Create Domain
+            <FilterIcon className="w-4 h-4" />
+            Filters
+            {hasActiveFilters(advancedFilters) && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs font-medium bg-primary text-white rounded-full">
+                Active
+              </span>
+            )}
           </button>
-        )}
-      </div>
-
-      {/* Search */}
-      <div className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            key="domain-search-input"
-            type="text"
-            placeholder="Search domains..."
-            value={searchQuery}
-            onChange={handleSearchChange}
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
+          {hasPermission('domains:create') && (
+            <button
+              onClick={handleCreateDomain}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Create Domain
+            </button>
+          )}
         </div>
-      </div>
+      </header>
 
       {/* Domains List */}
       {domains.length === 0 ? (
@@ -275,12 +350,25 @@ export function DomainsPage() {
           ))}
           {/* Infinite scroll trigger */}
           <div ref={domainsObserverTarget} className="h-4" />
-          {isFetchingNextDomainsPage && (
+          {isFetchingNextDomainsPageToUse && (
             <div className="flex justify-center py-4">
               <Loading className="h-8" />
             </div>
           )}
         </div>
+      )}
+
+      {/* Advanced Filters Panel */}
+      {filterMetadata && (
+        <AdvancedFiltersPanel
+          pageId="domains"
+          isOpen={advancedFiltersOpen}
+          onClose={() => setAdvancedFiltersOpen(false)}
+          fields={filterMetadata.fields || []}
+          filters={advancedFilters}
+          onApply={handleAdvancedFiltersApply}
+          onClear={handleAdvancedFiltersClear}
+        />
       )}
 
       {/* Domain Modal */}

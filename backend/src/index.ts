@@ -15,6 +15,7 @@ import constantsRouter from './routes/constants';
 import domainsRouter from './routes/domains';
 import dashboardRouter from './routes/dashboard';
 import resourceMapRouter from './routes/resourceMap';
+import filterPresetsRouter from './routes/filterPresets';
 import { requireApprovedUser } from './middleware/auth';
 
 const app = express();
@@ -38,6 +39,7 @@ app.use('/release-notes', requireApprovedUser, releaseNotesRouter);
 app.use('/domains', requireApprovedUser, domainsRouter);
 app.use('/dashboard', requireApprovedUser, dashboardRouter);
 app.use('/resource-map', requireApprovedUser, resourceMapRouter);
+app.use('/filter-presets', requireApprovedUser, filterPresetsRouter);
 app.use('/', requireApprovedUser, usersRouter);
 
 const port = Number(process.env.PORT) || 3044;

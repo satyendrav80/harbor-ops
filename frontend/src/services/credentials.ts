@@ -102,3 +102,33 @@ export async function revealCredentialData(id: number): Promise<{ data: any }> {
   return apiFetch<{ data: any }>(`/credentials/${id}/reveal`);
 }
 
+/**
+ * List credentials with advanced filtering
+ */
+export async function listCredentialsAdvanced(request: {
+  filters?: any;
+  search?: string;
+  page?: number;
+  limit?: number;
+  orderBy?: any;
+}): Promise<CredentialsResponse> {
+  return apiFetch<CredentialsResponse>('/credentials/list', {
+    method: 'POST',
+    body: JSON.stringify({
+      filters: request.filters,
+      search: request.search,
+      page: request.page || 1,
+      limit: request.limit || 20,
+      orderBy: request.orderBy,
+    }),
+  });
+}
+
+/**
+ * Get filter metadata
+ * GET /credentials/filter-metadata
+ */
+export async function getCredentialsFilterMetadata(): Promise<any> {
+  return apiFetch<any>('/credentials/filter-metadata');
+}
+

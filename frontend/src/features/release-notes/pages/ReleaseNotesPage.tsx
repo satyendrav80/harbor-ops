@@ -54,14 +54,14 @@ const ReleaseNotesHeader = memo(({
   hasPermission: (permission: string) => boolean;
 }) => {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
+    <header className="flex flex-col gap-4 mb-8">
       <div className="flex flex-col">
         <p className="text-gray-900 dark:text-white text-3xl font-bold leading-tight">Release Notes</p>
         <p className="text-gray-500 dark:text-gray-400 text-base font-normal leading-normal">
           Manage your release notes and deployment status.
         </p>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 justify-end">
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
@@ -867,6 +867,7 @@ export function ReleaseNotesPage() {
       {/* Advanced Filters Panel */}
       {filterMetadata && (
         <AdvancedFiltersPanel
+          pageId="release-notes"
           isOpen={advancedFiltersOpen}
           onClose={() => setAdvancedFiltersOpen(false)}
           fields={filterMetadata.fields || []}

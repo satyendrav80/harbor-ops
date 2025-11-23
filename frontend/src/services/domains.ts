@@ -89,3 +89,33 @@ export async function getDomainsByItem(itemType: 'server' | 'service', itemId: n
   return apiFetch<number[]>(`/domains/by-item/${itemType}/${itemId}`);
 }
 
+/**
+ * List domains with advanced filtering
+ */
+export async function listDomainsAdvanced(request: {
+  filters?: any;
+  search?: string;
+  page?: number;
+  limit?: number;
+  orderBy?: any;
+}): Promise<DomainsResponse> {
+  return apiFetch<DomainsResponse>('/domains/list', {
+    method: 'POST',
+    body: JSON.stringify({
+      filters: request.filters,
+      search: request.search,
+      page: request.page || 1,
+      limit: request.limit || 20,
+      orderBy: request.orderBy,
+    }),
+  });
+}
+
+/**
+ * Get filter metadata
+ * GET /domains/filter-metadata
+ */
+export async function getDomainsFilterMetadata(): Promise<any> {
+  return apiFetch<any>('/domains/filter-metadata');
+}
+

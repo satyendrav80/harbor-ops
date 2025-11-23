@@ -210,7 +210,7 @@ export function SearchableMultiSelect({
 
       {/* Dropdown */}
       {isOpen && !disabled && (
-        <div className="absolute z-[60] w-full mt-1 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-lg max-h-[200px] overflow-hidden">
+        <div className="absolute z-[60] w-full mt-1 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-lg max-h-[calc(100vh-12rem)] overflow-hidden">
           {/* Search input */}
           <div className="sticky top-0 p-2 bg-white dark:bg-[#1C252E] border-b border-gray-200 dark:border-gray-700/50 z-10">
             <div className="relative">
@@ -236,7 +236,7 @@ export function SearchableMultiSelect({
           </div>
 
           {/* Options list */}
-          <div className="overflow-y-auto max-h-[140px]">
+          <div className="overflow-y-auto max-h-[calc(100vh-16rem)]">
             {filteredOptions.length === 0 ? (
               <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
                 No options found

@@ -159,4 +159,34 @@ export async function removeServiceDependency(serviceId: number, dependencyId: n
   });
 }
 
+/**
+ * Advanced filtering endpoint
+ * POST /services/list
+ */
+export async function listServicesAdvanced(request: {
+  filters?: any;
+  search?: string;
+  page?: number;
+  limit?: number;
+  orderBy?: any;
+}): Promise<ServicesResponse> {
+  return apiFetch<ServicesResponse>('/services/list', {
+    method: 'POST',
+    body: JSON.stringify({
+      filters: request.filters,
+      search: request.search,
+      page: request.page || 1,
+      limit: request.limit || 20,
+      orderBy: request.orderBy,
+    }),
+  });
+}
+
+/**
+ * Get filter metadata
+ * GET /services/filter-metadata
+ */
+export async function getServicesFilterMetadata(): Promise<any> {
+  return apiFetch<any>('/services/filter-metadata');
+}
 

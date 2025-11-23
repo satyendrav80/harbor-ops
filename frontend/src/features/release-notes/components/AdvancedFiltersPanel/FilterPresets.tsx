@@ -3,7 +3,7 @@
  * Manages saving and loading filter presets
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Save, X, Trash2, Loader2, Edit2 } from 'lucide-react';
 import { ConfirmationDialog } from '../../../../components/common/ConfirmationDialog';
 import { getFilterPresets, saveFilterPreset, updateFilterPreset, deleteFilterPreset, type FilterPreset } from '../../utils/filterPresets';
@@ -11,12 +11,14 @@ import { areFiltersEqual } from '../../utils/filterComparison';
 import type { Filter } from '../../types/filters';
 
 type FilterPresetsProps = {
+  pageId: string;
   currentFilters?: Filter;
   onLoadPreset: (filters: Filter | undefined) => void;
 };
 
-export function FilterPresets({ currentFilters, onLoadPreset }: FilterPresetsProps) {
-  const [presets, setPresets] = useState<FilterPreset[]>(getFilterPresets());
+export function FilterPresets({ pageId, currentFilters, onLoadPreset }: FilterPresetsProps) {
+  const [presets, setPresets] = useState<FilterPreset[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -25,6 +27,55 @@ export function FilterPresets({ currentFilters, onLoadPreset }: FilterPresetsPro
   const [loadedPresetId, setLoadedPresetId] = useState<string | null>(null);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [updateAsNew, setUpdateAsNew] = useState(false);
+  
+  // Component-level guard to prevent duplicate calls in the same render cycle
+  const loadingRef = useRef<string | null>(null);
+  
+  // Load presets when pageId changes
+  // The getFilterPresets function now handles deduplication at module level
+  useEffect(() => {
+    // Skip if we're already loading this pageId
+    if (loadingRef.current === pageId) {
+      return;
+    }
+
+    let isMounted = true;
+    loadingRef.current = pageId;
+    setIsLoading(true);
+
+    const loadPresets = async () => {
+      try {
+        const loadedPresets = await getFilterPresets(pageId);
+        // Only update state if component is still mounted and still loading the same pageId
+        if (isMounted && loadingRef.current === pageId) {
+          setPresets(loadedPresets);
+          setLoadedPresetId(null); // Reset loaded preset when switching pages
+          setIsLoading(false);
+          loadingRef.current = null;
+        }
+      } catch (error) {
+        // Ignore abort errors
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        if (isMounted && loadingRef.current === pageId) {
+          console.error('Failed to load presets:', error);
+          setIsLoading(false);
+          loadingRef.current = null;
+        }
+      }
+    };
+    
+    loadPresets();
+
+    // Cleanup: mark component as unmounted and clear loading ref
+    return () => {
+      isMounted = false;
+      if (loadingRef.current === pageId) {
+        loadingRef.current = null;
+      }
+    };
+  }, [pageId]);
 
   // Check if current filters differ from loaded preset
   const loadedPreset = useMemo(() => {
@@ -36,11 +87,11 @@ export function FilterPresets({ currentFilters, onLoadPreset }: FilterPresetsPro
     return !areFiltersEqual(currentFilters, loadedPreset.filters);
   }, [loadedPreset, currentFilters]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!presetName.trim()) return;
     setIsSaving(true);
     try {
-      const newPreset = saveFilterPreset({
+      const newPreset = await saveFilterPreset(pageId, {
         name: presetName.trim(),
         filters: currentFilters,
       });
@@ -72,14 +123,14 @@ export function FilterPresets({ currentFilters, onLoadPreset }: FilterPresetsPro
     setShowUpdateDialog(true);
   };
 
-  const confirmUpdate = () => {
+  const confirmUpdate = async () => {
     if (!loadedPresetId || !currentFilters) return;
     
     setIsSaving(true);
     try {
       if (updateAsNew) {
         // Save as new preset
-        const newPreset = saveFilterPreset({
+        const newPreset = await saveFilterPreset(pageId, {
           name: `${loadedPreset?.name} (Copy)`,
           filters: currentFilters,
         });
@@ -87,7 +138,7 @@ export function FilterPresets({ currentFilters, onLoadPreset }: FilterPresetsPro
         setLoadedPresetId(newPreset.id);
       } else {
         // Update existing preset
-        const updated = updateFilterPreset(loadedPresetId, {
+        const updated = await updateFilterPreset(pageId, loadedPresetId, {
           filters: currentFilters,
         });
         if (updated) {
@@ -109,8 +160,11 @@ export function FilterPresets({ currentFilters, onLoadPreset }: FilterPresetsPro
     setDeleteConfirmOpen(true);
   };
 
-  const confirmDelete = () => {
-    if (presetToDelete && deleteFilterPreset(presetToDelete)) {
+  const confirmDelete = async () => {
+    if (!presetToDelete) return;
+    
+    const success = await deleteFilterPreset(pageId, presetToDelete);
+    if (success) {
       setPresets(presets.filter((p) => p.id !== presetToDelete));
     }
     setDeleteConfirmOpen(false);
@@ -185,7 +239,11 @@ export function FilterPresets({ currentFilters, onLoadPreset }: FilterPresetsPro
         </div>
       )}
 
-      {presets.length === 0 ? (
+      {isLoading ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+        </div>
+      ) : presets.length === 0 ? (
         <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
           No saved presets
         </p>

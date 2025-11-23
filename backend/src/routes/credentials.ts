@@ -5,11 +5,43 @@ import { Response } from 'express';
 import { encrypt, decrypt } from '../utils/encryption';
 import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
 import { AuditResourceType, AuditAction } from '@prisma/client';
+import { list, getMetadata } from '../controllers/credentialsController';
 
 const prisma = new PrismaClient();
 const router = Router();
 
 router.use(requireAuth);
+
+/**
+ * GET /credentials/filter-metadata
+ * Returns metadata about all filterable fields, relations, and supported operators
+ * This enables the UI to dynamically build filter interfaces
+ */
+router.get('/filter-metadata', getMetadata);
+
+/**
+ * POST /credentials/list
+ * Advanced filtering endpoint with generic filter operators
+ * 
+ * Request body:
+ * {
+ *   filters?: Filter[],
+ *   search?: string,
+ *   page?: number,
+ *   limit?: number,
+ *   orderBy?: OrderByItem | OrderByItem[]
+ * }
+ * 
+ * Filter structure supports nested AND/OR/NOT conditions:
+ * {
+ *   condition: "and" | "or" | "not",
+ *   childs: [
+ *     { key: "name", type: "STRING", operator: "contains", value: "api" },
+ *     { condition: "or", childs: [...] }
+ *   ]
+ * }
+ */
+router.post('/list', requirePermission('credentials:view'), list);
 
 function mask(cred: any) {
   // Preserve tags when masking

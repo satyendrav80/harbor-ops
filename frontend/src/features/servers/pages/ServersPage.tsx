@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useServers } from '../hooks/useServers';
+import { useServersAdvanced } from '../hooks/useServersAdvanced';
 import { useCreateServer, useUpdateServer, useDeleteServer } from '../hooks/useServerMutations';
 import { revealServerPassword } from '../../../services/servers';
 import { Loading } from '../../../components/common/Loading';
@@ -9,32 +10,19 @@ import { EmptyState } from '../../../components/common/EmptyState';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { ServerModal } from '../components/ServerModal';
 import { ServerGroups } from '../components/ServerGroups';
-import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Eye, EyeOff, Cloud } from 'lucide-react';
+import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
+import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Eye, EyeOff, Cloud, Filter as FilterIcon } from 'lucide-react';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
 import { useQuery } from '@tanstack/react-query';
 import { getGroups } from '../../../services/groups';
 import type { Server } from '../../../services/servers';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
-
-/**
- * Debounce hook to delay search input
- */
-function useDebounce<T>(value: T, delay: number = 500): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
+import { getServersFilterMetadata } from '../../../services/servers';
+import { useDebounce } from '../../../hooks/useDebounce';
+import type { Filter } from '../../release-notes/types/filters';
+import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../../release-notes/utils/urlSync';
+import { hasActiveFilters } from '../../release-notes/utils/filterState';
 
 /**
  * ServersPage component for managing servers
@@ -43,10 +31,16 @@ export function ServersPage() {
   usePageTitle('Servers');
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const serverId = searchParams.get('serverId');
   
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+  
+  // Initialize from URL params
+  const urlFilters = useMemo(() => deserializeFiltersFromUrl(searchParams), [searchParams]);
+  const [advancedFilters, setAdvancedFilters] = useState<Filter | undefined>(urlFilters.filters);
+  const [orderBy, setOrderBy] = useState(urlFilters.orderBy);
   
   // Memoize search handler to prevent input from losing focus
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,8 +52,68 @@ export function ServersPage() {
   const [revealingPasswords, setRevealingPasswords] = useState<Record<number, boolean>>({});
   const [expandedDocumentation, setExpandedDocumentation] = useState<Set<number>>(new Set());
 
+  // Fetch filter metadata
+  const { data: filterMetadata } = useQuery({
+    queryKey: ['servers', 'filter-metadata'],
+    queryFn: () => getServersFilterMetadata(),
+  });
+
+  // Update filters when URL changes
+  useEffect(() => {
+    const urlFilters = deserializeFiltersFromUrl(searchParams);
+    if (urlFilters.filters) {
+      setAdvancedFilters(urlFilters.filters);
+    }
+    if (urlFilters.orderBy) {
+      setOrderBy(urlFilters.orderBy);
+    }
+  }, [searchParams]);
+
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
+
+  // Determine if we should use advanced filtering
+  const useAdvancedFiltering = hasActiveFilters(advancedFilters) || orderBy !== undefined;
+
+  // Advanced filtering hook
+  const {
+    data: advancedServersData,
+    isLoading: advancedServersLoading,
+    isFetching: isFetchingAdvancedServers,
+    error: advancedServersError,
+    fetchNextPage: fetchNextAdvancedServersPage,
+    hasNextPage: hasNextAdvancedServersPage,
+    isFetchingNextPage: isFetchingNextAdvancedServersPage,
+  } = useServersAdvanced(
+    {
+      filters: advancedFilters,
+      search: debouncedSearch || undefined,
+      orderBy,
+    },
+    20
+  );
+
+  // Legacy filtering hook (for backward compatibility)
+  const {
+    data: serversData,
+    isLoading: serversLoading,
+    isFetching: isFetchingServers,
+    error: serversError,
+    fetchNextPage: fetchNextServersPage,
+    hasNextPage: hasNextServersPage,
+    isFetchingNextPage: isFetchingNextServersPage,
+  } = useServers(debouncedSearch, 20);
+
+  // Choose which data to use
+  const serversDataToUse = useAdvancedFiltering ? advancedServersData : serversData;
+  const serversLoadingToUse = useAdvancedFiltering ? advancedServersLoading : serversLoading;
+  const isFetchingServersToUse = useAdvancedFiltering ? isFetchingAdvancedServers : isFetchingServers;
+  const serversErrorToUse = useAdvancedFiltering ? advancedServersError : serversError;
+  const fetchNextServersPageToUse = useAdvancedFiltering ? fetchNextAdvancedServersPage : fetchNextServersPage;
+  const hasNextServersPageToUse = useAdvancedFiltering ? hasNextAdvancedServersPage : hasNextServersPage;
+  const isFetchingNextServersPageToUse = useAdvancedFiltering ? isFetchingNextAdvancedServersPage : isFetchingNextServersPage;
+
+  const deleteServer = useDeleteServer();
 
   // Fetch all groups to get names (for matching with group IDs)
   const { data: groupsData } = useQuery({
@@ -75,56 +129,65 @@ export function ServersPage() {
     return new Map(groupsData.data.map((g) => [g.id, g.name]));
   }, [groupsData]);
 
-  // Auto-scroll to server if serverId is in URL
-  useEffect(() => {
-    if (serverId) {
-      setTimeout(() => {
-        const element = document.getElementById(`server-${serverId}`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          element.classList.add('ring-2', 'ring-primary', 'ring-opacity-50');
-          setTimeout(() => {
-            element.classList.remove('ring-2', 'ring-primary', 'ring-opacity-50');
-          }, 3000);
-        }
-      }, 500);
-    }
-  }, [serverId]);
-
-  // Fetch servers with infinite scroll
-  const {
-    data: serversData,
-    isLoading: serversLoading,
-    error: serversError,
-    fetchNextPage: fetchNextServersPage,
-    hasNextPage: hasNextServersPage,
-    isFetchingNextPage: isFetchingNextServersPage,
-  } = useServers(debouncedSearch, 20);
-
-  const deleteServer = useDeleteServer();
-
   // Keep previous data during refetches to prevent flicker
   const previousDataRef = useRef<Server[]>([]);
   
   // Flatten servers from all pages
   // Use previous data if current data is undefined (during refetch)
   const servers = useMemo(() => {
-    if (!serversData?.pages) {
+    if (!serversDataToUse?.pages) {
       // During refetch, return previous data to prevent flicker
       return previousDataRef.current;
     }
-    const flattened = serversData.pages.flatMap((page) => page.data);
+    const flattened = serversDataToUse.pages.flatMap((page) => page.data);
     // Update ref with new data
     previousDataRef.current = flattened;
     return flattened;
-  }, [serversData]);
+  }, [serversDataToUse]);
 
   // Infinite scroll observer
   const serversObserverTarget = useInfiniteScroll({
-    hasNextPage: hasNextServersPage ?? false,
-    isFetchingNextPage: isFetchingNextServersPage,
-    fetchNextPage: fetchNextServersPage,
+    hasNextPage: hasNextServersPageToUse ?? false,
+    isFetchingNextPage: isFetchingNextServersPageToUse,
+    fetchNextPage: fetchNextServersPageToUse,
   });
+
+  // Auto-scroll to server if serverId is in URL (wait for data to load)
+  useEffect(() => {
+    if (serverId && serversDataToUse?.pages) {
+      // Check if server exists in loaded pages
+      const allServers = serversDataToUse.pages.flatMap((page) => page.data);
+      const foundServer = allServers.find((s) => s.id === Number(serverId));
+      
+      if (foundServer) {
+        // Wait a bit for DOM to update
+        setTimeout(() => {
+          const element = document.getElementById(`server-${serverId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.classList.add('ring-2', 'ring-primary', 'ring-opacity-50');
+            setTimeout(() => {
+              element.classList.remove('ring-2', 'ring-primary', 'ring-opacity-50');
+            }, 3000);
+          }
+        }, 500);
+      }
+    }
+  }, [serverId, serversDataToUse]);
+
+  // Advanced filter handlers
+  const handleAdvancedFiltersApply = useCallback((filters: Filter | undefined) => {
+    setAdvancedFilters(filters);
+    // Update URL params
+    const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, orderBy);
+    setSearchParams(params, { replace: true });
+  }, [debouncedSearch, orderBy, setSearchParams]);
+
+  const handleAdvancedFiltersClear = useCallback(() => {
+    setAdvancedFilters(undefined);
+    setOrderBy(undefined);
+    setSearchParams({}, { replace: true });
+  }, [setSearchParams]);
 
   const handleCreateServer = () => {
     setSelectedServerForEdit(null);
@@ -183,7 +246,7 @@ export function ServersPage() {
     }
   };
 
-  if (serversLoading && servers.length === 0) {
+  if (serversLoadingToUse && servers.length === 0) {
     return (
       <div className="max-w-7xl mx-auto">
         <Loading className="h-64" />
@@ -191,7 +254,7 @@ export function ServersPage() {
     );
   }
 
-  if (serversError) {
+  if (serversErrorToUse) {
     return (
       <div className="max-w-7xl mx-auto">
         <EmptyState
@@ -206,32 +269,46 @@ export function ServersPage() {
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
-      <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
+      <header className="flex flex-col gap-4 mb-8">
         <div className="flex flex-col">
           <p className="text-gray-900 dark:text-white text-3xl font-bold leading-tight">Servers</p>
           <p className="text-gray-500 dark:text-gray-400 text-base font-normal leading-normal">
             Manage your server infrastructure and SSH connections.
           </p>
         </div>
-        <div className="flex items-center gap-4 flex-1 justify-end min-w-[300px]">
-          <label className="flex flex-col h-12 w-full max-w-sm">
-            <div className="flex w-full flex-1 items-stretch rounded-lg h-full">
-              <div className="text-gray-400 dark:text-gray-500 flex bg-white dark:bg-[#1C252E] items-center justify-center pl-4 rounded-l-lg border border-gray-200 dark:border-gray-700/50 border-r-0">
-                <Search className="w-5 h-5" />
-              </div>
-              <input
-                key="server-search-input"
-                className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] h-full placeholder:text-gray-400 dark:placeholder:text-gray-500 px-4 text-sm font-normal leading-normal"
-                placeholder="Search servers..."
-                value={searchQuery}
-                onChange={handleSearchChange}
-              />
-            </div>
-          </label>
+        <div className="flex items-center gap-3 justify-end">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder="Search servers..."
+              className="pl-10 pr-4 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 w-64"
+            />
+          </div>
+          {/* Advanced Filters Button */}
+          <button
+            onClick={() => setAdvancedFiltersOpen(true)}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+              hasActiveFilters(advancedFilters)
+                ? 'bg-primary/10 border-primary text-primary dark:bg-primary/20'
+                : 'bg-white dark:bg-[#1C252E] border-gray-200 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
+          >
+            <FilterIcon className="w-4 h-4" />
+            Filters
+            {hasActiveFilters(advancedFilters) && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs font-medium bg-primary text-white rounded-full">
+                Active
+              </span>
+            )}
+          </button>
           {hasPermission('servers:create') && (
             <button
               onClick={handleCreateServer}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
             >
               <Plus className="w-4 h-4" />
               Create Server
@@ -579,12 +656,25 @@ export function ServersPage() {
             </div>
           ))}
           <div ref={serversObserverTarget} className="h-4" />
-          {isFetchingNextServersPage && (
+          {isFetchingNextServersPageToUse && (
             <div className="p-4 text-center">
               <div className="inline-block w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
           )}
         </div>
+      )}
+
+      {/* Advanced Filters Panel */}
+      {filterMetadata && (
+        <AdvancedFiltersPanel
+          pageId="servers"
+          isOpen={advancedFiltersOpen}
+          onClose={() => setAdvancedFiltersOpen(false)}
+          fields={filterMetadata.fields || []}
+          filters={advancedFilters}
+          onApply={handleAdvancedFiltersApply}
+          onClear={handleAdvancedFiltersClear}
+        />
       )}
 
       {/* Server Modal */}
