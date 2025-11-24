@@ -519,6 +519,7 @@ export function ReleaseNotesPage() {
     fetchNextPage: fetchNextAdvancedReleaseNotesPage,
     hasNextPage: hasNextAdvancedReleaseNotesPage,
     isFetchingNextPage: isFetchingNextAdvancedReleaseNotesPage,
+    refetch: refetchAdvancedReleaseNotes,
   } = useReleaseNotesAdvanced(
     {
       filters: advancedFilters,
@@ -610,7 +611,11 @@ export function ReleaseNotesPage() {
     // Update URL params
     const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, orderBy);
     setSearchParams(params, { replace: true });
-  }, [debouncedSearch, orderBy, setSearchParams]);
+    // Force refetch even if filters are the same (data might have changed on backend)
+    if (useAdvancedFiltering) {
+      refetchAdvancedReleaseNotes();
+    }
+  }, [debouncedSearch, orderBy, setSearchParams, useAdvancedFiltering, refetchAdvancedReleaseNotes]);
 
   const handleAdvancedFiltersClear = useCallback(() => {
     setAdvancedFilters(undefined);

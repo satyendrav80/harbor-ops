@@ -93,6 +93,7 @@ export function DomainsPage() {
     fetchNextPage: fetchNextAdvancedDomainsPage,
     hasNextPage: hasNextAdvancedDomainsPage,
     isFetchingNextPage: isFetchingNextAdvancedDomainsPage,
+    refetch: refetchAdvancedDomains,
   } = useDomainsAdvanced(
     {
       filters: advancedFilters,
@@ -153,7 +154,11 @@ export function DomainsPage() {
     // Update URL params
     const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, orderBy);
     setSearchParams(params, { replace: true });
-  }, [debouncedSearch, orderBy, setSearchParams]);
+    // Force refetch even if filters are the same (data might have changed on backend)
+    if (useAdvancedFiltering) {
+      refetchAdvancedDomains();
+    }
+  }, [debouncedSearch, orderBy, setSearchParams, useAdvancedFiltering, refetchAdvancedDomains]);
 
   const handleAdvancedFiltersClear = useCallback(() => {
     setAdvancedFilters(undefined);

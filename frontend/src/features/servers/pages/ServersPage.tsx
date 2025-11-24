@@ -84,6 +84,7 @@ export function ServersPage() {
     fetchNextPage: fetchNextAdvancedServersPage,
     hasNextPage: hasNextAdvancedServersPage,
     isFetchingNextPage: isFetchingNextAdvancedServersPage,
+    refetch: refetchAdvancedServers,
   } = useServersAdvanced(
     {
       filters: advancedFilters,
@@ -181,7 +182,11 @@ export function ServersPage() {
     // Update URL params
     const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, orderBy);
     setSearchParams(params, { replace: true });
-  }, [debouncedSearch, orderBy, setSearchParams]);
+    // Force refetch even if filters are the same (data might have changed on backend)
+    if (useAdvancedFiltering) {
+      refetchAdvancedServers();
+    }
+  }, [debouncedSearch, orderBy, setSearchParams, useAdvancedFiltering, refetchAdvancedServers]);
 
   const handleAdvancedFiltersClear = useCallback(() => {
     setAdvancedFilters(undefined);

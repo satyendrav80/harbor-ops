@@ -15,7 +15,13 @@ export function extractGroupFilters(where: any): { groupFilters: any[]; remainin
   const groupFilters: any[] = [];
   
   function extractRecursive(clause: any): any {
-    if (!clause || typeof clause !== 'object') {
+    // Handle primitives and Date objects (preserve them as-is)
+    if (clause === null || clause === undefined) {
+      return clause;
+    }
+    
+    // Preserve Date objects and other non-object primitives
+    if (clause instanceof Date || typeof clause !== 'object') {
       return clause;
     }
     
@@ -55,10 +61,17 @@ export function extractGroupFilters(where: any): { groupFilters: any[]; remainin
     let hasProperties = false;
     
     for (const [key, value] of Object.entries(clause)) {
-      const processed = extractRecursive(value);
-      if (processed !== undefined) {
-        result[key] = processed;
+      // Preserve Date objects and primitives directly
+      if (value instanceof Date || (value !== null && typeof value !== 'object')) {
+        result[key] = value;
         hasProperties = true;
+      } else {
+        // Recursively process objects
+        const processed = extractRecursive(value);
+        if (processed !== undefined) {
+          result[key] = processed;
+          hasProperties = true;
+        }
       }
     }
     

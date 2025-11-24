@@ -3,6 +3,7 @@
  */
 
 import type { FilterCondition, FilterGroup, FilterNode } from '../../types/filterMetadata';
+import { normalizeDateForOperator, isDateField } from '../dateHelpers';
 
 /**
  * Check if a node is a FilterGroup
@@ -119,12 +120,18 @@ export function buildConditionClause(condition: FilterCondition): any {
   const fieldParts = key.split('.');
   const finalField = fieldParts[fieldParts.length - 1];
 
+  // Check if this is a date field
+  const isDate = isDateField(finalField, condition.type);
+
   let clause: any = {};
 
   // Apply operator
   switch (operator) {
     case 'eq':
-      clause[finalField] = value;
+      // For date fields, normalize to start of day for equality
+      clause[finalField] = isDate && (value instanceof Date || typeof value === 'string') 
+        ? normalizeDateForOperator(value, 'eq')
+        : value;
       break;
 
     case 'ne':
@@ -132,19 +139,33 @@ export function buildConditionClause(condition: FilterCondition): any {
       break;
 
     case 'gt':
-      clause[finalField] = { gt: value };
+      // For date fields, normalize to end of day (so "greater than today" means after today ends)
+      clause[finalField] = isDate && (value instanceof Date || typeof value === 'string')
+        ? { gt: normalizeDateForOperator(value, 'gt') }
+        : { gt: value };
       break;
 
     case 'gte':
-      clause[finalField] = { gte: value };
+      // For date fields, normalize to start of day (so "greater than or equal to today" includes today)
+      if (isDate && (value instanceof Date || typeof value === 'string')) {
+        clause[finalField] = { gte: normalizeDateForOperator(value, 'gte') };
+      } else {
+        clause[finalField] = { gte: value };
+      }
       break;
 
     case 'lt':
-      clause[finalField] = { lt: value };
+      // For date fields, normalize to start of day (so "less than today" means before today starts)
+      clause[finalField] = isDate && (value instanceof Date || typeof value === 'string')
+        ? { lt: normalizeDateForOperator(value, 'lt') }
+        : { lt: value };
       break;
 
     case 'lte':
-      clause[finalField] = { lte: value };
+      // For date fields, normalize to end of day (so "less than or equal to today" includes today)
+      clause[finalField] = isDate && (value instanceof Date || typeof value === 'string')
+        ? { lte: normalizeDateForOperator(value, 'lte') }
+        : { lte: value };
       break;
 
     case 'in':
@@ -188,19 +209,19 @@ export function buildConditionClause(condition: FilterCondition): any {
 
     case 'between':
       if (Array.isArray(value) && value.length === 2) {
+        let startValue = value[0];
         let endValue = value[1];
-        // For date fields, ensure the end date includes the full day
-        if (finalField.includes('Date') || finalField.includes('At') || condition.type === 'DATE' || condition.type === 'DATETIME') {
-          if (endValue instanceof Date) {
-            endValue = new Date(endValue);
-            endValue.setHours(23, 59, 59, 999);
-          } else if (typeof endValue === 'string') {
-            const date = new Date(endValue);
-            date.setHours(23, 59, 59, 999);
-            endValue = date;
+        
+        // For date fields, normalize start to beginning of day and end to end of day
+        if (isDate) {
+          if (startValue instanceof Date || typeof startValue === 'string') {
+            startValue = normalizeDateForOperator(startValue, 'between', false);
+          }
+          if (endValue instanceof Date || typeof endValue === 'string') {
+            endValue = normalizeDateForOperator(endValue, 'between', true);
           }
         }
-        clause[finalField] = { gte: value[0], lte: endValue };
+        clause[finalField] = { gte: startValue, lte: endValue };
       }
       break;
 

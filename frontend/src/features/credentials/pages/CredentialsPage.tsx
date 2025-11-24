@@ -114,6 +114,7 @@ export function CredentialsPage() {
     fetchNextPage: fetchNextAdvancedCredentialsPage,
     hasNextPage: hasNextAdvancedCredentialsPage,
     isFetchingNextPage: isFetchingNextAdvancedCredentialsPage,
+    refetch: refetchAdvancedCredentials,
   } = useCredentialsAdvanced(
     {
       filters: advancedFilters,
@@ -201,7 +202,11 @@ export function CredentialsPage() {
     // Update URL params
     const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, orderBy);
     setSearchParams(params, { replace: true });
-  }, [debouncedSearch, orderBy, setSearchParams]);
+    // Force refetch even if filters are the same (data might have changed on backend)
+    if (useAdvancedFiltering) {
+      refetchAdvancedCredentials();
+    }
+  }, [debouncedSearch, orderBy, setSearchParams, useAdvancedFiltering, refetchAdvancedCredentials]);
 
   const handleAdvancedFiltersClear = useCallback(() => {
     setAdvancedFilters(undefined);
