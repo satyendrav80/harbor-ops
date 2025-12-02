@@ -11,8 +11,9 @@ import { getGroups, getGroupsByItem } from '../../../services/groups';
 import { getTags } from '../../../services/tags';
 import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
 import { useAuth } from '../../../features/auth/context/AuthContext';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Upload, Download, Copy, FileJson, FileText } from 'lucide-react';
 import type { Credential } from '../../../services/credentials';
+import { parseJSON, parseProperties, exportToJSON, exportToProperties, downloadFile, copyToClipboard, type BulkDataFormat } from '../../../utils/bulkDataUtils';
 
 type CredentialModalProps = {
   isOpen: boolean;
@@ -24,7 +25,7 @@ type CredentialModalProps = {
 const credentialSchema = z.object({
   name: z.string().min(1, 'Credential name is required').max(100, 'Credential name must be 100 characters or less'),
   type: z.string().min(1, 'Credential type is required').max(50, 'Credential type must be 50 characters or less'),
-  data: z.record(z.any()).refine((data) => Object.keys(data).length > 0, 'Credential data is required'),
+  data: z.record(z.any()), // Validation will be done in onSubmit based on isEditing
   tagIds: z.array(z.number()).optional(),
   groupIds: z.array(z.number()).optional(),
 });
@@ -39,11 +40,20 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
   const addItemToGroup = useAddItemToGroup();
   const removeItemFromGroup = useRemoveItemFromGroup();
   const { hasPermission } = useAuth();
-  
+
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [dataKeys, setDataKeys] = useState<string[]>([]);
   const [dataValues, setDataValues] = useState<Record<string, string>>({});
+
+  // Bulk import/export state
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importFormat, setImportFormat] = useState<BulkDataFormat>('json');
+  const [importError, setImportError] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<BulkDataFormat>('json');
+  const [showExportSuccess, setShowExportSuccess] = useState(false);
+  const [dataStructureModified, setDataStructureModified] = useState(false); // Track if keys were added/removed
 
   // Fetch groups for multi-select
   const { data: groupsData } = useQuery({
@@ -88,7 +98,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
   // Reset form when modal opens/closes or credential changes
   useEffect(() => {
     if (!isOpen) return;
-    
+
     if (credential && isEditing) {
       form.reset({
         name: credential.name,
@@ -97,11 +107,11 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
         tagIds: credential.tags?.map((t) => t.id) || [],
         groupIds: existingGroupsData || [],
       });
-      
+
       // Parse credential data (it's masked, but we'll show keys for editing)
       try {
         const parsedData = credential.data || {};
-        
+
         if (typeof parsedData === 'object' && parsedData !== null) {
           const keys = Object.keys(parsedData);
           setDataKeys(keys);
@@ -112,12 +122,14 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
           });
           setDataValues(values);
           form.setValue('data', parsedData);
+          setDataStructureModified(false); // Reset modification flag
         }
       } catch (e) {
         // If parsing fails, start with empty data
         setDataKeys([]);
         setDataValues({});
         form.setValue('data', {});
+        setDataStructureModified(false); // Reset modification flag
       }
     } else {
       form.reset({
@@ -129,9 +141,15 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
       });
       setDataKeys([]);
       setDataValues({});
+      setDataStructureModified(false);
     }
     setError(null);
     setDeleteConfirmOpen(false);
+    if (!isOpen) {
+      // Assuming these states are defined elsewhere or are placeholders
+      // setCreatedService(null);
+      // setLocalDependencies([]);
+    }
   }, [isOpen, credential, form, isEditing, existingGroupsData]);
 
   const addDataField = () => {
@@ -140,6 +158,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
     const updatedValues = { ...dataValues, [newKey]: '' };
     setDataKeys(updatedKeys);
     setDataValues(updatedValues);
+    setDataStructureModified(true); // Mark as modified when adding a field
   };
 
   const removeDataField = (key: string) => {
@@ -148,7 +167,8 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
     delete newValues[key];
     setDataKeys(newKeys);
     setDataValues(newValues);
-    
+    setDataStructureModified(true); // Mark as modified when removing a field
+
     // Update form data field for validation (only include non-empty keys with non-empty values)
     const dataObject: Record<string, any> = {};
     newKeys.forEach((k) => {
@@ -164,7 +184,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
   const updateDataValue = (key: string, value: string) => {
     const newValues = { ...dataValues, [key]: value };
     setDataValues(newValues);
-    
+
     // Update form data field for validation (only include non-empty keys with non-empty values)
     const dataObject: Record<string, any> = {};
     dataKeys.forEach((k) => {
@@ -177,28 +197,115 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
     form.setValue('data', dataObject, { shouldValidate: true });
   };
 
-  const onSubmit = async (values: CredentialFormValues) => {
-    setError(null);
-    
-    // Build data object from keys and values (only include non-empty keys with non-empty values)
-    const dataObject: Record<string, any> = {};
+  const handleBulkImport = () => {
+    setImportError(null);
+
+    if (!importText.trim()) {
+      setImportError('Please paste some data to import');
+      return;
+    }
+
+    const parseResult = importFormat === 'json'
+      ? parseJSON(importText)
+      : parseProperties(importText);
+
+    if (!parseResult.success) {
+      setImportError(parseResult.error || 'Failed to parse data');
+      return;
+    }
+
+    if (parseResult.data) {
+      // Update dataKeys and dataValues with imported data
+      const keys = Object.keys(parseResult.data);
+      setDataKeys(keys);
+      setDataValues(parseResult.data);
+      setDataStructureModified(true); // Mark as modified when importing
+
+      // Update form data
+      form.setValue('data', parseResult.data, { shouldValidate: true });
+
+      // Close import modal and reset
+      setImportModalOpen(false);
+      setImportText('');
+      setImportError(null);
+    }
+  };
+
+  const handleExport = async (method: 'download' | 'copy') => {
+    // Build data object from current keys and values
+    const dataObject: Record<string, string> = {};
     dataKeys.forEach((key) => {
       const keyTrimmed = key.trim();
       const value = dataValues[key];
-      if (keyTrimmed !== '' && value !== undefined && value.trim() !== '') {
+      if (keyTrimmed !== '' && value !== undefined) {
         dataObject[keyTrimmed] = value;
       }
     });
-    
+
+    if (Object.keys(dataObject).length === 0) {
+      setError('No data to export. Please add some key-value pairs first.');
+      return;
+    }
+
+    const content = exportFormat === 'json'
+      ? exportToJSON(dataObject)
+      : exportToProperties(dataObject);
+
+    const extension = exportFormat === 'json' ? 'json' : 'properties';
+    const mimeType = exportFormat === 'json' ? 'application/json' : 'text/plain';
+
+    try {
+      if (method === 'download') {
+        downloadFile(content, `credentials.${extension}`, mimeType);
+      } else {
+        await copyToClipboard(content);
+        setShowExportSuccess(true);
+        setTimeout(() => setShowExportSuccess(false), 2000);
+      }
+    } catch (err) {
+      setError('Failed to export data');
+    }
+  };
+
+  const onSubmit = async (values: CredentialFormValues) => {
+    setError(null);
+
+    // Build data object from keys and values
+    const dataObject: Record<string, any> = {};
+
+    if (isEditing && dataStructureModified) {
+      // When editing and structure was modified, include ALL keys (even with empty values)
+      // This tells the backend which keys to keep and which to delete
+      dataKeys.forEach((key) => {
+        const keyTrimmed = key.trim();
+        const value = dataValues[key];
+        if (keyTrimmed !== '') {
+          // Include the key even if value is empty (masked)
+          // Empty/masked values will be skipped by backend (keeps existing encrypted value)
+          // Keys not in this object will be deleted by backend
+          dataObject[keyTrimmed] = value || '';
+        }
+      });
+    } else {
+      // For create or edit without structure changes, only include non-empty values
+      dataKeys.forEach((key) => {
+        const keyTrimmed = key.trim();
+        const value = dataValues[key];
+        if (keyTrimmed !== '' && value !== undefined && value.trim() !== '') {
+          dataObject[keyTrimmed] = value;
+        }
+      });
+    }
+
     // Validate data has at least one non-empty key-value pair (only required on create, not update)
     if (!isEditing && Object.keys(dataObject).length === 0) {
       form.setError('data', { message: 'Credential data is required. Please add at least one key-value pair with both key and value filled.' });
       return;
     }
-    
+
     // Clear any previous errors
     form.clearErrors('data');
-    
+
     try {
 
       let createdOrUpdatedCredential: Credential;
@@ -209,8 +316,8 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
           data: {
             name: values.name,
             type: values.type,
-            // Only send data if there are changes (allow partial updates)
-            ...(Object.keys(dataObject).length > 0 ? { data: dataObject } : {}),
+            // Send data if structure was modified (keys added/removed) or if there are non-empty values
+            ...(dataStructureModified || Object.keys(dataObject).length > 0 ? { data: dataObject } : {}),
             tagIds: values.tagIds || [],
           },
         });
@@ -227,13 +334,13 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
       if (hasPermission('groups:update')) {
         const existingGroupIds = existingGroupsData || [];
         const newGroupIds = values.groupIds || [];
-        
+
         // Groups to add (in new list but not in existing)
         const groupsToAdd = newGroupIds.filter((id) => !existingGroupIds.includes(id));
-        
+
         // Groups to remove (in existing but not in new list)
         const groupsToRemove = existingGroupIds.filter((id) => !newGroupIds.includes(id));
-        
+
         // Add to new groups
         await Promise.all(
           groupsToAdd.map((groupId) =>
@@ -244,7 +351,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
             })
           )
         );
-        
+
         // Remove from groups
         await Promise.all(
           groupsToRemove.map((groupId) =>
@@ -328,9 +435,57 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
         </div>
 
         <div>
-          <label className="flex flex-col">
-            <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Credential Data</span>
-          </label>
+          <div className="flex items-center justify-between mb-3">
+            <label className="flex flex-col">
+              <span className="text-sm font-medium leading-normal text-gray-900 dark:text-white">Credential Data</span>
+            </label>
+            <div className="flex items-center gap-2">
+              {/* Import Button */}
+              <button
+                type="button"
+                onClick={() => setImportModalOpen(true)}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Bulk Import
+              </button>
+
+              {/* Export Dropdown */}
+              <div className="relative inline-block">
+                <select
+                  value={exportFormat}
+                  onChange={(e) => setExportFormat(e.target.value as BulkDataFormat)}
+                  className="appearance-none px-2 py-1.5 pr-6 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-l-lg focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                >
+                  <option value="json">JSON</option>
+                  <option value="properties">Properties</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleExport('download')}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border border-l-0 border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                title="Download as file"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExport('copy')}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border border-l-0 border-gray-200 dark:border-gray-700/50 rounded-r-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                title="Copy to clipboard"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {showExportSuccess && (
+            <div className="mb-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-2">
+              <p className="text-xs text-green-800 dark:text-green-200">Copied to clipboard!</p>
+            </div>
+          )}
+
           <div className="space-y-2">
             {dataKeys.map((key, index) => (
               <div key={index} className="flex items-center gap-2">
@@ -344,14 +499,14 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
                     const oldKey = key;
                     const newKey = e.target.value;
                     newKeys[index] = newKey;
-                    
+
                     const newValues = { ...dataValues };
                     newValues[newKey] = dataValues[oldKey] || '';
                     delete newValues[oldKey];
-                    
+
                     setDataKeys(newKeys);
                     setDataValues(newValues);
-                    
+
                     // Update form data field for validation (only include non-empty keys with non-empty values)
                     const dataObject: Record<string, any> = {};
                     newKeys.forEach((k) => {
@@ -390,7 +545,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
             </button>
           </div>
           {form.formState.errors.data && (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{form.formState.errors.data.message}</p>
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{String(form.formState.errors.data.message || 'Invalid data')}</p>
           )}
         </div>
 
@@ -470,6 +625,101 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
         variant="danger"
         isLoading={deleteCredential.isPending}
       />
+
+      {/* Bulk Import Modal */}
+      <Modal
+        isOpen={importModalOpen}
+        onClose={() => {
+          setImportModalOpen(false);
+          setImportText('');
+          setImportError(null);
+        }}
+        title="Bulk Import Credential Data"
+        size="xl"
+      >
+        <div className="space-y-4">
+          {importError && (
+            <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
+              <p className="text-sm text-red-800 dark:text-red-200">{importError}</p>
+            </div>
+          )}
+
+          <div>
+            <label className="flex flex-col">
+              <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">Format</span>
+            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="json"
+                  checked={importFormat === 'json'}
+                  onChange={(e) => setImportFormat(e.target.value as BulkDataFormat)}
+                  className="w-4 h-4 text-primary bg-gray-100 border-gray-300 focus:ring-primary focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <FileJson className="w-4 h-4" />
+                <span className="text-sm text-gray-900 dark:text-white">JSON</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="properties"
+                  checked={importFormat === 'properties'}
+                  onChange={(e) => setImportFormat(e.target.value as BulkDataFormat)}
+                  className="w-4 h-4 text-primary bg-gray-100 border-gray-300 focus:ring-primary focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <FileText className="w-4 h-4" />
+                <span className="text-sm text-gray-900 dark:text-white">Properties</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label className="flex flex-col">
+              <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">
+                Paste your data below
+              </span>
+            </label>
+            <textarea
+              className="form-input w-full rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] px-4 py-3 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-0 focus:ring-2 focus:ring-primary/50 font-mono resize-y"
+              placeholder={importFormat === 'json'
+                ? '{\n  "username": "admin",\n  "password": "secret123",\n  "api_key": "abc-xyz"\n}'
+                : 'username=admin\npassword=secret123\napi_key=abc-xyz'
+              }
+              rows={12}
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+            />
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {importFormat === 'json'
+                ? 'Paste a JSON object with key-value pairs. Example: {"key1": "value1", "key2": "value2"}'
+                : 'Paste properties in key=value format, one per line. Example: key1=value1'
+              }
+            </p>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+            <button
+              type="button"
+              onClick={() => {
+                setImportModalOpen(false);
+                setImportText('');
+                setImportError(null);
+              }}
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkImport}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors"
+            >
+              Import
+            </button>
+          </div>
+        </div>
+      </Modal>
     </Modal>
   );
 }

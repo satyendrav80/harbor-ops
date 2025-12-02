@@ -45,8 +45,8 @@ router.post('/list', requirePermission('credentials:view'), list);
 
 function mask(cred: any) {
   // Preserve tags when masking
-  return { 
-    ...cred, 
+  return {
+    ...cred,
     data: 'hidden',
     tags: cred.tags || [],
   };
@@ -143,12 +143,12 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
 
   // Build search conditions
   const searchConditions: any = {};
-  
+
   // Filter by credentialId if provided (exact match)
   if (credentialId) {
     searchConditions.id = credentialId;
   }
-  
+
   // Add search conditions if not filtering by exact credentialId
   if (search && !credentialId) {
     searchConditions.OR = [
@@ -198,11 +198,11 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
   const credentialIds = items.map((item) => item.id);
   const metaRecords = credentialIds.length > 0
     ? await prisma.meta.findMany({
-        where: {
-          resourceType: 'credential',
-          resourceId: { in: credentialIds },
-        },
-      })
+      where: {
+        resourceType: 'credential',
+        resourceId: { in: credentialIds },
+      },
+    })
     : [];
 
   // Group meta records by credentialId
@@ -217,22 +217,22 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
   // Check if user can view full credential data (has view permission)
   const hasFullView = await hasCredentialsViewPermission(req);
   const processedItems = items.map((item) => {
-    const baseItem = hasFullView 
+    const baseItem = hasFullView
       ? {
-          ...item,
-          data: metaToMaskedData(metaByCredentialId[item.id] || []), // Mask all values
-        }
+        ...item,
+        data: metaToMaskedData(metaByCredentialId[item.id] || []), // Mask all values
+      }
       : mask(item);
-    
+
     // Transform tags from CredentialTag[] to Tag[]
     const tags = item.tags ? item.tags.map((ct: any) => ct.tag) : [];
-    
+
     return {
       ...baseItem,
       tags,
     };
   });
-  
+
   res.json({
     data: processedItems,
     pagination: {
@@ -246,7 +246,7 @@ router.get('/', requirePermission('credentials:view'), async (req: AuthRequest, 
 
 router.post('/', requirePermission('credentials:create'), async (req: AuthRequest, res) => {
   const { name, type, data, tagIds } = req.body;
-  
+
   // Validate data is provided
   if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
     return res.status(400).json({ error: 'Credential data is required. Please add at least one key-value pair.' });
@@ -255,8 +255,8 @@ router.post('/', requirePermission('credentials:create'), async (req: AuthReques
   // Create credential with meta and tags in a transaction
   const created = await prisma.$transaction(async (tx) => {
     const credential = await tx.credential.create({
-      data: { 
-        name, 
+      data: {
+        name,
         type,
         createdBy: req.user?.id || null,
       },
@@ -293,7 +293,7 @@ router.post('/', requirePermission('credentials:create'), async (req: AuthReques
       tags: tags.map((ct) => ct.tag),
     };
   });
-  
+
   // Log audit
   const requestMetadata = getRequestMetadata(req);
   await logAudit({
@@ -304,13 +304,13 @@ router.post('/', requirePermission('credentials:create'), async (req: AuthReques
     changes: { created: created },
     ...requestMetadata,
   });
-  
+
   res.status(201).json(mask(created));
 });
 
 router.get('/:id', requirePermission('credentials:view'), async (req: AuthRequest, res: Response) => {
   const id = Number(req.params.id);
-  const item = await prisma.credential.findUnique({ 
+  const item = await prisma.credential.findUnique({
     where: { id, deleted: false },
     include: {
       servers: { include: { server: { select: { id: true, name: true, type: true } } } },
@@ -320,7 +320,7 @@ router.get('/:id', requirePermission('credentials:view'), async (req: AuthReques
     },
   });
   if (!item) return res.status(404).json({ error: 'Not found' });
-  
+
   // Fetch meta records
   const metaRecords = await prisma.meta.findMany({
     where: {
@@ -330,7 +330,7 @@ router.get('/:id', requirePermission('credentials:view'), async (req: AuthReques
   });
 
   const hasFullView = await hasCredentialsViewPermission(req);
-  
+
   if (hasFullView) {
     // Always mask the encrypted data (never expose decrypted data in normal GET)
     const maskedItem = {
@@ -349,20 +349,20 @@ router.put('/:id', requirePermission('credentials:update'), async (req: AuthRequ
   if (!existingCredential) {
     return res.status(404).json({ error: 'Credential not found' });
   }
-  
+
   const oldCredential = { ...existingCredential };
   const { name, type, data, tagIds } = req.body;
-  
+
   // Update credential and meta in a transaction
   const updated = await prisma.$transaction(async (tx) => {
     // Update credential basic info
-    const credential = await tx.credential.update({ 
-      where: { id }, 
-      data: { 
+    const credential = await tx.credential.update({
+      where: { id },
+      data: {
         name: name !== undefined ? name : existingCredential.name,
         type: type !== undefined ? type : existingCredential.type,
         updatedBy: req.user?.id || null,
-      } 
+      }
     });
 
     // Update meta records only if data is provided
@@ -409,15 +409,27 @@ router.put('/:id', requirePermission('credentials:update'), async (req: AuthRequ
         });
       }
 
-      // If a key exists in existing but not in newData, we keep it (partial update)
-      // To delete keys, they would need to be explicitly passed as null/empty
+      // Delete keys that exist in the database but not in the new data
+      // This allows users to remove credential keys
+      const newDataKeys = new Set(Object.keys(data));
+      const keysToDelete = Array.from(existingKeys).filter(key => !newDataKeys.has(key));
+
+      if (keysToDelete.length > 0) {
+        await tx.meta.deleteMany({
+          where: {
+            resourceType: 'credential',
+            resourceId: id,
+            key: { in: keysToDelete },
+          },
+        });
+      }
     }
 
     // Update tags if provided
     if (tagIds !== undefined) {
       // Remove all existing tags
       await tx.credentialTag.deleteMany({ where: { credentialId: id } });
-      
+
       // Add new tags if provided
       if (Array.isArray(tagIds) && tagIds.length > 0) {
         const tagData = tagIds.map((tagId: number) => ({
@@ -447,7 +459,7 @@ router.put('/:id', requirePermission('credentials:update'), async (req: AuthRequ
       tags: tags.map((ct) => ct.tag),
     };
   });
-  
+
   // Log audit
   const requestMetadata = getRequestMetadata(req);
   const changes = getChanges(oldCredential, updated);
@@ -461,7 +473,7 @@ router.put('/:id', requirePermission('credentials:update'), async (req: AuthRequ
       ...requestMetadata,
     });
   }
-  
+
   res.json(mask(updated));
 });
 
@@ -470,7 +482,7 @@ router.get('/:id/reveal', requirePermission('credentials:reveal'), async (req: A
   const id = Number(req.params.id);
   const item = await prisma.credential.findUnique({ where: { id, deleted: false } });
   if (!item) return res.status(404).json({ error: 'Credential not found' });
-  
+
   try {
     // Fetch meta records
     const metaRecords = await prisma.meta.findMany({
@@ -493,7 +505,7 @@ router.delete('/:id', requirePermission('credentials:delete'), async (req: AuthR
   const id = Number(req.params.id);
   const credential = await prisma.credential.findUnique({ where: { id, deleted: false } });
   if (!credential) return res.status(404).json({ error: 'Credential not found' });
-  
+
   // Soft delete (meta records remain, they're just not accessible)
   await prisma.credential.update({
     where: { id },
@@ -503,7 +515,7 @@ router.delete('/:id', requirePermission('credentials:delete'), async (req: AuthR
       deletedBy: req.user?.id || null,
     },
   });
-  
+
   // Log audit
   const requestMetadata = getRequestMetadata(req);
   await logAudit({
@@ -514,7 +526,7 @@ router.delete('/:id', requirePermission('credentials:delete'), async (req: AuthR
     changes: { deleted: credential },
     ...requestMetadata,
   });
-  
+
   res.status(204).end();
 });
 
