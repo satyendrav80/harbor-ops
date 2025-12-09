@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
+import { emitReactionAdded } from '../../../socket/socket';
 
 const prisma = new PrismaClient();
 
@@ -34,6 +35,9 @@ export async function addReaction(context: RequestContext) {
       user: { select: { id: true, name: true } },
     },
   });
+
+  // Emit Socket.IO event for real-time updates
+  emitReactionAdded(comment.taskId, commentId, reaction);
 
   return reaction;
 }

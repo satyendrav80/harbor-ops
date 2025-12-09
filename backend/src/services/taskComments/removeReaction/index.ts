@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
+import { emitReactionRemoved } from '../../../socket/socket';
 
 const prisma = new PrismaClient();
 
@@ -14,6 +15,14 @@ export async function removeReaction(context: RequestContext) {
 
   if (isNaN(commentId) || !emoji) {
     throw new Error('Invalid parameters');
+  }
+
+  const comment = await prisma.taskComment.findUnique({
+    where: { id: commentId },
+  });
+
+  if (!comment || comment.deleted) {
+    throw new Error('Comment not found');
   }
 
   const reaction = await prisma.taskCommentReaction.findFirst({
@@ -31,6 +40,9 @@ export async function removeReaction(context: RequestContext) {
   await prisma.taskCommentReaction.delete({
     where: { id: reaction.id },
   });
+
+  // Emit Socket.IO event for real-time updates
+  emitReactionRemoved(comment.taskId, commentId, emoji, userId);
 
   return { success: true };
 }

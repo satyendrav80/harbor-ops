@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import authRouter from './routes/auth';
 import { PrismaClient } from '@prisma/client';
@@ -19,6 +20,7 @@ import filterPresetsRouter from './routes/filterPresets';
 import tasksRouter from './routes/tasks';
 import sprintsRouter from './routes/sprints';
 import { requireApprovedUser } from './middleware/auth';
+import { initializeSocket } from './socket/socket';
 
 const app = express();
 app.use(cors());
@@ -47,6 +49,12 @@ app.use('/sprints', requireApprovedUser, sprintsRouter);
 app.use('/', requireApprovedUser, usersRouter);
 
 const port = Number(process.env.PORT) || 3044;
+
+// Create HTTP server
+const httpServer = createServer(app);
+
+// Initialize Socket.IO
+initializeSocket(httpServer);
 
 // Initialize default roles/permissions on boot
 async function initializeDefaults() {
@@ -98,7 +106,7 @@ async function initializeDefaults() {
   }
 }
 
-app.listen(port, () => {
+httpServer.listen(port, () => {
   console.log(`Backend listening on http://localhost:${port}`);
   initializeDefaults().catch((err) => console.error('Initialization error:', err));
 });

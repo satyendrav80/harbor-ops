@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
 import { extractParams } from './extractParams';
+import { emitCommentUpdated } from '../../../socket/socket';
 
 const prisma = new PrismaClient();
 
@@ -40,6 +41,9 @@ export async function update(context: RequestContext) {
       },
     },
   });
+
+  // Emit Socket.IO event for real-time updates
+  emitCommentUpdated(data.taskId, updatedComment);
 
   return updatedComment;
 }

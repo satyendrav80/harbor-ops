@@ -4,6 +4,8 @@ import { useAuth } from '../../auth/context/AuthContext';
 import { Trash2, Edit2, Smile, Quote, CornerDownRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
+import { getSocket, joinTaskRoom, leaveTaskRoom } from '../../../services/socket';
+import { useQueryClient } from '@tanstack/react-query';
 import type { TaskComment } from '../../../services/tasks';
 
 type CommentThreadProps = {
@@ -634,6 +636,173 @@ export function CommentThread({ taskId, comments }: CommentThreadProps) {
   const [quotedComment, setQuotedComment] = useState<QuotedComment | null>(null);
   const [replyTrigger, setReplyTrigger] = useState(0);
   const mainFormRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
+
+  // Join task room for real-time updates
+  useEffect(() => {
+    joinTaskRoom(taskId);
+    
+    const socket = getSocket();
+    if (!socket) return;
+
+    // Listen for comment created event
+    const handleCommentCreated = (newComment: TaskComment) => {
+      queryClient.setQueryData(['task', taskId], (oldData: any) => {
+        if (!oldData) return oldData;
+        
+        // Add new comment to the task's comments array
+        const updatedComments = [...(oldData.comments || []), newComment];
+        return {
+          ...oldData,
+          comments: updatedComments,
+        };
+      });
+    };
+
+    // Listen for comment updated event
+    const handleCommentUpdated = (updatedComment: TaskComment) => {
+      queryClient.setQueryData(['task', taskId], (oldData: any) => {
+        if (!oldData) return oldData;
+        
+        const updatedComments = (oldData.comments || []).map((c: TaskComment) => {
+          if (c.id === updatedComment.id) {
+            return updatedComment;
+          }
+          // Also update in replies if it's a reply
+          if (c.replies) {
+            const updatedReplies = c.replies.map((r: TaskComment) =>
+              r.id === updatedComment.id ? updatedComment : r
+            );
+            return { ...c, replies: updatedReplies };
+          }
+          return c;
+        });
+        
+        return {
+          ...oldData,
+          comments: updatedComments,
+        };
+      });
+    };
+
+    // Listen for comment deleted event
+    const handleCommentDeleted = ({ commentId }: { commentId: number; taskId: number }) => {
+      queryClient.setQueryData(['task', taskId], (oldData: any) => {
+        if (!oldData) return oldData;
+        
+        const updatedComments = (oldData.comments || []).map((c: TaskComment) => {
+          if (c.id === commentId) {
+            return { ...c, deleted: true };
+          }
+          // Also mark deleted in replies if it's a reply
+          if (c.replies) {
+            const updatedReplies = c.replies.map((r: TaskComment) =>
+              r.id === commentId ? { ...r, deleted: true } : r
+            );
+            return { ...c, replies: updatedReplies };
+          }
+          return c;
+        });
+        
+        return {
+          ...oldData,
+          comments: updatedComments,
+        };
+      });
+    };
+
+    // Listen for reaction added event
+    const handleReactionAdded = ({ commentId, reaction }: { commentId: number; taskId: number; reaction: any }) => {
+      queryClient.setQueryData(['task', taskId], (oldData: any) => {
+        if (!oldData) return oldData;
+        
+        const updatedComments = (oldData.comments || []).map((c: TaskComment) => {
+          if (c.id === commentId) {
+            const existingReactions = c.reactions || [];
+            // Check if reaction already exists (avoid duplicates)
+            const reactionExists = existingReactions.some(
+              (r: any) => r.emoji === reaction.emoji && r.userId === reaction.userId
+            );
+            if (!reactionExists) {
+              return { ...c, reactions: [...existingReactions, reaction] };
+            }
+          }
+          // Also update in replies if it's a reply
+          if (c.replies) {
+            const updatedReplies = c.replies.map((r: TaskComment) => {
+              if (r.id === commentId) {
+                const existingReactions = r.reactions || [];
+                const reactionExists = existingReactions.some(
+                  (reac: any) => reac.emoji === reaction.emoji && reac.userId === reaction.userId
+                );
+                if (!reactionExists) {
+                  return { ...r, reactions: [...existingReactions, reaction] };
+                }
+              }
+              return r;
+            });
+            return { ...c, replies: updatedReplies };
+          }
+          return c;
+        });
+        
+        return {
+          ...oldData,
+          comments: updatedComments,
+        };
+      });
+    };
+
+    // Listen for reaction removed event
+    const handleReactionRemoved = ({ commentId, emoji, userId }: { commentId: number; taskId: number; emoji: string; userId: string }) => {
+      queryClient.setQueryData(['task', taskId], (oldData: any) => {
+        if (!oldData) return oldData;
+        
+        const updatedComments = (oldData.comments || []).map((c: TaskComment) => {
+          if (c.id === commentId) {
+            const updatedReactions = (c.reactions || []).filter(
+              (r: any) => !(r.emoji === emoji && r.userId === userId)
+            );
+            return { ...c, reactions: updatedReactions };
+          }
+          // Also update in replies if it's a reply
+          if (c.replies) {
+            const updatedReplies = c.replies.map((r: TaskComment) => {
+              if (r.id === commentId) {
+                const updatedReactions = (r.reactions || []).filter(
+                  (reac: any) => !(reac.emoji === emoji && reac.userId === userId)
+                );
+                return { ...r, reactions: updatedReactions };
+              }
+              return r;
+            });
+            return { ...c, replies: updatedReplies };
+          }
+          return c;
+        });
+        
+        return {
+          ...oldData,
+          comments: updatedComments,
+        };
+      });
+    };
+
+    socket.on('comment:created', handleCommentCreated);
+    socket.on('comment:updated', handleCommentUpdated);
+    socket.on('comment:deleted', handleCommentDeleted);
+    socket.on('reaction:added', handleReactionAdded);
+    socket.on('reaction:removed', handleReactionRemoved);
+
+    return () => {
+      socket.off('comment:created', handleCommentCreated);
+      socket.off('comment:updated', handleCommentUpdated);
+      socket.off('comment:deleted', handleCommentDeleted);
+      socket.off('reaction:added', handleReactionAdded);
+      socket.off('reaction:removed', handleReactionRemoved);
+      leaveTaskRoom(taskId);
+    };
+  }, [taskId, queryClient]);
 
   // Process comments: filter top-level, sort them, and sort their replies (immutably)
   const sortedComments = [...comments]

@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState, useEffect } from 'react';
 import { getMe } from '../../../services/auth';
+import { getSocket, disconnectSocket } from '../../../services/socket';
 
 type AuthUser = { id: string | number; name: string; email: string; permissions?: string[] };
 
@@ -26,6 +27,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(u);
     localStorage.setItem('token', t);
     localStorage.setItem('user', JSON.stringify(u));
+    // Initialize Socket.IO connection after login
+    getSocket();
   }, []);
 
   const logout = useCallback(() => {
@@ -33,6 +36,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    // Disconnect Socket.IO connection on logout
+    disconnectSocket();
   }, []);
 
   const refreshPermissions = useCallback(async () => {
@@ -76,6 +81,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const managePermission = `${resource}:manage`;
     return user.permissions.includes(managePermission);
   }, [user]);
+
+  // Initialize socket connection if token exists on mount
+  useEffect(() => {
+    if (token) {
+      getSocket();
+    } else {
+      disconnectSocket();
+    }
+  }, [token]);
 
   // Refresh permissions when token changes (on mount or after login)
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
+import { emitCommentDeleted } from '../../../socket/socket';
 
 const prisma = new PrismaClient();
 
@@ -36,6 +37,9 @@ export async function deleteComment(context: RequestContext) {
       deletedAt: new Date(),
     },
   });
+
+  // Emit Socket.IO event for real-time updates
+  emitCommentDeleted(taskId, commentId);
 
   return { success: true };
 }
