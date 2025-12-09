@@ -17,6 +17,7 @@ type ServiceDependenciesProps = {
   controlled?: boolean;
   localDependencies?: ServiceDependencyInput[];
   onDependenciesChange?: (dependencies: ServiceDependencyInput[]) => void;
+  onServiceClick?: (serviceId: number) => void;
 };
 
 export function ServiceDependencies({ 
@@ -25,6 +26,7 @@ export function ServiceDependencies({
   controlled = false,
   localDependencies = [],
   onDependenciesChange,
+  onServiceClick,
 }: ServiceDependenciesProps) {
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
@@ -176,12 +178,24 @@ export function ServiceDependencies({
                 {dep.dependencyService && (
                   <>
                     <Link2 className="w-4 h-4 text-blue-500" />
-                    <span className="text-sm text-gray-900 dark:text-white">
-                      {dep.dependencyService.name} (:{dep.dependencyService.port})
-                      {dep.dependencyService.external && (
-                        <span className="ml-2 text-xs text-purple-500">[External]</span>
-                      )}
-                    </span>
+                    {onServiceClick ? (
+                      <button
+                        onClick={() => onServiceClick(dep.dependencyService!.id)}
+                        className="text-sm text-gray-900 dark:text-white hover:text-primary transition-colors text-left"
+                      >
+                        {dep.dependencyService.name} (:{dep.dependencyService.port})
+                        {dep.dependencyService.external && (
+                          <span className="ml-2 text-xs text-purple-500">[External]</span>
+                        )}
+                      </button>
+                    ) : (
+                      <span className="text-sm text-gray-900 dark:text-white">
+                        {dep.dependencyService.name} (:{dep.dependencyService.port})
+                        {dep.dependencyService.external && (
+                          <span className="ml-2 text-xs text-purple-500">[External]</span>
+                        )}
+                      </span>
+                    )}
                   </>
                 )}
                 {dep.description && (
@@ -222,12 +236,24 @@ export function ServiceDependencies({
               {dep.dependencyService && (
                 <>
                   <Link2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                  <span className="text-sm text-gray-900 dark:text-white truncate">
-                    {dep.dependencyService.name} (:{dep.dependencyService.port})
-                    {dep.dependencyService.external && (
-                      <span className="ml-2 text-xs text-purple-500">[External]</span>
-                    )}
-                  </span>
+                  {onServiceClick ? (
+                    <button
+                      onClick={() => onServiceClick(dep.dependencyService!.id)}
+                      className="text-sm text-gray-900 dark:text-white hover:text-primary transition-colors truncate text-left"
+                    >
+                      {dep.dependencyService.name} (:{dep.dependencyService.port})
+                      {dep.dependencyService.external && (
+                        <span className="ml-2 text-xs text-purple-500">[External]</span>
+                      )}
+                    </button>
+                  ) : (
+                    <span className="text-sm text-gray-900 dark:text-white truncate">
+                      {dep.dependencyService.name} (:{dep.dependencyService.port})
+                      {dep.dependencyService.external && (
+                        <span className="ml-2 text-xs text-purple-500">[External]</span>
+                      )}
+                    </span>
+                  )}
                 </>
               )}
               {dep.description && (

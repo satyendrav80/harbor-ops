@@ -1,5 +1,6 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../../../services/apiClient';
+import { getCredential } from '../../../services/credentials';
 import type { CredentialsResponse } from '../../../services/credentials';
 
 export function useCredentials(search?: string, limit: number = 20, serverId?: number, serviceId?: number, credentialId?: number) {
@@ -33,5 +34,14 @@ export function useCredentials(search?: string, limit: number = 20, serverId?: n
     structuralSharing: true,
     refetchOnWindowFocus: false,
     placeholderData: (previousData) => previousData, // Keep previous data during refetches to prevent flicker
+  });
+}
+
+export function useCredential(id: number) {
+  return useQuery({
+    queryKey: ['credential', id],
+    queryFn: () => getCredential(id),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

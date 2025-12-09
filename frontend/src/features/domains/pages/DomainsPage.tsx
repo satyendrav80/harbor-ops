@@ -7,6 +7,7 @@ import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { DomainModal } from '../components/DomainModal';
+import { DomainDetailsSidePanel } from '../components/DomainDetailsSidePanel';
 import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
 import { Search, Plus, Edit, Trash2, Globe, X, Filter as FilterIcon } from 'lucide-react';
 import type { Domain } from '../../../services/domains';
@@ -41,6 +42,7 @@ export function DomainsPage() {
   
   const [domainModalOpen, setDomainModalOpen] = useState(false);
   const [selectedDomainForEdit, setSelectedDomainForEdit] = useState<Domain | null>(null);
+  const [sidePanelDomainId, setSidePanelDomainId] = useState<number | null>(null);
 
   // Memoize search handler to prevent input from losing focus
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -290,7 +292,8 @@ export function DomainsPage() {
           {domains.map((domain) => (
             <div
               key={domain.id}
-              className="rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] p-4 hover:shadow-md transition-shadow"
+              onClick={() => setSidePanelDomainId(domain.id)}
+              className="rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] p-4 hover:shadow-md transition-shadow cursor-pointer hover:border-primary/50"
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">

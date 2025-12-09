@@ -32,6 +32,7 @@ import type { Filter } from '../types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../utils/urlSync';
 import { hasActiveFilters } from '../utils/filterState';
 import { TaskDetailsSidePanel } from '../../tasks/components/TaskDetailsSidePanel';
+import { ServiceDetailsSidePanel } from '../../services/components/ServiceDetailsSidePanel';
 
 
 // Memoized header component - doesn't re-render when data changes
@@ -144,6 +145,7 @@ const ReleaseNoteItem = memo(({
   onSelect,
   onDeselect,
   onTaskClick,
+  onServiceClick,
 }: {
   releaseNote: ReleaseNote;
   onEdit: (releaseNote: ReleaseNote) => void;
@@ -158,6 +160,7 @@ const ReleaseNoteItem = memo(({
   onSelect: (id: number) => void;
   onDeselect: (id: number) => void;
   onTaskClick?: (taskId: number) => void;
+  onServiceClick?: (serviceId: number) => void;
 }) => {
   const navigate = useNavigate();
   
@@ -285,7 +288,7 @@ const ReleaseNoteItem = memo(({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  navigate(`/services?serviceId=${releaseNote.serviceId}`);
+                  onServiceClick?.(releaseNote.serviceId);
                 }}
                 className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer"
                 title={`Click to view service ${releaseNote.service.name}`}
@@ -411,6 +414,7 @@ const ReleaseNotesList = memo(({
   onSelect,
   onDeselect,
   onTaskClick,
+  onServiceClick,
 }: {
   releaseNotes: ReleaseNote[];
   onEdit: (releaseNote: ReleaseNote) => void;
@@ -446,6 +450,7 @@ const ReleaseNotesList = memo(({
           onSelect={onSelect}
           onDeselect={onDeselect}
           onTaskClick={onTaskClick}
+          onServiceClick={onServiceClick}
         />
       ))}
       <div ref={observerTarget} className="h-4" />
@@ -516,6 +521,7 @@ export function ReleaseNotesPage() {
   const [releaseNoteModalOpen, setReleaseNoteModalOpen] = useState(false);
   const [selectedReleaseNoteForEdit, setSelectedReleaseNoteForEdit] = useState<ReleaseNote | null>(null);
   const [sidePanelTaskId, setSidePanelTaskId] = useState<number | null>(null);
+  const [sidePanelServiceId, setSidePanelServiceId] = useState<number | null>(null);
 
   // Fetch filter metadata
   const { data: filterMetadata } = useQuery({
@@ -908,6 +914,7 @@ export function ReleaseNotesPage() {
           onSelect={handleSelect}
           onDeselect={handleDeselect}
           onTaskClick={(id) => setSidePanelTaskId(id)}
+          onServiceClick={(id) => setSidePanelServiceId(id)}
         />
       )}
 
@@ -968,6 +975,14 @@ export function ReleaseNotesPage() {
         onClose={() => setSidePanelTaskId(null)}
         taskId={sidePanelTaskId}
         onTaskClick={(id) => setSidePanelTaskId(id)}
+      />
+      <ServiceDetailsSidePanel
+        isOpen={sidePanelServiceId !== null}
+        onClose={() => setSidePanelServiceId(null)}
+        serviceId={sidePanelServiceId}
+        onServiceClick={(id) => setSidePanelServiceId(id)}
+        onServerClick={(id) => {/* Could add server side panel if needed */}}
+        onCredentialClick={(id) => {/* Could add credential side panel if needed */}}
       />
     </div>
   );

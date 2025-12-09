@@ -1,5 +1,5 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { getDomains, type DomainsResponse } from '../../../services/domains';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { getDomains, getDomain, type DomainsResponse } from '../../../services/domains';
 
 export function useDomains(search: string = '', limit: number = 20) {
   return useInfiniteQuery<DomainsResponse, Error>({
@@ -17,6 +17,15 @@ export function useDomains(search: string = '', limit: number = 20) {
     structuralSharing: true,
     refetchOnWindowFocus: false,
     placeholderData: (previousData) => previousData, // Keep previous data during refetches to prevent flicker
+  });
+}
+
+export function useDomain(id: number) {
+  return useQuery({
+    queryKey: ['domain', id],
+    queryFn: () => getDomain(id),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 

@@ -9,6 +9,9 @@ import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { CredentialModal } from '../components/CredentialModal';
+import { CredentialDetailsSidePanel } from '../components/CredentialDetailsSidePanel';
+import { ServerDetailsSidePanel } from '../../servers/components/ServerDetailsSidePanel';
+import { ServiceDetailsSidePanel } from '../../services/components/ServiceDetailsSidePanel';
 import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
 import { Search, Plus, Edit, Trash2, Key, X, Eye, EyeOff, Server, Cloud, Filter as FilterIcon } from 'lucide-react';
 import type { Credential } from '../../../services/credentials';
@@ -54,6 +57,9 @@ export function CredentialsPage() {
   const [selectedCredentialForEdit, setSelectedCredentialForEdit] = useState<Credential | null>(null);
   const [revealedData, setRevealedData] = useState<Record<number, any>>({});
   const [revealingData, setRevealingData] = useState<Record<number, boolean>>({});
+  const [sidePanelCredentialId, setSidePanelCredentialId] = useState<number | null>(null);
+  const [sidePanelServerId, setSidePanelServerId] = useState<number | null>(null);
+  const [sidePanelServiceId, setSidePanelServiceId] = useState<number | null>(null);
 
   // Fetch filter metadata
   const { data: filterMetadata } = useQuery({
@@ -271,21 +277,21 @@ export function CredentialsPage() {
     }
   };
 
-  // Auto-reveal credential if credentialId is in URL
+  // Open side panel if credentialId is in URL
   useEffect(() => {
-    if (credentialId && !revealedData[Number(credentialId)]) {
+    if (credentialId && credentials.length > 0) {
       // Check if credential exists in the loaded list
       const credentialExists = credentials.some((c) => c.id === Number(credentialId));
       if (credentialExists) {
-        // Delay to ensure component is ready
-        const timer = setTimeout(() => {
-          handleRevealData(Number(credentialId));
-        }, 500);
-        return () => clearTimeout(timer);
+        setSidePanelCredentialId(Number(credentialId));
+        // Clean up URL param after opening side panel
+        const params = new URLSearchParams(searchParams);
+        params.delete('credentialId');
+        setSearchParams(params, { replace: true });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [credentialId, credentials]);
+  }, [credentialId, credentials, searchParams, setSearchParams]);
 
   if (credentialsLoadingToUse && credentials.length === 0) {
     return (
@@ -390,7 +396,8 @@ export function CredentialsPage() {
               <div
                 key={credential.id}
                 id={`credential-${credential.id}`}
-                className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6"
+                onClick={() => setSidePanelCredentialId(credential.id)}
+                className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6 cursor-pointer hover:border-primary/50 transition-colors"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -480,7 +487,7 @@ export function CredentialsPage() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                navigate(`/servers?serverId=${sc.server.id}`);
+                                setSidePanelServerId(sc.server.id);
                               }}
                               className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer"
                               title={`Click to view server ${sc.server.name}`}
@@ -617,6 +624,30 @@ export function CredentialsPage() {
           setSelectedCredentialForEdit(null);
         }}
         credential={selectedCredentialForEdit}
+      />
+      <CredentialDetailsSidePanel
+        isOpen={sidePanelCredentialId !== null}
+        onClose={() => setSidePanelCredentialId(null)}
+        credentialId={sidePanelCredentialId}
+        onCredentialClick={(id) => setSidePanelCredentialId(id)}
+        onServerClick={(id) => setSidePanelServerId(id)}
+        onServiceClick={(id) => setSidePanelServiceId(id)}
+      />
+      <ServerDetailsSidePanel
+        isOpen={sidePanelServerId !== null}
+        onClose={() => setSidePanelServerId(null)}
+        serverId={sidePanelServerId}
+        onServerClick={(id) => setSidePanelServerId(id)}
+        onServiceClick={(id) => setSidePanelServiceId(id)}
+        onCredentialClick={(id) => setSidePanelCredentialId(id)}
+      />
+      <ServiceDetailsSidePanel
+        isOpen={sidePanelServiceId !== null}
+        onClose={() => setSidePanelServiceId(null)}
+        serviceId={sidePanelServiceId}
+        onServiceClick={(id) => setSidePanelServiceId(id)}
+        onServerClick={(id) => setSidePanelServerId(id)}
+        onCredentialClick={(id) => setSidePanelCredentialId(id)}
       />
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog

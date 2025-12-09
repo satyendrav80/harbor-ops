@@ -7,6 +7,9 @@ import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { ServiceModal } from '../components/ServiceModal';
+import { ServiceDetailsSidePanel } from '../components/ServiceDetailsSidePanel';
+import { ServerDetailsSidePanel } from '../../servers/components/ServerDetailsSidePanel';
+import { CredentialDetailsSidePanel } from '../../credentials/components/CredentialDetailsSidePanel';
 import { ServiceGroups } from '../components/ServiceGroups';
 import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
 import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Filter as FilterIcon } from 'lucide-react';
@@ -54,6 +57,9 @@ export function ServicesPage() {
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
   const [selectedServiceForEdit, setSelectedServiceForEdit] = useState<Service | null>(null);
   const [expandedDocumentation, setExpandedDocumentation] = useState<Set<number>>(new Set());
+  const [sidePanelServiceId, setSidePanelServiceId] = useState<number | null>(null);
+  const [sidePanelServerId, setSidePanelServerId] = useState<number | null>(null);
+  const [sidePanelCredentialId, setSidePanelCredentialId] = useState<number | null>(null);
 
   // Fetch filter metadata
   const { data: filterMetadata } = useQuery({
@@ -138,7 +144,7 @@ export function ServicesPage() {
   const hasNextServicesPageToUse = useAdvancedFiltering ? hasNextAdvancedServicesPage : hasNextServicesPage;
   const isFetchingNextServicesPageToUse = useAdvancedFiltering ? isFetchingNextAdvancedServicesPage : isFetchingNextServicesPage;
 
-  // Auto-scroll to service if serviceId is in URL (wait for data to load)
+  // Open side panel if serviceId is in URL (wait for data to load)
   useEffect(() => {
     if (serviceId && servicesDataToUse?.pages) {
       // Check if service exists in loaded pages
@@ -146,23 +152,17 @@ export function ServicesPage() {
       const foundService = allServices.find((s) => s.id === serviceId);
       
       if (foundService) {
-        // Wait a bit for DOM to update
-        setTimeout(() => {
-          const element = document.getElementById(`service-${serviceId}`);
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            element.classList.add('ring-2', 'ring-primary', 'ring-opacity-50');
-            setTimeout(() => {
-              element.classList.remove('ring-2', 'ring-primary', 'ring-opacity-50');
-            }, 3000);
-          }
-        }, 500);
+        setSidePanelServiceId(serviceId);
+        // Clean up URL param after opening side panel
+        const params = new URLSearchParams(searchParams);
+        params.delete('serviceId');
+        setSearchParams(params, { replace: true });
       } else if (hasNextServicesPageToUse && !isFetchingNextServicesPageToUse) {
         // Service might be on next page, try to fetch it
         fetchNextServicesPageToUse();
       }
     }
-  }, [serviceId, servicesDataToUse, hasNextServicesPageToUse, isFetchingNextServicesPageToUse, fetchNextServicesPageToUse]);
+  }, [serviceId, servicesDataToUse, hasNextServicesPageToUse, isFetchingNextServicesPageToUse, fetchNextServicesPageToUse, searchParams, setSearchParams]);
 
   const deleteService = useDeleteService();
 
@@ -321,9 +321,8 @@ export function ServicesPage() {
             <div
               id={`service-${service.id}`}
               key={service.id}
-              className={`bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6 transition-all ${
-                serviceId && Number(serviceId) === service.id ? 'ring-2 ring-primary ring-opacity-50' : ''
-              }`}
+              onClick={() => setSidePanelServiceId(service.id)}
+              className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6 cursor-pointer hover:border-primary/50 transition-colors"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -351,7 +350,7 @@ export function ServicesPage() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                navigate(`/servers?serverId=${ss.server.id}`);
+                                setSidePanelServerId(ss.server.id);
                               }}
                               className="text-sm font-medium text-gray-900 dark:text-white hover:text-primary transition-colors cursor-pointer text-left"
                               title={`Click to view server ${ss.server.name}`}
@@ -379,7 +378,7 @@ export function ServicesPage() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                navigate(`/credentials?serviceId=${service.id}&credentialId=${sc.credential.id}`);
+                                setSidePanelCredentialId(sc.credential.id);
                               }}
                               className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-1 text-xs font-medium hover:bg-primary/20 transition-colors cursor-pointer"
                               title={`Click to view credential ${sc.credential.name} on credentials page`}
@@ -600,7 +599,10 @@ export function ServicesPage() {
                 <div className="flex items-center gap-2 ml-4">
                   {hasPermission('services:update') && (
                     <button
-                      onClick={() => handleEditService(service)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditService(service);
+                      }}
                       className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
                       aria-label="Edit service"
                     >
@@ -609,7 +611,10 @@ export function ServicesPage() {
                   )}
                   {hasPermission('services:delete') && (
                     <button
-                      onClick={() => handleDeleteService(service.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteService(service.id);
+                      }}
                       disabled={deleteService.isPending}
                       className="text-gray-400 dark:text-gray-500 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 rounded p-1 disabled:opacity-50"
                       aria-label="Delete service"
@@ -653,6 +658,30 @@ export function ServicesPage() {
         }}
         service={selectedServiceForEdit}
         onDelete={() => setSelectedServiceForEdit(null)}
+      />
+      <ServiceDetailsSidePanel
+        isOpen={sidePanelServiceId !== null}
+        onClose={() => setSidePanelServiceId(null)}
+        serviceId={sidePanelServiceId}
+        onServiceClick={(id) => setSidePanelServiceId(id)}
+        onServerClick={(id) => setSidePanelServerId(id)}
+        onCredentialClick={(id) => setSidePanelCredentialId(id)}
+      />
+      <ServerDetailsSidePanel
+        isOpen={sidePanelServerId !== null}
+        onClose={() => setSidePanelServerId(null)}
+        serverId={sidePanelServerId}
+        onServerClick={(id) => setSidePanelServerId(id)}
+        onServiceClick={(id) => setSidePanelServiceId(id)}
+        onCredentialClick={(id) => setSidePanelCredentialId(id)}
+      />
+      <CredentialDetailsSidePanel
+        isOpen={sidePanelCredentialId !== null}
+        onClose={() => setSidePanelCredentialId(null)}
+        credentialId={sidePanelCredentialId}
+        onCredentialClick={(id) => setSidePanelCredentialId(id)}
+        onServerClick={(id) => setSidePanelServerId(id)}
+        onServiceClick={(id) => setSidePanelServiceId(id)}
       />
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog

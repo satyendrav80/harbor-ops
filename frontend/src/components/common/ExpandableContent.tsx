@@ -86,7 +86,10 @@ export function ExpandableContent({
       <div className="flex items-center gap-2 mb-2">
         <LabelComponent className={labelClassName}>{label}</LabelComponent>
         <button
-          onClick={handleToggle}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggle();
+          }}
           className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
           aria-label={isExpanded ? 'Collapse content' : 'Expand content'}
         >

@@ -9,6 +9,9 @@ import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { ServerModal } from '../components/ServerModal';
+import { ServerDetailsSidePanel } from '../components/ServerDetailsSidePanel';
+import { ServiceDetailsSidePanel } from '../../services/components/ServiceDetailsSidePanel';
+import { CredentialDetailsSidePanel } from '../../credentials/components/CredentialDetailsSidePanel';
 import { ServerGroups } from '../components/ServerGroups';
 import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
 import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Eye, EyeOff, Cloud, Filter as FilterIcon } from 'lucide-react';
@@ -28,7 +31,7 @@ import { hasActiveFilters } from '../../release-notes/utils/filterState';
  * ServersPage component for managing servers
  */
 export function ServersPage() {
-  usePageTitle('Servers');
+  usePageTitle();
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -51,6 +54,9 @@ export function ServersPage() {
   const [revealedPasswords, setRevealedPasswords] = useState<Record<number, string | null>>({});
   const [revealingPasswords, setRevealingPasswords] = useState<Record<number, boolean>>({});
   const [expandedDocumentation, setExpandedDocumentation] = useState<Set<number>>(new Set());
+  const [sidePanelServerId, setSidePanelServerId] = useState<number | null>(null);
+  const [sidePanelServiceId, setSidePanelServiceId] = useState<number | null>(null);
+  const [sidePanelCredentialId, setSidePanelCredentialId] = useState<number | null>(null);
 
   // Fetch filter metadata
   const { data: filterMetadata } = useQuery({
@@ -153,7 +159,7 @@ export function ServersPage() {
     fetchNextPage: fetchNextServersPageToUse,
   });
 
-  // Auto-scroll to server if serverId is in URL (wait for data to load)
+  // Open side panel if serverId is in URL (wait for data to load)
   useEffect(() => {
     if (serverId && serversDataToUse?.pages) {
       // Check if server exists in loaded pages
@@ -161,20 +167,14 @@ export function ServersPage() {
       const foundServer = allServers.find((s) => s.id === Number(serverId));
       
       if (foundServer) {
-        // Wait a bit for DOM to update
-        setTimeout(() => {
-          const element = document.getElementById(`server-${serverId}`);
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            element.classList.add('ring-2', 'ring-primary', 'ring-opacity-50');
-            setTimeout(() => {
-              element.classList.remove('ring-2', 'ring-primary', 'ring-opacity-50');
-            }, 3000);
-          }
-        }, 500);
+        setSidePanelServerId(Number(serverId));
+        // Clean up URL param after opening side panel
+        const params = new URLSearchParams(searchParams);
+        params.delete('serverId');
+        setSearchParams(params, { replace: true });
       }
     }
-  }, [serverId, serversDataToUse]);
+  }, [serverId, serversDataToUse, searchParams, setSearchParams]);
 
   // Advanced filter handlers
   const handleAdvancedFiltersApply = useCallback((filters: Filter | undefined) => {
@@ -348,7 +348,9 @@ export function ServersPage() {
           {servers.map((server) => (
             <div
               key={server.id}
-              className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6"
+              id={`server-${server.id}`}
+              onClick={() => setSidePanelServerId(server.id)}
+              className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-xl p-6 cursor-pointer hover:border-primary/50 transition-colors"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -467,10 +469,10 @@ export function ServersPage() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                navigate(`/credentials?serverId=${server.id}&credentialId=${sc.credential.id}`);
+                                setSidePanelCredentialId(sc.credential.id);
                               }}
                               className="inline-flex items-center rounded-md bg-primary/10 text-primary px-2 py-1 text-xs font-medium hover:bg-primary/20 transition-colors cursor-pointer"
-                              title={`Click to view credential ${sc.credential.name} on credentials page`}
+                              title={`Click to view credential ${sc.credential.name}`}
                             >
                               {sc.credential.name} ({sc.credential.type})
                             </button>
@@ -513,11 +515,11 @@ export function ServersPage() {
                         {server.services.map((ss) => (
                           <button
                             key={ss.service.id}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              navigate(`/services?serviceId=${ss.service.id}&serverId=${server.id}`);
-                            }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setSidePanelServiceId(ss.service.id);
+                              }}
                             className="inline-flex items-center gap-1 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 text-xs font-medium hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors cursor-pointer"
                             title={`Click to view service ${ss.service.name}`}
                           >
@@ -639,7 +641,10 @@ export function ServersPage() {
                 <div className="flex items-center gap-2 ml-4">
                   {hasPermission('servers:update') && (
                     <button
-                      onClick={() => handleEditServer(server)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditServer(server);
+                      }}
                       className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
                       aria-label="Edit server"
                     >
@@ -648,7 +653,10 @@ export function ServersPage() {
                   )}
                   {hasPermission('servers:delete') && (
                     <button
-                      onClick={() => handleDeleteServer(server.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteServer(server.id);
+                      }}
                       disabled={deleteServer.isPending}
                       className="text-gray-400 dark:text-gray-500 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 rounded p-1 disabled:opacity-50"
                       aria-label="Delete server"
@@ -690,6 +698,30 @@ export function ServersPage() {
           setSelectedServerForEdit(null);
         }}
         server={selectedServerForEdit}
+      />
+      <ServerDetailsSidePanel
+        isOpen={sidePanelServerId !== null}
+        onClose={() => setSidePanelServerId(null)}
+        serverId={sidePanelServerId}
+        onServerClick={(id) => setSidePanelServerId(id)}
+        onServiceClick={(id) => setSidePanelServiceId(id)}
+        onCredentialClick={(id) => setSidePanelCredentialId(id)}
+      />
+      <ServiceDetailsSidePanel
+        isOpen={sidePanelServiceId !== null}
+        onClose={() => setSidePanelServiceId(null)}
+        serviceId={sidePanelServiceId}
+        onServiceClick={(id) => setSidePanelServiceId(id)}
+        onServerClick={(id) => setSidePanelServerId(id)}
+        onCredentialClick={(id) => setSidePanelCredentialId(id)}
+      />
+      <CredentialDetailsSidePanel
+        isOpen={sidePanelCredentialId !== null}
+        onClose={() => setSidePanelCredentialId(null)}
+        credentialId={sidePanelCredentialId}
+        onCredentialClick={(id) => setSidePanelCredentialId(id)}
+        onServerClick={(id) => setSidePanelServerId(id)}
+        onServiceClick={(id) => setSidePanelServiceId(id)}
       />
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
