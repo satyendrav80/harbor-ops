@@ -31,6 +31,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import type { Filter } from '../types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../utils/urlSync';
 import { hasActiveFilters } from '../utils/filterState';
+import { TaskDetailsSidePanel } from '../../tasks/components/TaskDetailsSidePanel';
 
 
 // Memoized header component - doesn't re-render when data changes
@@ -142,6 +143,7 @@ const ReleaseNoteItem = memo(({
   isSelected,
   onSelect,
   onDeselect,
+  onTaskClick,
 }: {
   releaseNote: ReleaseNote;
   onEdit: (releaseNote: ReleaseNote) => void;
@@ -155,6 +157,7 @@ const ReleaseNoteItem = memo(({
   isSelected: boolean;
   onSelect: (id: number) => void;
   onDeselect: (id: number) => void;
+  onTaskClick?: (taskId: number) => void;
 }) => {
   const navigate = useNavigate();
   
@@ -313,7 +316,7 @@ const ReleaseNoteItem = memo(({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        navigate(`/tasks/${task.id}`);
+                        onTaskClick?.(task.id);
                       }}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                       title={`Click to view task: ${task.title}`}
@@ -407,6 +410,7 @@ const ReleaseNotesList = memo(({
   selectedIds,
   onSelect,
   onDeselect,
+  onTaskClick,
 }: {
   releaseNotes: ReleaseNote[];
   onEdit: (releaseNote: ReleaseNote) => void;
@@ -422,6 +426,7 @@ const ReleaseNotesList = memo(({
   selectedIds: Set<number>;
   onSelect: (id: number) => void;
   onDeselect: (id: number) => void;
+  onTaskClick?: (taskId: number) => void;
 }) => {
   return (
     <div className="space-y-4">
@@ -440,6 +445,7 @@ const ReleaseNotesList = memo(({
           isSelected={selectedIds.has(releaseNote.id)}
           onSelect={onSelect}
           onDeselect={onDeselect}
+          onTaskClick={onTaskClick}
         />
       ))}
       <div ref={observerTarget} className="h-4" />
@@ -509,6 +515,7 @@ export function ReleaseNotesPage() {
   const [statusFilter, setStatusFilter] = useState<'pending' | 'deployed' | 'deployment_started' | 'all'>(initialStatusFilter);
   const [releaseNoteModalOpen, setReleaseNoteModalOpen] = useState(false);
   const [selectedReleaseNoteForEdit, setSelectedReleaseNoteForEdit] = useState<ReleaseNote | null>(null);
+  const [sidePanelTaskId, setSidePanelTaskId] = useState<number | null>(null);
 
   // Fetch filter metadata
   const { data: filterMetadata } = useQuery({
@@ -900,6 +907,7 @@ export function ReleaseNotesPage() {
           selectedIds={selectedIds}
           onSelect={handleSelect}
           onDeselect={handleDeselect}
+          onTaskClick={(id) => setSidePanelTaskId(id)}
         />
       )}
 
@@ -952,6 +960,14 @@ export function ReleaseNotesPage() {
         cancelText="Cancel"
         variant="danger"
         isLoading={bulkDeleteReleaseNotes.isPending}
+      />
+
+      {/* Task Details Side Panel */}
+      <TaskDetailsSidePanel
+        isOpen={sidePanelTaskId !== null}
+        onClose={() => setSidePanelTaskId(null)}
+        taskId={sidePanelTaskId}
+        onTaskClick={(id) => setSidePanelTaskId(id)}
       />
     </div>
   );

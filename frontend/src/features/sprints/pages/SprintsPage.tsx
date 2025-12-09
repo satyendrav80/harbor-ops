@@ -7,6 +7,7 @@ import { SprintModal } from '../components/SprintModal';
 import { TaskCard } from '../../tasks/components/TaskCard';
 import { TaskModal } from '../../tasks/components/TaskModal';
 import { TaskSelectionModal } from '../../tasks/components/TaskSelectionModal';
+import { TaskDetailsSidePanel } from '../../tasks/components/TaskDetailsSidePanel';
 import { CompleteSprintModal } from '../components/CompleteSprintModal';
 import { useAuth } from '../../auth/context/AuthContext';
 import type { Sprint, SprintStatus } from '../../../services/sprints';
@@ -121,7 +122,6 @@ export function SprintsPage() {
 
   const handleTaskClick = (taskId: number) => {
     setSelectedTaskId(taskId);
-    setIsTaskModalOpen(true);
   };
 
   const handleCreateTaskInSprint = (sprintId: number | null) => {
@@ -385,7 +385,7 @@ export function SprintsPage() {
                 {sprint.tasks && sprint.tasks.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {sprint.tasks.map((task) => (
-                      <TaskCard key={task.id} task={task} onClick={() => handleTaskClick(task.id)} />
+                      <TaskCard key={task.id} task={task} onClick={() => handleTaskClick(task.id)} onParentTaskClick={(id) => handleTaskClick(id)} />
                     ))}
                   </div>
                 ) : (
@@ -479,11 +479,19 @@ export function SprintsPage() {
         onStatusChangeRedirect={handleSprintStatusRedirect}
       />
 
+      {/* Task Modal for create/edit */}
       <TaskModal
-        isOpen={isTaskModalOpen}
+        isOpen={isTaskModalOpen && selectedSprintForNewTask !== null}
         onClose={handleCloseTaskModal}
-        task={selectedTask}
         defaultSprintId={selectedSprintForNewTask || undefined}
+      />
+
+      {/* Task Details Side Panel for viewing */}
+      <TaskDetailsSidePanel
+        isOpen={selectedTaskId !== null && selectedSprintForNewTask === null}
+        onClose={() => setSelectedTaskId(null)}
+        taskId={selectedTaskId}
+        onTaskClick={(id) => setSelectedTaskId(id)}
       />
 
       <TaskSelectionModal

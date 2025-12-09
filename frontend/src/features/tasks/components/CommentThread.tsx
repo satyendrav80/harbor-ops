@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import { useCreateComment, useUpdateComment, useDeleteComment, useAddReaction, useRemoveReaction } from '../hooks/useTaskMutations';
 import { useAuth } from '../../auth/context/AuthContext';
 import { Trash2, Edit2, Smile, Quote, CornerDownRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { getSocket, joinTaskRoom, leaveTaskRoom } from '../../../services/socket';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,6 +10,7 @@ import type { TaskComment } from '../../../services/tasks';
 type CommentThreadProps = {
   taskId: number;
   comments: TaskComment[];
+  onTaskClick?: (taskId: number) => void;
 };
 
 type CommentCardProps = {
@@ -25,6 +25,7 @@ type CommentCardProps = {
   onCancelReply: () => void;
   isReply?: boolean;
   replyTrigger?: number; // Signal to force focus
+  onTaskClick?: (taskId: number) => void;
 };
 
 // Interface for the quoted comment state
@@ -72,8 +73,7 @@ function QuoteWidget({ comment, onClick }: { comment: TaskComment; onClick?: () 
   );
 }
 
-function CommentContent({ content, allComments }: { content: string; allComments: TaskComment[] }) {
-  const navigate = useNavigate();
+function CommentContent({ content, allComments, onTaskClick }: { content: string; allComments: TaskComment[]; onTaskClick?: (taskId: number) => void }) {
 
   // Regex to check for [[quote:ID]] at the start
   const quoteMatch = content.match(/^\[\[quote:(\d+)\]\]\s*(.*)/s);
@@ -125,7 +125,7 @@ function CommentContent({ content, allComments }: { content: string; allComments
             return (
               <button
                 key={i}
-                onClick={() => navigate(`/tasks/${taskId}`)}
+                onClick={() => onTaskClick?.(parseInt(taskId))}
                 className="text-primary hover:underline font-medium"
               >
                 {part}
@@ -289,7 +289,8 @@ function CommentCard({
   onClearQuote,
   onCancelReply,
   isReply = false,
-  replyTrigger
+  replyTrigger,
+  onTaskClick
 }: CommentCardProps) {
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
@@ -423,7 +424,7 @@ function CommentCard({
           ) : (
             <>
               <div className="py-1">
-                <CommentContent content={comment.content} allComments={allComments} />
+                <CommentContent content={comment.content} allComments={allComments} onTaskClick={onTaskClick} />
               </div>
 
               {/* Actions that appear on hover */}
@@ -609,6 +610,7 @@ function CommentCard({
                 onClearQuote={onClearQuote}
                 onCancelReply={onCancelReply}
                 isReply={true}
+                onTaskClick={onTaskClick}
               />
             ))}
           </div>
@@ -631,7 +633,7 @@ function CommentCard({
   );
 }
 
-export function CommentThread({ taskId, comments }: CommentThreadProps) {
+export function CommentThread({ taskId, comments, onTaskClick }: CommentThreadProps) {
   const [activeReplyId, setActiveReplyId] = useState<number | null>(null);
   const [quotedComment, setQuotedComment] = useState<QuotedComment | null>(null);
   const [replyTrigger, setReplyTrigger] = useState(0);
@@ -886,6 +888,7 @@ export function CommentThread({ taskId, comments }: CommentThreadProps) {
                 setQuotedComment(null);
               }}
               replyTrigger={replyTrigger}
+              onTaskClick={onTaskClick}
             />
           ))
         ) : (

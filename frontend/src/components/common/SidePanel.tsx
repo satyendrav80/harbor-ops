@@ -11,7 +11,7 @@ type SidePanelProps = {
   onClose: () => void;
   title: string;
   children: ReactNode;
-  width?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  width?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
 };
 
 const widthClasses = {
@@ -20,6 +20,7 @@ const widthClasses = {
   lg: 'w-[28rem]',
   xl: 'w-[32rem]',
   '2xl': 'w-[40rem]',
+  '3xl': 'w-[48rem]',
 };
 
 /**

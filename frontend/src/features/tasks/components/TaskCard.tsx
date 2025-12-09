@@ -1,10 +1,10 @@
 import { Task, TaskStatus, TaskPriority, TaskType } from '../../../services/tasks';
 import { Clock, User, MessageSquare, Link2, CheckSquare, Calendar } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
 type TaskCardProps = {
   task: Task;
   onClick: () => void;
+  onParentTaskClick?: (taskId: number) => void;
 };
 
 const statusColors: Record<TaskStatus, string> = {
@@ -34,8 +34,7 @@ const typeIcons: Record<TaskType, string> = {
   improvement: '⚡',
 };
 
-export function TaskCard({ task, onClick }: TaskCardProps) {
-  const navigate = useNavigate();
+export function TaskCard({ task, onClick, onParentTaskClick }: TaskCardProps) {
   const statusLabel = task.status.replace('_', ' ');
 
   return (
@@ -50,7 +49,9 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
             className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-primary cursor-pointer max-w-full truncate"
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/tasks/${task.parentTask!.id}`);
+              if (onParentTaskClick && task.parentTask) {
+                onParentTaskClick(task.parentTask.id);
+              }
             }}
             title={`Parent: ${task.parentTask.title}`}
           >

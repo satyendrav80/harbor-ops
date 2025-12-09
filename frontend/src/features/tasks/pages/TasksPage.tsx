@@ -1,10 +1,11 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useTasks } from '../hooks/useTaskQueries';
 import { useTasksAdvanced } from '../hooks/useTasksAdvanced';
 import { TaskModal } from '../components/TaskModal';
 import { TaskCard } from '../components/TaskCard';
+import { TaskDetailsSidePanel } from '../components/TaskDetailsSidePanel';
 import { Loading } from '../../../components/common/Loading';
 import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
 import { Search, Plus, Filter as FilterIcon, LayoutGrid, List, CheckSquare } from 'lucide-react';
@@ -46,6 +47,7 @@ export function TasksPage() {
   );
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
   const [bulkSprintId, setBulkSprintId] = useState<string>('');
+  const [sidePanelTaskId, setSidePanelTaskId] = useState<number | null>(null);
 
   const debouncedSearch = useDebounce(searchQuery, 500);
 
@@ -125,7 +127,7 @@ export function TasksPage() {
   } = useTasksAdvanced(
     {
       filters: finalFilters,
-      search: debouncedSearch || undefined,
+    search: debouncedSearch || undefined,
       orderBy,
     },
     20
@@ -343,7 +345,7 @@ export function TasksPage() {
                       className="rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50 bg-white dark:bg-gray-800"
                     />
                   </td>
-                  <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
+                  <td className="px-4 py-3 cursor-pointer" onClick={() => setSidePanelTaskId(task.id)}>
                     <div className="flex items-center gap-2">
                       <span className="text-base">
                         {task.type === 'bug' && '🐛'}
@@ -395,7 +397,7 @@ export function TasksPage() {
                         className="flex items-center gap-1 hover:text-primary cursor-pointer max-w-[150px] truncate"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/tasks/${task.parentTask!.id}`);
+                          setSidePanelTaskId(task.parentTask!.id);
                         }}
                       >
                         <span className="text-xs">↳</span> {task.parentTask.title}
@@ -429,7 +431,8 @@ export function TasksPage() {
             <div className={`${selectedTaskIds.has(task.id) ? 'ring-2 ring-primary rounded-lg' : ''}`}>
               <TaskCard
                 task={task}
-                onClick={() => navigate(`/tasks/${task.id}`)}
+                onClick={() => setSidePanelTaskId(task.id)}
+                onParentTaskClick={(id) => setSidePanelTaskId(id)}
               />
             </div>
           </div>
@@ -466,14 +469,14 @@ export function TasksPage() {
 
             {/* View Filter Dropdown */}
             {!useAdvancedFiltering && (
-              <select
+            <select
                 value={viewFilter}
                 onChange={(e) => handleViewFilterChange(e.target.value as 'my-tasks' | 'all')}
                 className="px-4 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-              >
+            >
                 <option value="my-tasks">My Tasks</option>
                 <option value="all">All Tasks</option>
-              </select>
+            </select>
             )}
 
             {/* View Toggles */}
@@ -519,7 +522,7 @@ export function TasksPage() {
                 hasActiveFilters(advancedFilters)
                   ? 'bg-primary/10 border-primary text-primary dark:bg-primary/20'
                   : 'bg-white dark:bg-[#1C252E] border-gray-200 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-              }`}
+                }`}
             >
               <FilterIcon className="w-4 h-4" />
               Filters
@@ -609,6 +612,14 @@ export function TasksPage() {
       {hasNextAdvancedTasksPage && (
         <div ref={tasksObserverTarget} className="h-4" />
       )}
+
+      {/* Task Details Side Panel */}
+      <TaskDetailsSidePanel
+        isOpen={sidePanelTaskId !== null}
+        onClose={() => setSidePanelTaskId(null)}
+        taskId={sidePanelTaskId}
+        onTaskClick={(id) => setSidePanelTaskId(id)}
+      />
     </div>
   );
 }
