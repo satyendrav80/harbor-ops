@@ -2,9 +2,11 @@ import { useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../features/auth/context/AuthContext';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { NotificationBell } from '../common/NotificationBell';
 import { LayoutDashboard, Server, Cloud, Lock, Tag, FileText, FolderTree, User, Menu, X, LogOut, Shield, Globe, Network, CheckSquare, Calendar } from 'lucide-react';
 import { GlobalApiError } from '../common/GlobalApiError';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import { TaskDetailsSidePanel } from '../../features/tasks/components/TaskDetailsSidePanel';
 
 type AppLayoutProps = {
   children: React.ReactNode;
@@ -38,6 +40,7 @@ const allNavigationItems: NavigationItem[] = [
  */
 export function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidePanelTaskId, setSidePanelTaskId] = useState<number | null>(null);
   const location = useLocation();
   const { user, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
@@ -125,7 +128,10 @@ export function AppLayout({ children }: AppLayoutProps) {
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
           <div className="flex-1" />
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <NotificationBell onTaskClick={(id) => setSidePanelTaskId(id)} />
+            <ThemeToggle />
+          </div>
         </header>
 
         {/* Page Content - Scrollable */}
@@ -139,6 +145,14 @@ export function AppLayout({ children }: AppLayoutProps) {
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
       )}
+
+      {/* Task Details Side Panel */}
+      <TaskDetailsSidePanel
+        isOpen={sidePanelTaskId !== null}
+        onClose={() => setSidePanelTaskId(null)}
+        taskId={sidePanelTaskId}
+        onTaskClick={(id) => setSidePanelTaskId(id)}
+      />
     </div>
   );
 }

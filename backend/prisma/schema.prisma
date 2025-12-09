@@ -8,67 +8,68 @@ datasource db {
 }
 
 model User {
-  id                         String              @id @default(cuid()) @map("id")
-  email                      String              @unique @map("email")
-  username                   String?             @unique @map("username")
-  passwordHash               String              @map("password_hash")
-  name                       String?             @map("name")
-  status                     UserStatus          @default(pending) @map("status")
-  createdAt                  DateTime            @default(now()) @map("created_at")
-  updatedAt                  DateTime            @updatedAt @map("updated_at")
-  createdBy                  String?             @map("created_by")
-  updatedBy                  String?             @map("updated_by")
-  createdByUser              User?               @relation("UserCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser              User?               @relation("UserUpdatedBy", fields: [updatedBy], references: [id])
-  createdUsers               User[]              @relation("UserCreatedBy")
-  updatedUsers               User[]              @relation("UserUpdatedBy")
-  createdCredentials         Credential[]        @relation("CredentialCreatedBy")
-  updatedCredentials         Credential[]        @relation("CredentialUpdatedBy")
-  createdServers             Server[]            @relation("ServerCreatedBy")
-  updatedServers             Server[]            @relation("ServerUpdatedBy")
-  createdServices            Service[]           @relation("ServiceCreatedBy")
-  updatedServices            Service[]           @relation("ServiceUpdatedBy")
-  createdGroups              Group[]             @relation("GroupCreatedBy")
-  updatedGroups              Group[]             @relation("GroupUpdatedBy")
-  createdTags                Tag[]               @relation("TagCreatedBy")
-  updatedTags                Tag[]               @relation("TagUpdatedBy")
-  createdReleaseNotes        ReleaseNote[]       @relation("ReleaseNoteCreatedBy")
-  updatedReleaseNotes        ReleaseNote[]       @relation("ReleaseNoteUpdatedBy")
-  createdDomains             Domain[]            @relation("DomainCreatedBy")
-  updatedDomains             Domain[]            @relation("DomainUpdatedBy")
-  createdServiceDependencies ServiceDependency[] @relation("ServiceDependencyCreatedBy")
-  updatedServiceDependencies ServiceDependency[] @relation("ServiceDependencyUpdatedBy")
-  createdMeta                Meta[]              @relation("MetaCreatedBy")
-  updatedMeta                Meta[]              @relation("MetaUpdatedBy")
-  audits                     Audit[]             @relation("AuditUser")
+  id                         String                @id @default(cuid()) @map("id")
+  email                      String                @unique @map("email")
+  username                   String?               @unique @map("username")
+  passwordHash               String                @map("password_hash")
+  name                       String?               @map("name")
+  status                     UserStatus            @default(pending) @map("status")
+  createdAt                  DateTime              @default(now()) @map("created_at")
+  updatedAt                  DateTime              @updatedAt @map("updated_at")
+  createdBy                  String?               @map("created_by")
+  updatedBy                  String?               @map("updated_by")
+  createdByUser              User?                 @relation("UserCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser              User?                 @relation("UserUpdatedBy", fields: [updatedBy], references: [id])
+  createdUsers               User[]                @relation("UserCreatedBy")
+  updatedUsers               User[]                @relation("UserUpdatedBy")
+  createdCredentials         Credential[]          @relation("CredentialCreatedBy")
+  updatedCredentials         Credential[]          @relation("CredentialUpdatedBy")
+  createdServers             Server[]              @relation("ServerCreatedBy")
+  updatedServers             Server[]              @relation("ServerUpdatedBy")
+  createdServices            Service[]             @relation("ServiceCreatedBy")
+  updatedServices            Service[]             @relation("ServiceUpdatedBy")
+  createdGroups              Group[]               @relation("GroupCreatedBy")
+  updatedGroups              Group[]               @relation("GroupUpdatedBy")
+  createdTags                Tag[]                 @relation("TagCreatedBy")
+  updatedTags                Tag[]                 @relation("TagUpdatedBy")
+  createdReleaseNotes        ReleaseNote[]         @relation("ReleaseNoteCreatedBy")
+  updatedReleaseNotes        ReleaseNote[]         @relation("ReleaseNoteUpdatedBy")
+  createdDomains             Domain[]              @relation("DomainCreatedBy")
+  updatedDomains             Domain[]              @relation("DomainUpdatedBy")
+  createdServiceDependencies ServiceDependency[]   @relation("ServiceDependencyCreatedBy")
+  updatedServiceDependencies ServiceDependency[]   @relation("ServiceDependencyUpdatedBy")
+  createdMeta                Meta[]                @relation("MetaCreatedBy")
+  updatedMeta                Meta[]                @relation("MetaUpdatedBy")
+  audits                     Audit[]               @relation("AuditUser")
   roles                      UserRole[]
   tags                       UserTag[]
-  deleted                    Boolean             @default(false) @map("deleted")
-  deletedAt                  DateTime?           @map("deleted_at")
-  deletedBy                  String?             @map("deleted_by")
-  deletedByUser              User?               @relation("UserDeletedBy", fields: [deletedBy], references: [id])
-  deletedCredentials         Credential[]        @relation("CredentialDeletedBy")
-  deletedServers             Server[]            @relation("ServerDeletedBy")
-  deletedServices            Service[]           @relation("ServiceDeletedBy")
-  deletedGroups              Group[]             @relation("GroupDeletedBy")
-  deletedTags                Tag[]               @relation("TagDeletedBy")
-  deletedDomains             Domain[]            @relation("DomainDeletedBy")
-  deletedUsers               User[]              @relation("UserDeletedBy")
-  filterPresets              FilterPreset[]      @relation("FilterPresetUser")
-  createdTasks               Task[]              @relation("TaskCreatedBy")
-  assignedTasks              Task[]              @relation("TaskAssignedTo")
-  testingTasks               Task[]              @relation("TaskTester")
-  completedTasks             Task[]              @relation("TaskCompletedBy")
-  updatedTasks               Task[]              @relation("TaskUpdatedBy")
-  deletedTasks               Task[]              @relation("TaskDeletedBy")
-  reopenedTasks              Task[]              @relation("TaskReopenedBy")
-  createdSprints             Sprint[]            @relation("SprintCreatedBy")
-  updatedSprints             Sprint[]            @relation("SprintUpdatedBy")
-  deletedSprints             Sprint[]            @relation("SprintDeletedBy")
-  taskComments               TaskComment[]       @relation("TaskCommentCreatedBy")
+  deleted                    Boolean               @default(false) @map("deleted")
+  deletedAt                  DateTime?             @map("deleted_at")
+  deletedBy                  String?               @map("deleted_by")
+  deletedByUser              User?                 @relation("UserDeletedBy", fields: [deletedBy], references: [id])
+  deletedCredentials         Credential[]          @relation("CredentialDeletedBy")
+  deletedServers             Server[]              @relation("ServerDeletedBy")
+  deletedServices            Service[]             @relation("ServiceDeletedBy")
+  deletedGroups              Group[]               @relation("GroupDeletedBy")
+  deletedTags                Tag[]                 @relation("TagDeletedBy")
+  deletedDomains             Domain[]              @relation("DomainDeletedBy")
+  deletedUsers               User[]                @relation("UserDeletedBy")
+  filterPresets              FilterPreset[]        @relation("FilterPresetUser")
+  createdTasks               Task[]                @relation("TaskCreatedBy")
+  assignedTasks              Task[]                @relation("TaskAssignedTo")
+  testingTasks               Task[]                @relation("TaskTester")
+  completedTasks             Task[]                @relation("TaskCompletedBy")
+  updatedTasks               Task[]                @relation("TaskUpdatedBy")
+  deletedTasks               Task[]                @relation("TaskDeletedBy")
+  reopenedTasks              Task[]                @relation("TaskReopenedBy")
+  createdSprints             Sprint[]              @relation("SprintCreatedBy")
+  updatedSprints             Sprint[]              @relation("SprintUpdatedBy")
+  deletedSprints             Sprint[]              @relation("SprintDeletedBy")
+  taskComments               TaskComment[]         @relation("TaskCommentCreatedBy")
   taskCommentReactions       TaskCommentReaction[] @relation("TaskCommentReactionUser")
-  taskSprintHistoryMoves     TaskSprintHistory[] @relation("TaskSprintHistoryMovedBy")
-  createdTaskDependencies    TaskDependency[]    @relation("TaskDependencyCreatedBy")
+  taskSprintHistoryMoves     TaskSprintHistory[]   @relation("TaskSprintHistoryMovedBy")
+  createdTaskDependencies    TaskDependency[]      @relation("TaskDependencyCreatedBy")
+  notifications              Notification[]        @relation("NotificationUser")
 
   @@map("users")
 }
@@ -164,32 +165,32 @@ enum ServerType {
 }
 
 model Server {
-  id            Int                @id @default(autoincrement()) @map("id")
-  name          String             @map("name")
-  type          ServerType         @default(os) @map("type")
-  publicIp      String?            @map("public_ip")
-  privateIp     String?            @map("private_ip")
-  endpoint      String?            @map("endpoint")
-  port          Int?               @map("port")
-  sshPort       Int?               @map("ssh_port")
-  username      String?            @map("username")
-  password      String?            @map("password")
-  documentationUrl String?         @map("documentation_url")
-  documentation   String?          @map("documentation") @db.Text
-  createdAt     DateTime           @default(now()) @map("created_at")
-  updatedAt     DateTime           @updatedAt @map("updated_at")
-  createdBy     String?            @map("created_by")
-  updatedBy     String?            @map("updated_by")
-  createdByUser User?              @relation("ServerCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User?              @relation("ServerUpdatedBy", fields: [updatedBy], references: [id])
-  deleted       Boolean            @default(false) @map("deleted")
-  deletedAt     DateTime?          @map("deleted_at")
-  deletedBy     String?            @map("deleted_by")
-  deletedByUser User?              @relation("ServerDeletedBy", fields: [deletedBy], references: [id])
-  services      ServiceServer[]
-  tags          ServerTag[]
-  credentials   ServerCredential[]
-  domains       ServerDomain[]
+  id               Int                @id @default(autoincrement()) @map("id")
+  name             String             @map("name")
+  type             ServerType         @default(os) @map("type")
+  publicIp         String?            @map("public_ip")
+  privateIp        String?            @map("private_ip")
+  endpoint         String?            @map("endpoint")
+  port             Int?               @map("port")
+  sshPort          Int?               @map("ssh_port")
+  username         String?            @map("username")
+  password         String?            @map("password")
+  documentationUrl String?            @map("documentation_url")
+  documentation    String?            @map("documentation") @db.Text
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  createdBy        String?            @map("created_by")
+  updatedBy        String?            @map("updated_by")
+  createdByUser    User?              @relation("ServerCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser    User?              @relation("ServerUpdatedBy", fields: [updatedBy], references: [id])
+  deleted          Boolean            @default(false) @map("deleted")
+  deletedAt        DateTime?          @map("deleted_at")
+  deletedBy        String?            @map("deleted_by")
+  deletedByUser    User?              @relation("ServerDeletedBy", fields: [deletedBy], references: [id])
+  services         ServiceServer[]
+  tags             ServerTag[]
+  credentials      ServerCredential[]
+  domains          ServerDomain[]
 
   @@index([deleted])
   @@map("servers")
@@ -268,20 +269,20 @@ model GroupItem {
 }
 
 model Tag {
-  id            Int          @id @default(autoincrement()) @map("id")
-  name          String       @map("name")
-  value         String?      @map("value")
-  color         String?      @map("color")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
-  createdBy     String?      @map("created_by")
-  updatedBy     String?      @map("updated_by")
-  createdByUser User?        @relation("TagCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User?        @relation("TagUpdatedBy", fields: [updatedBy], references: [id])
-  deleted       Boolean      @default(false) @map("deleted")
-  deletedAt     DateTime?    @map("deleted_at")
-  deletedBy     String?      @map("deleted_by")
-  deletedByUser User?        @relation("TagDeletedBy", fields: [deletedBy], references: [id])
+  id            Int             @id @default(autoincrement()) @map("id")
+  name          String          @map("name")
+  value         String?         @map("value")
+  color         String?         @map("color")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  createdBy     String?         @map("created_by")
+  updatedBy     String?         @map("updated_by")
+  createdByUser User?           @relation("TagCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?           @relation("TagUpdatedBy", fields: [updatedBy], references: [id])
+  deleted       Boolean         @default(false) @map("deleted")
+  deletedAt     DateTime?       @map("deleted_at")
+  deletedBy     String?         @map("deleted_by")
+  deletedByUser User?           @relation("TagDeletedBy", fields: [deletedBy], references: [id])
   services      ServiceTag[]
   servers       ServerTag[]
   credentials   CredentialTag[]
@@ -358,18 +359,18 @@ enum UserStatus {
 }
 
 model ReleaseNote {
-  id            Int           @id @default(autoincrement()) @map("id")
-  serviceId     Int           @map("service_id")
-  service       Service       @relation(fields: [serviceId], references: [id])
-  note          String        @map("note")
-  status        ReleaseStatus @default(pending) @map("status")
-  publishDate   DateTime      @default(now()) @map("publish_date")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
-  createdBy     String?       @map("created_by")
-  updatedBy     String?       @map("updated_by")
-  createdByUser User?         @relation("ReleaseNoteCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User?         @relation("ReleaseNoteUpdatedBy", fields: [updatedBy], references: [id])
+  id            Int               @id @default(autoincrement()) @map("id")
+  serviceId     Int               @map("service_id")
+  service       Service           @relation(fields: [serviceId], references: [id])
+  note          String            @map("note")
+  status        ReleaseStatus     @default(pending) @map("status")
+  publishDate   DateTime          @default(now()) @map("publish_date")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  createdBy     String?           @map("created_by")
+  updatedBy     String?           @map("updated_by")
+  createdByUser User?             @relation("ReleaseNoteCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?             @relation("ReleaseNoteUpdatedBy", fields: [updatedBy], references: [id])
   tasks         ReleaseNoteTask[]
 
   @@map("release_notes")
@@ -548,16 +549,16 @@ model Audit {
 }
 
 model FilterPreset {
-  id          Int       @id @default(autoincrement()) @map("id")
-  userId      String    @map("user_id")
-  user        User      @relation("FilterPresetUser", fields: [userId], references: [id], onDelete: Cascade)
-  pageId      String    @map("page_id") // 'release-notes', 'services', 'servers', 'credentials', 'domains'
-  name        String    @map("name")
-  filters     Json?     @map("filters") // Store the filter object as JSON (nullable)
-  isShared    Boolean   @default(false) @map("is_shared") // Optional: allow sharing with other users
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  
+  id        Int      @id @default(autoincrement()) @map("id")
+  userId    String   @map("user_id")
+  user      User     @relation("FilterPresetUser", fields: [userId], references: [id], onDelete: Cascade)
+  pageId    String   @map("page_id") // 'release-notes', 'services', 'servers', 'credentials', 'domains'
+  name      String   @map("name")
+  filters   Json?    @map("filters") // Store the filter object as JSON (nullable)
+  isShared  Boolean  @default(false) @map("is_shared") // Optional: allow sharing with other users
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   @@index([userId, pageId])
   @@index([userId])
   @@index([pageId, isShared])
@@ -570,15 +571,15 @@ model FilterPreset {
 
 // Task Status Enum
 enum TaskStatus {
-  pending       // Initial state when created
-  in_progress   // Developer has started work
-  in_review     // Code review phase
-  testing       // Assigned to tester
-  completed     // Task completed and verified
-  paused        // Work temporarily stopped
-  blocked       // Blocked by dependencies
-  cancelled     // Task cancelled
-  reopened      // Task reopened after completion (bug came back)
+  pending // Initial state when created
+  in_progress // Developer has started work
+  in_review // Code review phase
+  testing // Assigned to tester
+  completed // Task completed and verified
+  paused // Work temporarily stopped
+  blocked // Blocked by dependencies
+  cancelled // Task cancelled
+  reopened // Task reopened after completion (bug came back)
 }
 
 // Task Priority Enum
@@ -608,22 +609,22 @@ enum SprintStatus {
 
 // Sprint Model
 model Sprint {
-  id            Int           @id @default(autoincrement()) @map("id")
-  name          String        @map("name")
-  description   String?       @map("description") @db.Text
-  startDate     DateTime      @map("start_date")
-  endDate       DateTime      @map("end_date")
-  status        SprintStatus  @default(planned) @map("status")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
-  createdBy     String?       @map("created_by")
-  updatedBy     String?       @map("updated_by")
-  createdByUser User?         @relation("SprintCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User?         @relation("SprintUpdatedBy", fields: [updatedBy], references: [id])
-  deleted       Boolean       @default(false) @map("deleted")
-  deletedAt     DateTime?     @map("deleted_at")
-  deletedBy     String?       @map("deleted_by")
-  deletedByUser User?         @relation("SprintDeletedBy", fields: [deletedBy], references: [id])
+  id            Int                 @id @default(autoincrement()) @map("id")
+  name          String              @map("name")
+  description   String?             @map("description") @db.Text
+  startDate     DateTime            @map("start_date")
+  endDate       DateTime            @map("end_date")
+  status        SprintStatus        @default(planned) @map("status")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  createdBy     String?             @map("created_by")
+  updatedBy     String?             @map("updated_by")
+  createdByUser User?               @relation("SprintCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?               @relation("SprintUpdatedBy", fields: [updatedBy], references: [id])
+  deleted       Boolean             @default(false) @map("deleted")
+  deletedAt     DateTime?           @map("deleted_at")
+  deletedBy     String?             @map("deleted_by")
+  deletedByUser User?               @relation("SprintDeletedBy", fields: [deletedBy], references: [id])
   tasks         Task[]
   taskHistory   TaskSprintHistory[]
 
@@ -634,75 +635,76 @@ model Sprint {
 
 // Task Model
 model Task {
-  id              Int             @id @default(autoincrement()) @map("id")
-  title           String          @map("title")
-  description     String?         @map("description") @db.Text
-  type            TaskType        @default(todo) @map("type")
-  status          TaskStatus      @default(pending) @map("status")
-  priority        TaskPriority    @default(medium) @map("priority")
-  
+  id          Int          @id @default(autoincrement()) @map("id")
+  title       String       @map("title")
+  description String?      @map("description") @db.Text
+  type        TaskType     @default(todo) @map("type")
+  status      TaskStatus   @default(pending) @map("status")
+  priority    TaskPriority @default(medium) @map("priority")
+
   // Sprint relationship (nullable - tasks can be in backlog)
-  sprintId        Int?            @map("sprint_id")
-  sprint          Sprint?         @relation(fields: [sprintId], references: [id])
-  
+  sprintId Int?    @map("sprint_id")
+  sprint   Sprint? @relation(fields: [sprintId], references: [id])
+
   // Assignment workflow
-  createdBy       String?         @map("created_by")
-  createdByUser   User?           @relation("TaskCreatedBy", fields: [createdBy], references: [id])
-  
-  assignedTo      String?         @map("assigned_to")
-  assignedToUser  User?           @relation("TaskAssignedTo", fields: [assignedTo], references: [id])
-  assignedAt      DateTime?       @map("assigned_at")
-  
-  testerId        String?         @map("tester_id")
-  tester          User?           @relation("TaskTester", fields: [testerId], references: [id])
-  testerAssignedAt DateTime?      @map("tester_assigned_at")
-  
+  createdBy     String? @map("created_by")
+  createdByUser User?   @relation("TaskCreatedBy", fields: [createdBy], references: [id])
+
+  assignedTo     String?   @map("assigned_to")
+  assignedToUser User?     @relation("TaskAssignedTo", fields: [assignedTo], references: [id])
+  assignedAt     DateTime? @map("assigned_at")
+
+  testerId         String?   @map("tester_id")
+  tester           User?     @relation("TaskTester", fields: [testerId], references: [id])
+  testerAssignedAt DateTime? @map("tester_assigned_at")
+
   // Testing skip tracking
-  testingSkipped  Boolean         @default(false) @map("testing_skipped")
-  testingSkipReason String?       @map("testing_skip_reason") @db.Text
-  
-  completedBy     String?         @map("completed_by")
-  completedByUser User?           @relation("TaskCompletedBy", fields: [completedBy], references: [id])
-  completedAt     DateTime?       @map("completed_at")
-  
+  testingSkipped    Boolean @default(false) @map("testing_skipped")
+  testingSkipReason String? @map("testing_skip_reason") @db.Text
+
+  completedBy     String?   @map("completed_by")
+  completedByUser User?     @relation("TaskCompletedBy", fields: [completedBy], references: [id])
+  completedAt     DateTime? @map("completed_at")
+
   // Reopen tracking
-  reopenCount     Int             @default(0) @map("reopen_count")
-  lastReopenedAt  DateTime?       @map("last_reopened_at")
-  lastReopenedBy  String?         @map("last_reopened_by")
-  lastReopenedByUser User?        @relation("TaskReopenedBy", fields: [lastReopenedBy], references: [id])
-  
+  reopenCount        Int       @default(0) @map("reopen_count")
+  lastReopenedAt     DateTime? @map("last_reopened_at")
+  lastReopenedBy     String?   @map("last_reopened_by")
+  lastReopenedByUser User?     @relation("TaskReopenedBy", fields: [lastReopenedBy], references: [id])
+
   // Metadata
-  estimatedHours  Float?          @map("estimated_hours")
-  actualHours     Float?          @map("actual_hours")
-  dueDate         DateTime?       @map("due_date")
-  
+  estimatedHours Float?    @map("estimated_hours")
+  actualHours    Float?    @map("actual_hours")
+  dueDate        DateTime? @map("due_date")
+
   // Service relationship (optional)
-  serviceId       Int?            @map("service_id")
-  service         Service?        @relation(fields: [serviceId], references: [id])
-  
+  serviceId Int?     @map("service_id")
+  service   Service? @relation(fields: [serviceId], references: [id])
+
   // Timestamps
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
-  updatedBy       String?         @map("updated_by")
-  updatedByUser   User?           @relation("TaskUpdatedBy", fields: [updatedBy], references: [id])
-  
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  updatedBy     String?  @map("updated_by")
+  updatedByUser User?    @relation("TaskUpdatedBy", fields: [updatedBy], references: [id])
+
   // Soft delete
-  deleted         Boolean         @default(false) @map("deleted")
-  deletedAt       DateTime?       @map("deleted_at")
-  deletedBy       String?         @map("deleted_by")
-  deletedByUser   User?           @relation("TaskDeletedBy", fields: [deletedBy], references: [id])
-  
+  deleted       Boolean   @default(false) @map("deleted")
+  deletedAt     DateTime? @map("deleted_at")
+  deletedBy     String?   @map("deleted_by")
+  deletedByUser User?     @relation("TaskDeletedBy", fields: [deletedBy], references: [id])
+
   // Relations
-  comments        TaskComment[]
-  tags            TaskTag[]
-  sprintHistory   TaskSprintHistory[]
-  dependencies    TaskDependency[]    @relation("TaskDependencies")
-  blockedBy       TaskDependency[]    @relation("BlockedByTasks")
-  parentTaskId    Int?                @map("parent_task_id")
-  parentTask      Task?               @relation("TaskSubtasks", fields: [parentTaskId], references: [id])
-  subtasks        Task[]              @relation("TaskSubtasks")
+  comments         TaskComment[]
+  tags             TaskTag[]
+  sprintHistory    TaskSprintHistory[]
+  dependencies     TaskDependency[]    @relation("TaskDependencies")
+  blockedBy        TaskDependency[]    @relation("BlockedByTasks")
+  parentTaskId     Int?                @map("parent_task_id")
+  parentTask       Task?               @relation("TaskSubtasks", fields: [parentTaskId], references: [id])
+  subtasks         Task[]              @relation("TaskSubtasks")
   releaseNoteTasks ReleaseNoteTask[]
-  
+  notifications    Notification[]
+
   @@index([status])
   @@index([assignedTo])
   @@index([testerId])
@@ -715,36 +717,39 @@ model Task {
 
 // Task Comments with Threading
 model TaskComment {
-  id              Int                    @id @default(autoincrement()) @map("id")
-  taskId          Int                    @map("task_id")
-  task            Task                   @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  
+  id     Int  @id @default(autoincrement()) @map("id")
+  taskId Int  @map("task_id")
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
   // Threading support
-  parentId        Int?                   @map("parent_id")
-  parent          TaskComment?           @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies         TaskComment[]          @relation("CommentReplies")
-  
+  parentId Int?          @map("parent_id")
+  parent   TaskComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  TaskComment[] @relation("CommentReplies")
+
   // Content
-  content         String                 @map("content") @db.Text
-  
+  content String @map("content") @db.Text
+
   // Author
-  createdBy       String                 @map("created_by")
-  createdByUser   User                   @relation("TaskCommentCreatedBy", fields: [createdBy], references: [id])
-  
+  createdBy     String @map("created_by")
+  createdByUser User   @relation("TaskCommentCreatedBy", fields: [createdBy], references: [id])
+
   // Timestamps
-  createdAt       DateTime               @default(now()) @map("created_at")
-  updatedAt       DateTime               @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // Editing
-  isEdited        Boolean                @default(false) @map("is_edited")
-  
+  isEdited Boolean @default(false) @map("is_edited")
+
   // Soft delete
-  deleted         Boolean                @default(false) @map("deleted")
-  deletedAt       DateTime?              @map("deleted_at")
-  
+  deleted   Boolean   @default(false) @map("deleted")
+  deletedAt DateTime? @map("deleted_at")
+
   // Reactions
-  reactions       TaskCommentReaction[]
-  
+  reactions TaskCommentReaction[]
+
+  // Notifications
+  notifications Notification[]
+
   @@index([taskId])
   @@index([parentId])
   @@index([createdBy])
@@ -754,14 +759,14 @@ model TaskComment {
 
 // Comment Reactions
 model TaskCommentReaction {
-  id              Int          @id @default(autoincrement()) @map("id")
-  commentId       Int          @map("comment_id")
-  comment         TaskComment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  userId          String       @map("user_id")
-  user            User         @relation("TaskCommentReactionUser", fields: [userId], references: [id])
-  emoji           String       @map("emoji") // 👍, ❤️, 🎉, etc.
-  createdAt       DateTime     @default(now()) @map("created_at")
-  
+  id        Int         @id @default(autoincrement()) @map("id")
+  commentId Int         @map("comment_id")
+  comment   TaskComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String      @map("user_id")
+  user      User        @relation("TaskCommentReactionUser", fields: [userId], references: [id])
+  emoji     String      @map("emoji") // 👍, ❤️, 🎉, etc.
+  createdAt DateTime    @default(now()) @map("created_at")
+
   @@unique([commentId, userId, emoji])
   @@index([commentId])
   @@map("task_comment_reactions")
@@ -769,27 +774,57 @@ model TaskCommentReaction {
 
 // Task Tags (many-to-many with existing Tag model)
 model TaskTag {
-  taskId  Int  @map("task_id")
-  tagId   Int  @map("tag_id")
-  task    Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  tag     Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
-  
+  taskId Int  @map("task_id")
+  tagId  Int  @map("tag_id")
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
   @@id([taskId, tagId])
   @@map("task_tags")
 }
 
+// Notifications
+model Notification {
+  id     Int    @id @default(autoincrement()) @map("id")
+  userId String @map("user_id")
+  user   User   @relation("NotificationUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  // Notification type and context
+  type      String       @map("type") // 'task_comment', 'task_assigned', etc.
+  taskId    Int?         @map("task_id")
+  task      Task?        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  commentId Int?         @map("comment_id")
+  comment   TaskComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  // Content
+  title   String @map("title")
+  message String @map("message") @db.Text
+
+  // Status
+  read   Boolean   @default(false) @map("read")
+  readAt DateTime? @map("read_at")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([userId, read])
+  @@index([taskId])
+  @@map("notifications")
+}
+
 // Task Sprint History - Track all sprint movements
 model TaskSprintHistory {
-  id              Int       @id @default(autoincrement()) @map("id")
-  taskId          Int       @map("task_id")
-  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  sprintId        Int?      @map("sprint_id") // Nullable for backlog
-  sprint          Sprint?   @relation(fields: [sprintId], references: [id])
-  movedAt         DateTime  @default(now()) @map("moved_at")
-  movedBy         String?   @map("moved_by")
-  movedByUser     User?     @relation("TaskSprintHistoryMovedBy", fields: [movedBy], references: [id])
-  reason          String?   @map("reason") @db.Text // e.g., "Task reopened", "Moved to next sprint"
-  
+  id          Int      @id @default(autoincrement()) @map("id")
+  taskId      Int      @map("task_id")
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  sprintId    Int?     @map("sprint_id") // Nullable for backlog
+  sprint      Sprint?  @relation(fields: [sprintId], references: [id])
+  movedAt     DateTime @default(now()) @map("moved_at")
+  movedBy     String?  @map("moved_by")
+  movedByUser User?    @relation("TaskSprintHistoryMovedBy", fields: [movedBy], references: [id])
+  reason      String?  @map("reason") @db.Text // e.g., "Task reopened", "Moved to next sprint"
+
   @@index([taskId])
   @@index([sprintId])
   @@map("task_sprint_history")
@@ -797,15 +832,15 @@ model TaskSprintHistory {
 
 // Task Dependencies - Track blocking relationships
 model TaskDependency {
-  id              Int       @id @default(autoincrement()) @map("id")
-  taskId          Int       @map("task_id")
-  task            Task      @relation("TaskDependencies", fields: [taskId], references: [id], onDelete: Cascade)
-  blockedByTaskId Int       @map("blocked_by_task_id")
-  blockedByTask   Task      @relation("BlockedByTasks", fields: [blockedByTaskId], references: [id], onDelete: Cascade)
-  createdAt       DateTime  @default(now()) @map("created_at")
-  createdBy       String?   @map("created_by")
-  createdByUser   User?     @relation("TaskDependencyCreatedBy", fields: [createdBy], references: [id])
-  
+  id              Int      @id @default(autoincrement()) @map("id")
+  taskId          Int      @map("task_id")
+  task            Task     @relation("TaskDependencies", fields: [taskId], references: [id], onDelete: Cascade)
+  blockedByTaskId Int      @map("blocked_by_task_id")
+  blockedByTask   Task     @relation("BlockedByTasks", fields: [blockedByTaskId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now()) @map("created_at")
+  createdBy       String?  @map("created_by")
+  createdByUser   User?    @relation("TaskDependencyCreatedBy", fields: [createdBy], references: [id])
+
   @@unique([taskId, blockedByTaskId])
   @@index([taskId])
   @@index([blockedByTaskId])
@@ -820,7 +855,7 @@ model ReleaseNoteTask {
   taskId        Int         @map("task_id")
   task          Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
   createdAt     DateTime    @default(now()) @map("created_at")
-  
+
   @@unique([releaseNoteId, taskId])
   @@index([releaseNoteId])
   @@index([taskId])

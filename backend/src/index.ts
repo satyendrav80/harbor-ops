@@ -19,6 +19,7 @@ import resourceMapRouter from './routes/resourceMap';
 import filterPresetsRouter from './routes/filterPresets';
 import tasksRouter from './routes/tasks';
 import sprintsRouter from './routes/sprints';
+import notificationsRouter from './routes/notifications';
 import { requireApprovedUser } from './middleware/auth';
 import { initializeSocket } from './socket/socket';
 
@@ -46,6 +47,7 @@ app.use('/resource-map', requireApprovedUser, resourceMapRouter);
 app.use('/filter-presets', requireApprovedUser, filterPresetsRouter);
 app.use('/tasks', requireApprovedUser, tasksRouter);
 app.use('/sprints', requireApprovedUser, sprintsRouter);
+app.use('/notifications', requireApprovedUser, notificationsRouter);
 app.use('/', requireApprovedUser, usersRouter);
 
 const port = Number(process.env.PORT) || 3044;
