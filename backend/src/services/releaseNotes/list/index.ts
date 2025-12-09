@@ -51,6 +51,18 @@ export async function list(context: RequestContext): Promise<ListResult> {
         },
         createdByUser: { select: { id: true, name: true, email: true } },
         updatedByUser: { select: { id: true, name: true, email: true } },
+        tasks: {
+          include: {
+            task: {
+              select: {
+                id: true,
+                title: true,
+                status: true,
+                type: true,
+              },
+            },
+          },
+        },
       },
       orderBy: orderByClause,
       skip: offset,

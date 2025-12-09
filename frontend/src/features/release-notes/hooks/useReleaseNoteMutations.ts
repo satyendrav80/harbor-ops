@@ -10,8 +10,8 @@ import {
 export function useCreateReleaseNote() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ serviceId, note, publishDate }: { serviceId: number; note: string; publishDate?: string }) =>
-      createReleaseNote(serviceId, note, publishDate),
+    mutationFn: ({ serviceId, note, publishDate, taskIds }: { serviceId: number; note: string; publishDate?: string; taskIds?: number[] }) =>
+      createReleaseNote(serviceId, note, publishDate, taskIds),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['release-notes'] });
     },
@@ -21,8 +21,8 @@ export function useCreateReleaseNote() {
 export function useUpdateReleaseNote() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, note, publishDate, serviceId }: { id: number; note?: string; publishDate?: string; serviceId?: number }) =>
-      updateReleaseNote(id, note, publishDate, serviceId),
+    mutationFn: ({ id, note, publishDate, serviceId, taskIds }: { id: number; note?: string; publishDate?: string; serviceId?: number; taskIds?: number[] }) =>
+      updateReleaseNote(id, note, publishDate, serviceId, taskIds),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['release-notes'] });
     },

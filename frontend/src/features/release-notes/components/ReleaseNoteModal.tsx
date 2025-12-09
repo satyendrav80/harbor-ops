@@ -5,9 +5,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal } from '../../../components/common/Modal';
 import { RichTextEditor } from '../../../components/common/RichTextEditor';
 import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
+import { TaskSelectionModal } from '../../tasks/components/TaskSelectionModal';
 import { useCreateReleaseNote, useUpdateReleaseNote } from '../hooks/useReleaseNoteMutations';
+import { useTasks } from '../../tasks/hooks/useTaskQueries';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import type { Service } from '../../../services/services';
+import { X } from 'lucide-react';
 
 type ReleaseNoteModalProps = {
   isOpen: boolean;
@@ -30,6 +33,8 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
   const updateReleaseNote = useUpdateReleaseNote();
   
   const [error, setError] = useState<string | null>(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
+  const [isTaskSelectionModalOpen, setIsTaskSelectionModalOpen] = useState(false);
 
   const form = useForm<ReleaseNoteFormValues>({
     resolver: zodResolver(releaseNoteSchema),
@@ -54,12 +59,15 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
           ? new Date(releaseNote.publishDate).toISOString().slice(0, 16)
           : new Date().toISOString().slice(0, 16),
       });
+      // Set selected tasks from release note
+      setSelectedTaskIds(releaseNote.tasks?.map(t => t.task.id) || []);
     } else {
       form.reset({
         serviceId: 0,
         note: '',
         publishDate: new Date().toISOString().slice(0, 16),
       });
+      setSelectedTaskIds([]);
     }
     setError(null);
   }, [isOpen, releaseNote, form]);
@@ -73,12 +81,14 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
           note: values.note,
           publishDate: values.publishDate,
           serviceId: values.serviceId,
+          taskIds: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
         });
       } else {
         await createReleaseNote.mutateAsync({
           serviceId: values.serviceId,
           note: values.note,
           publishDate: values.publishDate,
+          taskIds: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
         });
       }
       
@@ -89,11 +99,28 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
           note: '',
           publishDate: new Date().toISOString().slice(0, 16),
         });
+        setSelectedTaskIds([]);
       }
       onClose();
     } catch (err: any) {
       setError(err?.message || `Failed to ${isEditing ? 'update' : 'create'} release note`);
     }
+  };
+
+  // Fetch selected tasks for display
+  const { data: selectedTasksData } = useTasks({
+    limit: 1000,
+  });
+
+  const selectedTasks = selectedTasksData?.data?.filter(task => selectedTaskIds.includes(task.id)) || [];
+
+  const handleTaskSelectionConfirm = (taskIds: number[]) => {
+    // Replace selection with what user selected in modal
+    setSelectedTaskIds(taskIds);
+  };
+
+  const handleRemoveTask = (taskId: number) => {
+    setSelectedTaskIds(prev => prev.filter(id => id !== taskId));
   };
 
   const isLoading = createReleaseNote.isPending || updateReleaseNote.isPending;
@@ -150,6 +177,58 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
                 <p className="mt-1 text-xs text-red-600 dark:text-red-400">{form.formState.errors.publishDate.message}</p>
               )}
             </div>
+
+            {/* Task Selection */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-900 dark:text-white">
+                  Related Tasks
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsTaskSelectionModalOpen(true)}
+                  disabled={isLoading}
+                  className="text-sm text-primary hover:text-primary/80 font-medium"
+                >
+                  + Add Tasks
+                </button>
+              </div>
+              
+              {/* Selected Tasks Display */}
+              {selectedTasks.length > 0 && (
+                <div className="flex flex-wrap gap-2 p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 rounded-lg min-h-[60px]">
+                  {selectedTasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700 rounded-md text-sm"
+                    >
+                      <span className="text-base">
+                        {task.type === 'bug' && '🐛'}
+                        {task.type === 'feature' && '✨'}
+                        {task.type === 'todo' && '📝'}
+                        {task.type === 'epic' && '🎯'}
+                        {task.type === 'improvement' && '⚡'}
+                      </span>
+                      <span className="text-gray-900 dark:text-white">{task.title}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTask(task.id)}
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-1"
+                        disabled={isLoading}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {selectedTasks.length === 0 && (
+                <div className="p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 rounded-lg text-sm text-gray-500 dark:text-gray-400 min-h-[60px] flex items-center">
+                  No tasks selected. Click "Add Tasks" to link tasks to this release note.
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Release Note - Expands to fill remaining space */}
@@ -186,6 +265,16 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
           </button>
         </div>
       </form>
+
+      {/* Task Selection Modal */}
+      <TaskSelectionModal
+        isOpen={isTaskSelectionModalOpen}
+        onClose={() => setIsTaskSelectionModalOpen(false)}
+        onConfirm={handleTaskSelectionConfirm}
+        title="Select Tasks for Release Note"
+        initialSelectedIds={selectedTaskIds}
+        showAllTasks={true}
+      />
     </Modal>
   );
 }

@@ -55,6 +55,20 @@ model User {
   deletedDomains             Domain[]            @relation("DomainDeletedBy")
   deletedUsers               User[]              @relation("UserDeletedBy")
   filterPresets              FilterPreset[]      @relation("FilterPresetUser")
+  createdTasks               Task[]              @relation("TaskCreatedBy")
+  assignedTasks              Task[]              @relation("TaskAssignedTo")
+  testingTasks               Task[]              @relation("TaskTester")
+  completedTasks             Task[]              @relation("TaskCompletedBy")
+  updatedTasks               Task[]              @relation("TaskUpdatedBy")
+  deletedTasks               Task[]              @relation("TaskDeletedBy")
+  reopenedTasks              Task[]              @relation("TaskReopenedBy")
+  createdSprints             Sprint[]            @relation("SprintCreatedBy")
+  updatedSprints             Sprint[]            @relation("SprintUpdatedBy")
+  deletedSprints             Sprint[]            @relation("SprintDeletedBy")
+  taskComments               TaskComment[]       @relation("TaskCommentCreatedBy")
+  taskCommentReactions       TaskCommentReaction[] @relation("TaskCommentReactionUser")
+  taskSprintHistoryMoves     TaskSprintHistory[] @relation("TaskSprintHistoryMovedBy")
+  createdTaskDependencies    TaskDependency[]    @relation("TaskDependencyCreatedBy")
 
   @@map("users")
 }
@@ -210,6 +224,7 @@ model Service {
   domains           ServiceDomain[]
   dependencies      ServiceDependency[] @relation("ServiceDependencies")
   dependentServices ServiceDependency[] @relation("ServiceDependents")
+  tasks             Task[]
 
   @@index([deleted])
   @@map("services")
@@ -272,6 +287,7 @@ model Tag {
   credentials   CredentialTag[]
   domains       DomainTag[]
   users         UserTag[]
+  tasks         TaskTag[]
 
   @@unique([name, value])
   @@index([deleted])
@@ -354,6 +370,7 @@ model ReleaseNote {
   updatedBy     String?       @map("updated_by")
   createdByUser User?         @relation("ReleaseNoteCreatedBy", fields: [createdBy], references: [id])
   updatedByUser User?         @relation("ReleaseNoteUpdatedBy", fields: [updatedBy], references: [id])
+  tasks         ReleaseNoteTask[]
 
   @@map("release_notes")
 }
@@ -499,6 +516,9 @@ enum AuditResourceType {
   group
   role
   permission
+  task
+  sprint
+  task_comment
 }
 
 enum AuditAction {
@@ -542,4 +562,267 @@ model FilterPreset {
   @@index([userId])
   @@index([pageId, isShared])
   @@map("filter_presets")
+}
+
+// ============================================================================
+// TASK MANAGEMENT SYSTEM
+// ============================================================================
+
+// Task Status Enum
+enum TaskStatus {
+  pending       // Initial state when created
+  in_progress   // Developer has started work
+  in_review     // Code review phase
+  testing       // Assigned to tester
+  completed     // Task completed and verified
+  paused        // Work temporarily stopped
+  blocked       // Blocked by dependencies
+  cancelled     // Task cancelled
+  reopened      // Task reopened after completion (bug came back)
+}
+
+// Task Priority Enum
+enum TaskPriority {
+  low
+  medium
+  high
+  critical
+}
+
+// Task Type Enum
+enum TaskType {
+  bug
+  feature
+  todo
+  epic
+  improvement
+}
+
+// Sprint Status Enum
+enum SprintStatus {
+  planned
+  active
+  completed
+  cancelled
+}
+
+// Sprint Model
+model Sprint {
+  id            Int           @id @default(autoincrement()) @map("id")
+  name          String        @map("name")
+  description   String?       @map("description") @db.Text
+  startDate     DateTime      @map("start_date")
+  endDate       DateTime      @map("end_date")
+  status        SprintStatus  @default(planned) @map("status")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  createdBy     String?       @map("created_by")
+  updatedBy     String?       @map("updated_by")
+  createdByUser User?         @relation("SprintCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?         @relation("SprintUpdatedBy", fields: [updatedBy], references: [id])
+  deleted       Boolean       @default(false) @map("deleted")
+  deletedAt     DateTime?     @map("deleted_at")
+  deletedBy     String?       @map("deleted_by")
+  deletedByUser User?         @relation("SprintDeletedBy", fields: [deletedBy], references: [id])
+  tasks         Task[]
+  taskHistory   TaskSprintHistory[]
+
+  @@index([deleted])
+  @@index([status])
+  @@map("sprints")
+}
+
+// Task Model
+model Task {
+  id              Int             @id @default(autoincrement()) @map("id")
+  title           String          @map("title")
+  description     String?         @map("description") @db.Text
+  type            TaskType        @default(todo) @map("type")
+  status          TaskStatus      @default(pending) @map("status")
+  priority        TaskPriority    @default(medium) @map("priority")
+  
+  // Sprint relationship (nullable - tasks can be in backlog)
+  sprintId        Int?            @map("sprint_id")
+  sprint          Sprint?         @relation(fields: [sprintId], references: [id])
+  
+  // Assignment workflow
+  createdBy       String?         @map("created_by")
+  createdByUser   User?           @relation("TaskCreatedBy", fields: [createdBy], references: [id])
+  
+  assignedTo      String?         @map("assigned_to")
+  assignedToUser  User?           @relation("TaskAssignedTo", fields: [assignedTo], references: [id])
+  assignedAt      DateTime?       @map("assigned_at")
+  
+  testerId        String?         @map("tester_id")
+  tester          User?           @relation("TaskTester", fields: [testerId], references: [id])
+  testerAssignedAt DateTime?      @map("tester_assigned_at")
+  
+  // Testing skip tracking
+  testingSkipped  Boolean         @default(false) @map("testing_skipped")
+  testingSkipReason String?       @map("testing_skip_reason") @db.Text
+  
+  completedBy     String?         @map("completed_by")
+  completedByUser User?           @relation("TaskCompletedBy", fields: [completedBy], references: [id])
+  completedAt     DateTime?       @map("completed_at")
+  
+  // Reopen tracking
+  reopenCount     Int             @default(0) @map("reopen_count")
+  lastReopenedAt  DateTime?       @map("last_reopened_at")
+  lastReopenedBy  String?         @map("last_reopened_by")
+  lastReopenedByUser User?        @relation("TaskReopenedBy", fields: [lastReopenedBy], references: [id])
+  
+  // Metadata
+  estimatedHours  Float?          @map("estimated_hours")
+  actualHours     Float?          @map("actual_hours")
+  dueDate         DateTime?       @map("due_date")
+  
+  // Service relationship (optional)
+  serviceId       Int?            @map("service_id")
+  service         Service?        @relation(fields: [serviceId], references: [id])
+  
+  // Timestamps
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  updatedBy       String?         @map("updated_by")
+  updatedByUser   User?           @relation("TaskUpdatedBy", fields: [updatedBy], references: [id])
+  
+  // Soft delete
+  deleted         Boolean         @default(false) @map("deleted")
+  deletedAt       DateTime?       @map("deleted_at")
+  deletedBy       String?         @map("deleted_by")
+  deletedByUser   User?           @relation("TaskDeletedBy", fields: [deletedBy], references: [id])
+  
+  // Relations
+  comments        TaskComment[]
+  tags            TaskTag[]
+  sprintHistory   TaskSprintHistory[]
+  dependencies    TaskDependency[]    @relation("TaskDependencies")
+  blockedBy       TaskDependency[]    @relation("BlockedByTasks")
+  parentTaskId    Int?                @map("parent_task_id")
+  parentTask      Task?               @relation("TaskSubtasks", fields: [parentTaskId], references: [id])
+  subtasks        Task[]              @relation("TaskSubtasks")
+  releaseNoteTasks ReleaseNoteTask[]
+  
+  @@index([status])
+  @@index([assignedTo])
+  @@index([testerId])
+  @@index([sprintId])
+  @@index([deleted])
+  @@index([createdBy])
+  @@index([parentTaskId])
+  @@map("tasks")
+}
+
+// Task Comments with Threading
+model TaskComment {
+  id              Int                    @id @default(autoincrement()) @map("id")
+  taskId          Int                    @map("task_id")
+  task            Task                   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  // Threading support
+  parentId        Int?                   @map("parent_id")
+  parent          TaskComment?           @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies         TaskComment[]          @relation("CommentReplies")
+  
+  // Content
+  content         String                 @map("content") @db.Text
+  
+  // Author
+  createdBy       String                 @map("created_by")
+  createdByUser   User                   @relation("TaskCommentCreatedBy", fields: [createdBy], references: [id])
+  
+  // Timestamps
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  
+  // Editing
+  isEdited        Boolean                @default(false) @map("is_edited")
+  
+  // Soft delete
+  deleted         Boolean                @default(false) @map("deleted")
+  deletedAt       DateTime?              @map("deleted_at")
+  
+  // Reactions
+  reactions       TaskCommentReaction[]
+  
+  @@index([taskId])
+  @@index([parentId])
+  @@index([createdBy])
+  @@index([deleted])
+  @@map("task_comments")
+}
+
+// Comment Reactions
+model TaskCommentReaction {
+  id              Int          @id @default(autoincrement()) @map("id")
+  commentId       Int          @map("comment_id")
+  comment         TaskComment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId          String       @map("user_id")
+  user            User         @relation("TaskCommentReactionUser", fields: [userId], references: [id])
+  emoji           String       @map("emoji") // 👍, ❤️, 🎉, etc.
+  createdAt       DateTime     @default(now()) @map("created_at")
+  
+  @@unique([commentId, userId, emoji])
+  @@index([commentId])
+  @@map("task_comment_reactions")
+}
+
+// Task Tags (many-to-many with existing Tag model)
+model TaskTag {
+  taskId  Int  @map("task_id")
+  tagId   Int  @map("tag_id")
+  task    Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag     Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@id([taskId, tagId])
+  @@map("task_tags")
+}
+
+// Task Sprint History - Track all sprint movements
+model TaskSprintHistory {
+  id              Int       @id @default(autoincrement()) @map("id")
+  taskId          Int       @map("task_id")
+  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  sprintId        Int?      @map("sprint_id") // Nullable for backlog
+  sprint          Sprint?   @relation(fields: [sprintId], references: [id])
+  movedAt         DateTime  @default(now()) @map("moved_at")
+  movedBy         String?   @map("moved_by")
+  movedByUser     User?     @relation("TaskSprintHistoryMovedBy", fields: [movedBy], references: [id])
+  reason          String?   @map("reason") @db.Text // e.g., "Task reopened", "Moved to next sprint"
+  
+  @@index([taskId])
+  @@index([sprintId])
+  @@map("task_sprint_history")
+}
+
+// Task Dependencies - Track blocking relationships
+model TaskDependency {
+  id              Int       @id @default(autoincrement()) @map("id")
+  taskId          Int       @map("task_id")
+  task            Task      @relation("TaskDependencies", fields: [taskId], references: [id], onDelete: Cascade)
+  blockedByTaskId Int       @map("blocked_by_task_id")
+  blockedByTask   Task      @relation("BlockedByTasks", fields: [blockedByTaskId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  createdBy       String?   @map("created_by")
+  createdByUser   User?     @relation("TaskDependencyCreatedBy", fields: [createdBy], references: [id])
+  
+  @@unique([taskId, blockedByTaskId])
+  @@index([taskId])
+  @@index([blockedByTaskId])
+  @@map("task_dependencies")
+}
+
+// Release Note to Task Mapping
+model ReleaseNoteTask {
+  id            Int         @id @default(autoincrement()) @map("id")
+  releaseNoteId Int         @map("release_note_id")
+  releaseNote   ReleaseNote @relation(fields: [releaseNoteId], references: [id], onDelete: Cascade)
+  taskId        Int         @map("task_id")
+  task          Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now()) @map("created_at")
+  
+  @@unique([releaseNoteId, taskId])
+  @@index([releaseNoteId])
+  @@index([taskId])
+  @@map("release_note_tasks")
 }

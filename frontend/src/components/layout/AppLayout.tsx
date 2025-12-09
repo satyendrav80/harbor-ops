@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../features/auth/context/AuthContext';
 import { ThemeToggle } from '../ui/ThemeToggle';
-import { LayoutDashboard, Server, Cloud, Lock, Tag, FileText, FolderTree, User, Menu, X, LogOut, Shield, Globe, Network } from 'lucide-react';
+import { LayoutDashboard, Server, Cloud, Lock, Tag, FileText, FolderTree, User, Menu, X, LogOut, Shield, Globe, Network, CheckSquare, Calendar } from 'lucide-react';
 import { GlobalApiError } from '../common/GlobalApiError';
 import { usePageTitle } from '../../hooks/usePageTitle';
 
@@ -20,6 +20,8 @@ type NavigationItem = {
 const allNavigationItems: NavigationItem[] = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, permission: 'dashboard:view' },
   { name: 'Resource Map', path: '/resource-map', icon: Network, permission: 'servers:view' },
+  { name: 'Sprints', path: '/sprints', icon: Calendar, permission: 'sprints:view' },
+  { name: 'Tasks', path: '/tasks', icon: CheckSquare, permission: 'tasks:view' },
   { name: 'Servers', path: '/servers', icon: Server, permission: 'servers:view' },
   { name: 'Services', path: '/services', icon: Cloud, permission: 'services:view' },
   { name: 'Credentials', path: '/credentials', icon: Lock, permission: 'credentials:view' },
@@ -39,7 +41,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const { user, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
-  
+
   // Update page title based on current route
   usePageTitle();
 
@@ -62,9 +64,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     <div className="flex h-screen bg-background-light dark:bg-background-dark overflow-hidden">
       {/* Sidebar */}
       <aside
-        className={`${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-64 flex-shrink-0 bg-white dark:bg-[#1C252E] flex flex-col border-r border-gray-200 dark:border-gray-700/50 transition-transform h-screen`}
+        className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-64 flex-shrink-0 bg-white dark:bg-[#1C252E] flex flex-col border-r border-gray-200 dark:border-gray-700/50 transition-transform h-screen`}
       >
         <div className="flex items-center gap-3 px-4 py-4">
           <div className="bg-primary text-white rounded-lg p-2">
@@ -80,11 +81,10 @@ export function AppLayout({ children }: AppLayoutProps) {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg ${
-                  isActive
-                    ? 'bg-primary/10 dark:bg-primary/20 text-primary'
-                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10'
-                }`}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg ${isActive
+                  ? 'bg-primary/10 dark:bg-primary/20 text-primary'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10'
+                  }`}
                 onClick={() => setSidebarOpen(false)}
               >
                 <Icon className="w-5 h-5" />

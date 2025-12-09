@@ -9,6 +9,9 @@ import { getServices } from '../../../../services/services';
 import { getGroups } from '../../../../services/groups';
 import { getTags } from '../../../../services/tags';
 import { getServers } from '../../../../services/servers';
+import { getUsers } from '../../../../services/users';
+import { listSprints } from '../../../../services/sprints';
+import { listTasks } from '../../../../services/tasks';
 import { SearchableMultiSelect } from '../../../../components/common/SearchableMultiSelect';
 import { SearchableSelect } from '../../../../components/common/SearchableSelect';
 import { SPECIAL_DATE_OPTIONS, isSpecialDateValue, type SpecialDateValue } from '../../utils/dateHelpers';
@@ -150,6 +153,21 @@ function renderValueInput(
       return <ServerSelect value={value} onChange={onChange} operator={operator} fieldKey={fieldKey} />;
     }
 
+    // Config-based user dropdown
+    if (field.relationModel === 'User') {
+      return <UserSelect value={value} onChange={onChange} operator={operator} fieldKey={fieldKey} />;
+    }
+
+    // Config-based sprint dropdown
+    if (field.relationModel === 'Sprint') {
+      return <SprintSelect value={value} onChange={onChange} operator={operator} fieldKey={fieldKey} />;
+    }
+
+    // Config-based task dropdown
+    if (field.relationModel === 'Task') {
+      return <TaskSelect value={value} onChange={onChange} operator={operator} fieldKey={fieldKey} />;
+    }
+
     // Enum fields with predefined options - use SearchableMultiSelect
     if (field.ui.options && field.ui.options.length > 0) {
       const selectedValues = Array.isArray(value) ? value : value ? [value] : [];
@@ -209,6 +227,12 @@ function renderValueInput(
     return <TagSelect value={value} onChange={onChange} operator={operator} fieldKey={fieldKey} />;
   } else if (field.relationModel === 'Server') {
     return <ServerSelect value={value} onChange={onChange} operator={operator} fieldKey={fieldKey} />;
+  } else if (field.relationModel === 'User') {
+    return <UserSelect value={value} onChange={onChange} operator={operator} fieldKey={fieldKey} />;
+  } else if (field.relationModel === 'Sprint') {
+    return <SprintSelect value={value} onChange={onChange} operator={operator} fieldKey={fieldKey} />;
+  } else if (field.relationModel === 'Task') {
+    return <TaskSelect value={value} onChange={onChange} operator={operator} fieldKey={fieldKey} />;
   }
 
   if (operator === 'between') {
@@ -1082,5 +1106,304 @@ function GenericMultiSelect({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * User Select Component
+ * Handles both single select (eq, ne) and multi-select (in, notIn) for user fields
+ */
+function UserSelect({
+  value,
+  onChange,
+  operator,
+  fieldKey,
+}: {
+  value: any;
+  onChange: (value: any) => void;
+  operator: string;
+  fieldKey?: string;
+}) {
+  // Fetch all users
+  const { data: usersData, isLoading } = useQuery({
+    queryKey: ['users', 'all'],
+    queryFn: async () => {
+      const result = await getUsers(1, 1000);
+      return result.data;
+    },
+  });
+
+  const users = Array.isArray(usersData) ? usersData : [];
+
+  if (isLoading) {
+    return (
+      <div className="w-full px-3 py-2 text-sm text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700/50 rounded">
+        Loading users...
+      </div>
+    );
+  }
+
+  const isEmailField = fieldKey?.includes('.email') || fieldKey === 'assignedToUser.email' || fieldKey === 'createdByUser.email' || fieldKey === 'tester.email';
+
+  // For 'in' and 'notIn' operators, use multi-select
+  if (operator === 'in' || operator === 'notIn') {
+    const options = users.map((user) => ({
+      id: user.id,
+      name: user.name || user.email,
+    }));
+
+    let selectedIds: string[] = [];
+    if (isEmailField) {
+      const selectedEmails = Array.isArray(value) ? value : value ? [value] : [];
+      selectedIds = selectedEmails
+        .map((email: string) => {
+          const user = users.find((u) => u.email === email);
+          return user?.id;
+        })
+        .filter((id): id is string => id !== undefined);
+    } else {
+      selectedIds = Array.isArray(value)
+        ? value.filter((v) => typeof v === 'string')
+        : value
+        ? [String(value)]
+        : [];
+    }
+
+    return (
+      <div className="w-full min-w-0">
+        <SearchableMultiSelect
+          options={options}
+          selectedIds={selectedIds}
+          onChange={(selectedIds) => {
+            if (isEmailField) {
+              const selectedUsers = selectedIds
+                .map((id) => users.find((u) => u.id === id))
+                .filter((u): u is typeof users[0] => u !== undefined);
+              onChange(selectedUsers.map((u) => u.email));
+            } else {
+              onChange(selectedIds);
+            }
+          }}
+          placeholder="Select users..."
+          className="w-full"
+        />
+      </div>
+    );
+  }
+
+  // For other operators (eq, ne, etc.), use searchable single select
+  return (
+    <SearchableSelect
+      options={users.map((user) => ({
+        value: isEmailField ? user.email : user.id,
+        label: user.name || user.email,
+      }))}
+      value={value ? String(value) : ''}
+      onChange={(val) => onChange(val || undefined)}
+      placeholder="Select user..."
+      className="w-full"
+    />
+  );
+}
+
+/**
+ * Sprint Select Component
+ * Handles both single select (eq, ne) and multi-select (in, notIn) for sprint fields
+ */
+function SprintSelect({
+  value,
+  onChange,
+  operator,
+  fieldKey,
+}: {
+  value: any;
+  onChange: (value: any) => void;
+  operator: string;
+  fieldKey?: string;
+}) {
+  // Fetch all sprints
+  const { data: sprintsData, isLoading } = useQuery({
+    queryKey: ['sprints', 'all'],
+    queryFn: async () => {
+      const result = await listSprints({ limit: 1000 });
+      return result.data;
+    },
+  });
+
+  const sprints = Array.isArray(sprintsData) ? sprintsData : [];
+
+  if (isLoading) {
+    return (
+      <div className="w-full px-3 py-2 text-sm text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700/50 rounded">
+        Loading sprints...
+      </div>
+    );
+  }
+
+  const isNameField = fieldKey?.includes('.name') || fieldKey === 'sprint.name';
+
+  // Format sprint label with status and dates
+  const formatSprintLabel = (sprint: typeof sprints[0]) => {
+    const statusBadge = sprint.status === 'active' ? '🟢' : sprint.status === 'completed' ? '✅' : '📅';
+    const startDate = new Date(sprint.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const endDate = new Date(sprint.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${sprint.name} ${statusBadge} ${sprint.status} (${startDate} - ${endDate})`;
+  };
+
+  // For 'in' and 'notIn' operators, use multi-select
+  if (operator === 'in' || operator === 'notIn') {
+    const options = sprints.map((sprint) => ({
+      id: sprint.id,
+      name: formatSprintLabel(sprint),
+    }));
+
+    let selectedIds: number[] = [];
+    if (isNameField) {
+      const selectedNames = Array.isArray(value) ? value : value ? [value] : [];
+      selectedIds = selectedNames
+        .map((name: string) => {
+          const sprint = sprints.find((s) => s.name === name);
+          return sprint?.id;
+        })
+        .filter((id): id is number => id !== undefined);
+    } else {
+      selectedIds = Array.isArray(value)
+        ? value.map((v) => Number(v)).filter((id) => !isNaN(id))
+        : value
+        ? [Number(value)].filter((id) => !isNaN(id))
+        : [];
+    }
+
+    return (
+      <div className="w-full min-w-0">
+        <SearchableMultiSelect
+          options={options}
+          selectedIds={selectedIds}
+          onChange={(selectedIds) => {
+            if (isNameField) {
+              const selectedSprints = selectedIds
+                .map((id) => sprints.find((s) => s.id === id))
+                .filter((s): s is typeof sprints[0] => s !== undefined);
+              onChange(selectedSprints.map((s) => s.name));
+            } else {
+              onChange(selectedIds);
+            }
+          }}
+          placeholder="Select sprints..."
+          className="w-full"
+        />
+      </div>
+    );
+  }
+
+  // For other operators (eq, ne, etc.), use searchable single select
+  return (
+    <SearchableSelect
+      options={sprints.map((sprint) => ({
+        value: isNameField ? sprint.name : String(sprint.id),
+        label: formatSprintLabel(sprint),
+      }))}
+      value={value ? String(value) : ''}
+      onChange={(val) => onChange(isNameField ? val : val ? Number(val) : undefined)}
+      placeholder="Select sprint..."
+      className="w-full"
+    />
+  );
+}
+
+/**
+ * Task Select Component
+ * Handles both single select (eq, ne) and multi-select (in, notIn) for task fields
+ */
+function TaskSelect({
+  value,
+  onChange,
+  operator,
+  fieldKey,
+}: {
+  value: any;
+  onChange: (value: any) => void;
+  operator: string;
+  fieldKey?: string;
+}) {
+  // Fetch all tasks
+  const { data: tasksData, isLoading } = useQuery({
+    queryKey: ['tasks', 'all'],
+    queryFn: async () => {
+      const result = await listTasks({ page: 1, limit: 1000 });
+      return result.data;
+    },
+  });
+
+  const tasks = Array.isArray(tasksData) ? tasksData : [];
+
+  if (isLoading) {
+    return (
+      <div className="w-full px-3 py-2 text-sm text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700/50 rounded">
+        Loading tasks...
+      </div>
+    );
+  }
+
+  const isTitleField = fieldKey?.includes('.title') || fieldKey === 'parentTask.title';
+
+  // For 'in' and 'notIn' operators, use multi-select
+  if (operator === 'in' || operator === 'notIn') {
+    const options = tasks.map((task) => ({
+      id: task.id,
+      name: task.title,
+    }));
+
+    let selectedIds: number[] = [];
+    if (isTitleField) {
+      const selectedTitles = Array.isArray(value) ? value : value ? [value] : [];
+      selectedIds = selectedTitles
+        .map((title: string) => {
+          const task = tasks.find((t) => t.title === title);
+          return task?.id;
+        })
+        .filter((id): id is number => id !== undefined);
+    } else {
+      selectedIds = Array.isArray(value)
+        ? value.map((v) => Number(v)).filter((id) => !isNaN(id))
+        : value
+        ? [Number(value)].filter((id) => !isNaN(id))
+        : [];
+    }
+
+    return (
+      <div className="w-full min-w-0">
+        <SearchableMultiSelect
+          options={options}
+          selectedIds={selectedIds}
+          onChange={(selectedIds) => {
+            if (isTitleField) {
+              const selectedTasks = selectedIds
+                .map((id) => tasks.find((t) => t.id === id))
+                .filter((t): t is typeof tasks[0] => t !== undefined);
+              onChange(selectedTasks.map((t) => t.title));
+            } else {
+              onChange(selectedIds);
+            }
+          }}
+          placeholder="Select tasks..."
+          className="w-full"
+        />
+      </div>
+    );
+  }
+
+  // For other operators (eq, ne, etc.), use searchable single select
+  return (
+    <SearchableSelect
+      options={tasks.map((task) => ({
+        value: isTitleField ? task.title : String(task.id),
+        label: task.title,
+      }))}
+      value={value ? String(value) : ''}
+      onChange={(val) => onChange(isTitleField ? val : val ? Number(val) : undefined)}
+      placeholder="Select task..."
+      className="w-full"
+    />
   );
 }

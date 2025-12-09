@@ -17,10 +17,7 @@ export async function list(req: AuthRequest, res: Response) {
       body: req.body,
       query: req.query,
       params: req.params,
-      headers: {
-        ...req.headers,
-        'x-user-id': req.user?.id,
-      } as any,
+      headers: req.headers,
     };
 
     const result = await filterPresetsService.list(context);
@@ -40,10 +37,7 @@ export async function create(req: AuthRequest, res: Response) {
       body: req.body,
       query: req.query,
       params: req.params,
-      headers: {
-        ...req.headers,
-        'x-user-id': req.user?.id,
-      } as any,
+      headers: req.headers,
     };
 
     const preset = await filterPresetsService.create(context);
@@ -63,10 +57,7 @@ export async function update(req: AuthRequest, res: Response) {
       body: req.body,
       query: req.query,
       params: req.params,
-      headers: {
-        ...req.headers,
-        'x-user-id': req.user?.id,
-      } as any,
+      headers: req.headers,
     };
 
     const preset = await filterPresetsService.update(context);
@@ -86,10 +77,7 @@ export async function deletePreset(req: AuthRequest, res: Response) {
       body: req.body,
       query: req.query,
       params: req.params,
-      headers: {
-        ...req.headers,
-        'x-user-id': req.user?.id,
-      } as any,
+      headers: req.headers,
     };
 
     await filterPresetsService.delete(context);

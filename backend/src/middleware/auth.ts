@@ -16,6 +16,8 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
     const secret = process.env.JWT_SECRET || 'dev_secret';
     const payload = jwt.verify(token, secret) as any;
     req.user = { id: payload.sub, email: payload.email };
+    // Set x-user-id header for use in services via RequestContext
+    (req.headers as any)['x-user-id'] = req.user.id;
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid token' });
@@ -59,6 +61,8 @@ export async function requireApprovedUser(req: AuthRequest, res: Response, next:
     const secret = process.env.JWT_SECRET || 'dev_secret';
     const payload: any = jwt.verify(token, secret);
     req.user = { id: payload.sub, email: payload.email };
+    // Set x-user-id header for use in services via RequestContext
+    (req.headers as any)['x-user-id'] = req.user.id;
     const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { status: true } });
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (user.status === 'blocked') return res.status(403).json({ error: 'Your account has been blocked. Please contact an administrator.' });

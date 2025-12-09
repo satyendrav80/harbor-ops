@@ -75,6 +75,18 @@ router.get('/', async (req, res) => {
         },
         createdByUser: { select: { id: true, name: true, email: true } },
         updatedByUser: { select: { id: true, name: true, email: true } },
+        tasks: {
+          include: {
+            task: {
+              select: {
+                id: true,
+                title: true,
+                status: true,
+                type: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       skip: offset,
@@ -111,15 +123,63 @@ router.post('/services/:id/release-notes', requirePermission('release-notes:crea
 
 // POST /release-notes (create new release note)
 router.post('/', requirePermission('release-notes:create'), async (req: AuthRequest, res) => {
-  const { serviceId, note, publishDate } = req.body as { serviceId: number; note: string; publishDate?: string };
-  const created = await prisma.releaseNote.create({
-    data: {
-      serviceId: Number(serviceId),
-      note,
-      publishDate: publishDate ? new Date(publishDate) : new Date(),
-      createdBy: req.user?.id || null,
-    },
+  const { serviceId, note, publishDate, taskIds } = req.body as { 
+    serviceId: number; 
+    note: string; 
+    publishDate?: string;
+    taskIds?: number[];
+  };
+  
+  const created = await prisma.$transaction(async (tx) => {
+    const releaseNote = await tx.releaseNote.create({
+      data: {
+        serviceId: Number(serviceId),
+        note,
+        publishDate: publishDate ? new Date(publishDate) : new Date(),
+        createdBy: req.user?.id || null,
+      },
+    });
+
+    // Add tasks if provided
+    if (taskIds && Array.isArray(taskIds) && taskIds.length > 0) {
+      await tx.releaseNoteTask.createMany({
+        data: taskIds.map((taskId) => ({
+          releaseNoteId: releaseNote.id,
+          taskId: Number(taskId),
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    // Fetch with relations
+    return tx.releaseNote.findUnique({
+      where: { id: releaseNote.id },
+      include: {
+        service: {
+          select: {
+            id: true,
+            name: true,
+            port: true,
+          },
+        },
+        createdByUser: { select: { id: true, name: true, email: true } },
+        updatedByUser: { select: { id: true, name: true, email: true } },
+        tasks: {
+          include: {
+            task: {
+              select: {
+                id: true,
+                title: true,
+                status: true,
+                type: true,
+              },
+            },
+          },
+        },
+      },
+    });
   });
+  
   res.status(201).json(created);
 });
 
@@ -131,14 +191,71 @@ router.put('/:id', requirePermission('release-notes:update'), async (req: AuthRe
   if (existing.status !== ReleaseStatus.pending) {
     return res.status(400).json({ error: 'Can only edit pending release notes' });
   }
-  const { note, publishDate, serviceId } = req.body as { note?: string; publishDate?: string; serviceId?: number };
-  const updateData: any = {
-    updatedBy: req.user?.id || null,
+  const { note, publishDate, serviceId, taskIds } = req.body as { 
+    note?: string; 
+    publishDate?: string; 
+    serviceId?: number;
+    taskIds?: number[];
   };
-  if (note !== undefined) updateData.note = note;
-  if (publishDate !== undefined) updateData.publishDate = new Date(publishDate);
-  if (serviceId !== undefined) updateData.serviceId = Number(serviceId);
-  const updated = await prisma.releaseNote.update({ where: { id }, data: updateData });
+  
+  const updated = await prisma.$transaction(async (tx) => {
+    const updateData: any = {
+      updatedBy: req.user?.id || null,
+    };
+    if (note !== undefined) updateData.note = note;
+    if (publishDate !== undefined) updateData.publishDate = new Date(publishDate);
+    if (serviceId !== undefined) updateData.serviceId = Number(serviceId);
+    
+    await tx.releaseNote.update({ where: { id }, data: updateData });
+
+    // Update tasks if provided
+    if (taskIds !== undefined) {
+      // Remove existing task associations
+      await tx.releaseNoteTask.deleteMany({
+        where: { releaseNoteId: id },
+      });
+
+      // Add new task associations
+      if (Array.isArray(taskIds) && taskIds.length > 0) {
+        await tx.releaseNoteTask.createMany({
+          data: taskIds.map((taskId) => ({
+            releaseNoteId: id,
+            taskId: Number(taskId),
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    // Fetch with relations
+    return tx.releaseNote.findUnique({
+      where: { id },
+      include: {
+        service: {
+          select: {
+            id: true,
+            name: true,
+            port: true,
+          },
+        },
+        createdByUser: { select: { id: true, name: true, email: true } },
+        updatedByUser: { select: { id: true, name: true, email: true } },
+        tasks: {
+          include: {
+            task: {
+              select: {
+                id: true,
+                title: true,
+                status: true,
+                type: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+  
   res.json(updated);
 });
 

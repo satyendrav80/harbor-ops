@@ -16,6 +16,8 @@ import domainsRouter from './routes/domains';
 import dashboardRouter from './routes/dashboard';
 import resourceMapRouter from './routes/resourceMap';
 import filterPresetsRouter from './routes/filterPresets';
+import tasksRouter from './routes/tasks';
+import sprintsRouter from './routes/sprints';
 import { requireApprovedUser } from './middleware/auth';
 
 const app = express();
@@ -40,6 +42,8 @@ app.use('/domains', requireApprovedUser, domainsRouter);
 app.use('/dashboard', requireApprovedUser, dashboardRouter);
 app.use('/resource-map', requireApprovedUser, resourceMapRouter);
 app.use('/filter-presets', requireApprovedUser, filterPresetsRouter);
+app.use('/tasks', requireApprovedUser, tasksRouter);
+app.use('/sprints', requireApprovedUser, sprintsRouter);
 app.use('/', requireApprovedUser, usersRouter);
 
 const port = Number(process.env.PORT) || 3044;

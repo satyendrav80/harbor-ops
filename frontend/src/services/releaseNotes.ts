@@ -25,6 +25,15 @@ export type ReleaseNote = {
     name: string;
     port: number;
   };
+  tasks?: Array<{
+    id: number;
+    task: {
+      id: number;
+      title: string;
+      status: string;
+      type: string;
+    };
+  }>;
 };
 
 export type ReleaseNotesResponse = {
@@ -65,20 +74,31 @@ export async function getReleaseNotes(
 /**
  * Create a release note for a service
  */
-export async function createReleaseNote(serviceId: number, note: string, publishDate?: string): Promise<ReleaseNote> {
+export async function createReleaseNote(
+  serviceId: number, 
+  note: string, 
+  publishDate?: string,
+  taskIds?: number[]
+): Promise<ReleaseNote> {
   return apiFetch<ReleaseNote>('/release-notes', {
     method: 'POST',
-    body: JSON.stringify({ serviceId, note, publishDate }),
+    body: JSON.stringify({ serviceId, note, publishDate, taskIds }),
   });
 }
 
 /**
  * Update a release note (only if pending)
  */
-export async function updateReleaseNote(id: number, note?: string, publishDate?: string, serviceId?: number): Promise<ReleaseNote> {
+export async function updateReleaseNote(
+  id: number, 
+  note?: string, 
+  publishDate?: string, 
+  serviceId?: number,
+  taskIds?: number[]
+): Promise<ReleaseNote> {
   return apiFetch<ReleaseNote>(`/release-notes/${id}`, {
     method: 'PUT',
-    body: JSON.stringify({ note, publishDate, serviceId }),
+    body: JSON.stringify({ note, publishDate, serviceId, taskIds }),
   });
 }
 

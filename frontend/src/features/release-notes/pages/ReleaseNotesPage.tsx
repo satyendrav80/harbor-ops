@@ -292,6 +292,40 @@ const ReleaseNoteItem = memo(({
               </button>
             </div>
           )}
+          
+          {/* Related Tasks */}
+          {releaseNote.tasks && releaseNote.tasks.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Related Tasks</p>
+              <div className="flex flex-wrap gap-2">
+                {releaseNote.tasks.map((releaseNoteTask) => {
+                  const task = releaseNoteTask.task;
+                  const typeIcons: Record<string, string> = {
+                    bug: '🐛',
+                    feature: '✨',
+                    todo: '📝',
+                    epic: '🎯',
+                    improvement: '⚡',
+                  };
+                  return (
+                    <button
+                      key={task.id}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        navigate(`/tasks/${task.id}`);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                      title={`Click to view task: ${task.title}`}
+                    >
+                      <span>{typeIcons[task.type] || '📝'}</span>
+                      <span className="truncate max-w-[200px]">{task.title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-gray-500 dark:text-gray-400">
             {releaseNote.publishDate && (
               <span className="font-medium">

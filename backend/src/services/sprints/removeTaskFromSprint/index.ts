@@ -1,0 +1,1 @@
+export { removeTaskFromSprint } from '../update';

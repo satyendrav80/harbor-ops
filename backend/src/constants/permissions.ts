@@ -11,6 +11,8 @@ export const PERMISSION_RESOURCES = [
   'domains',
   'dashboard',
   'profile',
+  'tasks',
+  'sprints',
 ] as const;
 
 // Generic/default actions that apply to all resources
@@ -26,6 +28,8 @@ export const PERMISSION_ACTIONS_GENERIC = [
 export const PERMISSION_ACTIONS_RESOURCE_SPECIFIC: Record<string, readonly string[]> = {
   'credentials': ['reveal'],
   'release-notes': ['deploy'],
+  'tasks': ['assign', 'comment', 'manage-dependencies', 'override-dependencies'],
+  'sprints': ['view-analytics'],
 } as const;
 
 /**
@@ -49,7 +53,7 @@ export function getAllPermissionActions(): string[] {
   const resourceSpecificActions = Object.values(PERMISSION_ACTIONS_RESOURCE_SPECIFIC)
     .flat()
     .filter((action, index, array) => array.indexOf(action) === index); // Remove duplicates
-  
+
   return [...genericActions, ...resourceSpecificActions];
 }
 
@@ -67,7 +71,7 @@ export function isValidActionForResource(resource: string, action: string): bool
 export function isSystemPermission(resource: string, action: string): boolean {
   const isValidResource = (PERMISSION_RESOURCES as readonly string[]).includes(resource);
   if (!isValidResource) return false;
-  
+
   return isValidActionForResource(resource, action);
 }
 
