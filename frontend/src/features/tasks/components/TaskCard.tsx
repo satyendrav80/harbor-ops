@@ -1,5 +1,6 @@
 import { Task, TaskStatus, TaskPriority, TaskType } from '../../../services/tasks';
 import { Clock, User, MessageSquare, Link2, CheckSquare, Calendar } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 type TaskCardProps = {
   task: Task;
@@ -34,6 +35,7 @@ const typeIcons: Record<TaskType, string> = {
 };
 
 export function TaskCard({ task, onClick }: TaskCardProps) {
+  const navigate = useNavigate();
   const statusLabel = task.status.replace('_', ' ');
 
   return (
@@ -41,6 +43,23 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
       onClick={onClick}
       className="group relative bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-800 rounded-lg p-5 hover:shadow-md transition-all cursor-pointer hover:border-primary/50 dark:hover:border-primary/50"
     >
+      {/* Parent Task */}
+      {task.parentTask && (
+        <div className="mb-2">
+          <span
+            className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-primary cursor-pointer max-w-full truncate"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/tasks/${task.parentTask!.id}`);
+            }}
+            title={`Parent: ${task.parentTask.title}`}
+          >
+            <span className="text-xs">↳</span>
+            <span className="truncate">{task.parentTask.title}</span>
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
