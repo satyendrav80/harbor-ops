@@ -262,7 +262,14 @@ router.put('/:id', requirePermission('release-notes:update'), async (req: AuthRe
 // POST /release-notes/:id/mark-deployed
 router.post('/:id/mark-deployed', requirePermission('release-notes:deploy'), async (req, res) => {
   const id = Number(req.params.id);
-  const updated = await prisma.releaseNote.update({ where: { id }, data: { status: ReleaseStatus.deployed } });
+  const updated = await prisma.releaseNote.update({ 
+    where: { id }, 
+    data: { 
+      status: ReleaseStatus.deployed,
+      deployedAt: new Date(),
+      updatedBy: (req as AuthRequest).user?.id || null,
+    } 
+  });
   res.json(updated);
 });
 

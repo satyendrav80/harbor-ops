@@ -15,6 +15,7 @@ import { listTasks } from '../../../../services/tasks';
 import { SearchableMultiSelect } from '../../../../components/common/SearchableMultiSelect';
 import { SearchableSelect } from '../../../../components/common/SearchableSelect';
 import { SPECIAL_DATE_OPTIONS, isSpecialDateValue, type SpecialDateValue } from '../../utils/dateHelpers';
+import dayjs from '../../../../utils/dayjs';
 import type { FilterRow } from './types';
 import type { FilterFieldMetadata } from '../../types/filters';
 
@@ -131,6 +132,13 @@ function renderValueInput(
   fieldKey?: string,
   rowId?: string
 ) {
+  const formatForDateInput = (v: any, includeTime: boolean) => {
+    if (!v) return '';
+    const d = typeof v === 'string' ? dayjs(v) : dayjs(v as Date);
+    if (!d.isValid()) return '';
+    return includeTime ? d.format('YYYY-MM-DDTHH:mm') : d.format('YYYY-MM-DD');
+  };
+
   // Handle 'in' and 'notIn' operators first - these always need multi-select for ANY field that supports them
   if (operator === 'in' || operator === 'notIn') {
     // Config-based service dropdown - check relationModel
@@ -270,8 +278,14 @@ function renderValueInput(
               </div>
             ) : (
               <input
-                type="date"
-                value={typeof fromValue === 'string' && !isSpecialDateValue(fromValue) ? fromValue : ''}
+                type={field.ui.inputType === 'datetime' ? 'datetime-local' : 'date'}
+                value={
+                  field.ui.inputType === 'datetime'
+                    ? formatForDateInput(fromValue, true)
+                    : typeof fromValue === 'string' && !isSpecialDateValue(fromValue)
+                    ? fromValue
+                    : ''
+                }
                 onChange={(e) => onChange([e.target.value, toValue])}
                 className="flex-1 min-w-0 px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
                 placeholder="From"
@@ -304,8 +318,14 @@ function renderValueInput(
               </div>
             ) : (
               <input
-                type="date"
-                value={typeof toValue === 'string' && !isSpecialDateValue(toValue) ? toValue : ''}
+                type={field.ui.inputType === 'datetime' ? 'datetime-local' : 'date'}
+                value={
+                  field.ui.inputType === 'datetime'
+                    ? formatForDateInput(toValue, true)
+                    : typeof toValue === 'string' && !isSpecialDateValue(toValue)
+                    ? toValue
+                    : ''
+                }
                 onChange={(e) => onChange([fromValue, e.target.value])}
                 className="flex-1 min-w-0 px-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
                 placeholder="To"
@@ -387,15 +407,11 @@ function renderValueInput(
   if (field.ui.inputType === 'date' || field.ui.inputType === 'datetime') {
     const isSpecialValue = isSpecialDateValue(value);
     // Extract date value - handle both string dates and Date objects
-    let dateValue = '';
-    if (value && !isSpecialValue) {
-      if (typeof value === 'string') {
-        dateValue = value;
-      } else if (value instanceof Date) {
-        // Convert Date to YYYY-MM-DD format for date input
-        dateValue = value.toISOString().split('T')[0];
-      }
-    }
+    const dateValue = !isSpecialValue
+      ? field.ui.inputType === 'datetime'
+        ? formatForDateInput(value, true)
+        : formatForDateInput(value, false)
+      : '';
     
     return (
       <div className="w-full min-w-0">
@@ -428,7 +444,7 @@ function renderValueInput(
             </div>
           ) : (
             <input
-              type="date"
+              type={field.ui.inputType === 'datetime' ? 'datetime-local' : 'date'}
               value={dateValue}
               onChange={(e) => onChange(e.target.value || undefined)}
               className="flex-1 min-w-0 px-2 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"

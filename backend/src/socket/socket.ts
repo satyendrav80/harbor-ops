@@ -140,3 +140,13 @@ export function getUsersInTaskRoom(taskId: number): string[] {
   const users = taskRoomUsers.get(taskId);
   return users ? Array.from(users) : [];
 }
+
+export function emitSubtaskCreated(parentTaskId: number, subtask: any) {
+  const ioInstance = getIO();
+  ioInstance.to(`task:${parentTaskId}`).emit('subtask:created', { parentTaskId, subtask });
+}
+
+export function emitTaskUpdated(taskId: number, task: any) {
+  const ioInstance = getIO();
+  ioInstance.to(`task:${taskId}`).emit('task:updated', task);
+}

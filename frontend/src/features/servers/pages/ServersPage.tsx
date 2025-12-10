@@ -515,11 +515,11 @@ export function ServersPage() {
                         {server.services.map((ss) => (
                           <button
                             key={ss.service.id}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
                                 setSidePanelServiceId(ss.service.id);
-                              }}
+                            }}
                             className="inline-flex items-center gap-1 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 text-xs font-medium hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors cursor-pointer"
                             title={`Click to view service ${ss.service.name}`}
                           >

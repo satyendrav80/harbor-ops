@@ -11,6 +11,7 @@ import { useTasks } from '../../tasks/hooks/useTaskQueries';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import type { Service } from '../../../services/services';
 import { X } from 'lucide-react';
+import dayjs from '../../../utils/dayjs';
 
 type ReleaseNoteModalProps = {
   isOpen: boolean;
@@ -42,8 +43,8 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
       serviceId: releaseNote?.serviceId || 0,
       note: releaseNote?.note || '',
       publishDate: releaseNote?.publishDate
-        ? new Date(releaseNote.publishDate).toISOString().slice(0, 16)
-        : new Date().toISOString().slice(0, 16),
+        ? dayjs.utc(releaseNote.publishDate).format('YYYY-MM-DDTHH:mm')
+        : dayjs().format('YYYY-MM-DDTHH:mm'),
     },
   });
 
@@ -56,8 +57,8 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         serviceId: releaseNote.serviceId,
         note: releaseNote.note,
         publishDate: releaseNote.publishDate
-          ? new Date(releaseNote.publishDate).toISOString().slice(0, 16)
-          : new Date().toISOString().slice(0, 16),
+          ? dayjs.utc(releaseNote.publishDate).format('YYYY-MM-DDTHH:mm')
+          : dayjs().format('YYYY-MM-DDTHH:mm'),
       });
       // Set selected tasks from release note
       setSelectedTaskIds(releaseNote.tasks?.map(t => t.task.id) || []);
@@ -65,7 +66,7 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
       form.reset({
         serviceId: 0,
         note: '',
-        publishDate: new Date().toISOString().slice(0, 16),
+        publishDate: dayjs().format('YYYY-MM-DDTHH:mm'),
       });
       setSelectedTaskIds([]);
     }
@@ -75,11 +76,15 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
   const onSubmit = async (values: ReleaseNoteFormValues) => {
     setError(null);
     try {
+      const publishDateIso = dayjs(values.publishDate).isValid()
+        ? dayjs(values.publishDate).utc(true).toISOString()
+        : values.publishDate;
+
       if (isEditing && releaseNote) {
         await updateReleaseNote.mutateAsync({
           id: releaseNote.id,
           note: values.note,
-          publishDate: values.publishDate,
+          publishDate: publishDateIso,
           serviceId: values.serviceId,
           taskIds: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
         });
@@ -87,7 +92,7 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         await createReleaseNote.mutateAsync({
           serviceId: values.serviceId,
           note: values.note,
-          publishDate: values.publishDate,
+          publishDate: publishDateIso,
           taskIds: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
         });
       }
@@ -97,7 +102,7 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         form.reset({
           serviceId: 0,
           note: '',
-          publishDate: new Date().toISOString().slice(0, 16),
+          publishDate: dayjs().format('YYYY-MM-DDTHH:mm'),
         });
         setSelectedTaskIds([]);
       }

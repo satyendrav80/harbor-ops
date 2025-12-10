@@ -130,7 +130,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex-1" />
           <div className="flex items-center gap-2">
             <NotificationBell onTaskClick={(id) => setSidePanelTaskId(id)} />
-            <ThemeToggle />
+          <ThemeToggle />
           </div>
         </header>
 

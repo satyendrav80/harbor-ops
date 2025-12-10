@@ -72,6 +72,18 @@ export function getFields(): FilterFieldMetadata[] {
       sortable: isFieldSortable('DATETIME'),
       ui: getDefaultUIConfig('DATETIME', 'publishDate'),
     },
+    // Deployed Date
+    {
+      key: 'deployedAt',
+      label: formatFieldLabel('deployedAt'),
+      type: 'DATETIME',
+      operators: getOperatorsForType('DATETIME', true),
+      relation: null,
+      relationType: null,
+      searchable: isFieldSearchable('deployedAt', 'DATETIME'),
+      sortable: isFieldSortable('DATETIME'),
+      ui: getDefaultUIConfig('DATETIME', 'deployedAt'),
+    },
     // Created Date
     {
       key: 'createdAt',

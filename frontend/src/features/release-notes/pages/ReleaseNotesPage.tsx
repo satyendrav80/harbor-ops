@@ -33,6 +33,7 @@ import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../utils/urlSy
 import { hasActiveFilters } from '../utils/filterState';
 import { TaskDetailsSidePanel } from '../../tasks/components/TaskDetailsSidePanel';
 import { ServiceDetailsSidePanel } from '../../services/components/ServiceDetailsSidePanel';
+import dayjs from '../../../utils/dayjs';
 
 
 // Memoized header component - doesn't re-render when data changes
@@ -335,24 +336,23 @@ const ReleaseNoteItem = memo(({
           <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-gray-500 dark:text-gray-400">
             {releaseNote.publishDate && (
               <span className="font-medium">
-                Publish Date: {new Date(releaseNote.publishDate).toLocaleString(undefined, {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                Publish Date: {dayjs.utc(releaseNote.publishDate).format('D MMM YYYY, HH:mm')}
+              </span>
+            )}
+            {releaseNote.deployedAt && (
+              <span className="font-medium text-green-700 dark:text-green-300">
+                Deployed: {dayjs.utc(releaseNote.deployedAt).format('D MMM YYYY, HH:mm')}
               </span>
             )}
             {releaseNote.createdAt && (
               <span>
-                Created {new Date(releaseNote.createdAt).toLocaleString()}
+                Created {dayjs.utc(releaseNote.createdAt).format('D/MM/YYYY, HH:mm:ss')}
                 {releaseNote.createdByUser && ` by ${releaseNote.createdByUser.name || releaseNote.createdByUser.email}`}
               </span>
             )}
             {releaseNote.updatedAt && (
               <span>
-                Updated {new Date(releaseNote.updatedAt).toLocaleString()}
+                Updated {dayjs.utc(releaseNote.updatedAt).format('D/MM/YYYY, HH:mm:ss')}
                 {releaseNote.updatedByUser && ` by ${releaseNote.updatedByUser.name || releaseNote.updatedByUser.email}`}
               </span>
             )}
@@ -368,6 +368,7 @@ const ReleaseNoteItem = memo(({
     prevProps.releaseNote.note === nextProps.releaseNote.note &&
     prevProps.releaseNote.status === nextProps.releaseNote.status &&
     prevProps.releaseNote.publishDate === nextProps.releaseNote.publishDate &&
+    prevProps.releaseNote.deployedAt === nextProps.releaseNote.deployedAt &&
     prevProps.releaseNote.createdAt === nextProps.releaseNote.createdAt &&
     prevProps.releaseNote.updatedAt === nextProps.releaseNote.updatedAt &&
     prevProps.releaseNote.serviceId === nextProps.releaseNote.serviceId;

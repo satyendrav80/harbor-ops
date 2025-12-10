@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
 import { extractParams } from './extractParams';
 import { createSprintHistoryRecord } from '../../../utils/taskValidation';
+import { emitSubtaskCreated } from '../../../socket/socket';
 
 const prisma = new PrismaClient();
 
@@ -65,6 +66,16 @@ export async function create(context: RequestContext) {
       changes: { created: task },
     },
   });
+
+  // Emit Socket.IO event for subtask creation if this is a subtask
+  if (data.parentTaskId) {
+    // Emit only the fields needed for subtask display (id, title, status)
+    emitSubtaskCreated(data.parentTaskId, {
+      id: task.id,
+      title: task.title,
+      status: task.status,
+    });
+  }
 
   return task;
 }

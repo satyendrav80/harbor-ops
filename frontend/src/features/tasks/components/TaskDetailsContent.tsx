@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTask } from '../hooks/useTaskQueries';
 import { useUpdateTaskStatus, useReopenTask, useCreateSubtask } from '../hooks/useTaskMutations';
 import { CommentThread } from './CommentThread';
@@ -7,6 +7,9 @@ import { Edit, Clock, User, Calendar, Tag as TagIcon, CheckSquare, Link2, Plus }
 import { useAuth } from '../../auth/context/AuthContext';
 import type { TaskStatus } from '../../../services/tasks';
 import { Loading } from '../../../components/common/Loading';
+import { getSocket, joinTaskRoom, leaveTaskRoom } from '../../../services/socket';
+import { useQueryClient } from '@tanstack/react-query';
+import type { Task } from '../../../services/tasks';
 
 const statusColors: Record<TaskStatus, string> = {
   pending: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
@@ -36,9 +39,48 @@ export function TaskDetailsContent({ taskId, onTaskClick }: TaskDetailsContentPr
   const [testingSkipReason, setTestingSkipReason] = useState('');
 
   const { data: task, isLoading } = useTask(taskId);
+  const queryClient = useQueryClient();
   const updateStatus = useUpdateTaskStatus();
   const reopenTask = useReopenTask();
   const createSubtask = useCreateSubtask();
+
+  // Join task room for real-time updates and listen for subtask creation
+  useEffect(() => {
+    joinTaskRoom(taskId);
+
+    const socket = getSocket();
+    if (!socket) return;
+
+    // Listen for subtask created event
+    const handleSubtaskCreated = (data: { parentTaskId: number; subtask: { id: number; title: string; status: TaskStatus } }) => {
+      if (data.parentTaskId === taskId) {
+        // Update the task query cache to include the new subtask
+        queryClient.setQueryData(['task', taskId], (oldTask: Task | undefined) => {
+          if (!oldTask) return oldTask;
+          return {
+            ...oldTask,
+            subtasks: [...(oldTask.subtasks || []), data.subtask],
+          };
+        });
+      }
+    };
+
+    // Listen for task updated event (in case subtask status changes affect parent)
+    const handleTaskUpdated = (updatedTask: Task) => {
+      if (updatedTask.id === taskId) {
+        queryClient.setQueryData(['task', taskId], updatedTask);
+      }
+    };
+
+    socket.on('subtask:created', handleSubtaskCreated);
+    socket.on('task:updated', handleTaskUpdated);
+
+    return () => {
+      socket.off('subtask:created', handleSubtaskCreated);
+      socket.off('task:updated', handleTaskUpdated);
+      leaveTaskRoom(taskId);
+    };
+  }, [taskId, queryClient]);
 
   const handleTaskNavigation = (id: number) => {
     if (onTaskClick) {

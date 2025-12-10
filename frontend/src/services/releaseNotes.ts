@@ -6,6 +6,7 @@ export type ReleaseNote = {
   note: string;
   status: 'pending' | 'deployment_started' | 'deployed';
   publishDate: string;
+  deployedAt?: string | null;
   createdAt: string;
   updatedAt?: string;
   createdBy?: string | null;

@@ -189,12 +189,12 @@ export function ServiceDependencies({
                         )}
                       </button>
                     ) : (
-                      <span className="text-sm text-gray-900 dark:text-white">
-                        {dep.dependencyService.name} (:{dep.dependencyService.port})
-                        {dep.dependencyService.external && (
-                          <span className="ml-2 text-xs text-purple-500">[External]</span>
-                        )}
-                      </span>
+                    <span className="text-sm text-gray-900 dark:text-white">
+                      {dep.dependencyService.name} (:{dep.dependencyService.port})
+                      {dep.dependencyService.external && (
+                        <span className="ml-2 text-xs text-purple-500">[External]</span>
+                      )}
+                    </span>
                     )}
                   </>
                 )}
@@ -247,12 +247,12 @@ export function ServiceDependencies({
                       )}
                     </button>
                   ) : (
-                    <span className="text-sm text-gray-900 dark:text-white truncate">
-                      {dep.dependencyService.name} (:{dep.dependencyService.port})
-                      {dep.dependencyService.external && (
-                        <span className="ml-2 text-xs text-purple-500">[External]</span>
-                      )}
-                    </span>
+                  <span className="text-sm text-gray-900 dark:text-white truncate">
+                    {dep.dependencyService.name} (:{dep.dependencyService.port})
+                    {dep.dependencyService.external && (
+                      <span className="ml-2 text-xs text-purple-500">[External]</span>
+                    )}
+                  </span>
                   )}
                 </>
               )}

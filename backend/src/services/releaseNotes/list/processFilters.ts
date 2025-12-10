@@ -49,17 +49,31 @@ function processCondition(condition: FilterCondition): FilterCondition {
 
   // Convert date strings to Date objects for date fields
   // Handle special date values (now, today, yesterday, etc.)
-  if (['createdAt', 'updatedAt', 'publishDate'].includes(condition.key) && 
+  if (['createdAt', 'updatedAt', 'publishDate', 'deployedAt'].includes(condition.key) && 
       (condition.type === 'DATE' || condition.type === 'DATETIME')) {
+    // If the value is an empty string, skip conversion to avoid Invalid Date
+    if (typeof condition.value === 'string' && condition.value.trim() === '') {
+      return condition;
+    }
+
     if (condition.operator === 'between' && Array.isArray(condition.value)) {
+      const resolved = condition.value.map((v: string) => resolveSpecialDateValue(v));
+      // If any resolved date is invalid, skip conversion
+      if (resolved.some(d => isNaN(new Date(d as any).getTime()))) {
+        return condition;
+      }
       return {
         ...condition,
-        value: condition.value.map((v: string) => resolveSpecialDateValue(v)),
+        value: resolved,
       };
     } else if (typeof condition.value === 'string' && condition.operator !== 'isNull' && condition.operator !== 'isNotNull') {
+      const resolved = resolveSpecialDateValue(condition.value);
+      if (isNaN(resolved.getTime())) {
+        return condition;
+      }
       return {
         ...condition,
-        value: resolveSpecialDateValue(condition.value),
+        value: resolved,
       };
     }
   }

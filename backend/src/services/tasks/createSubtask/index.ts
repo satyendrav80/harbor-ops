@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
 import { extractParams } from './extractParams';
+import { emitSubtaskCreated } from '../../../socket/socket';
 
 const prisma = new PrismaClient();
 
@@ -38,6 +39,14 @@ export async function createSubtask(context: RequestContext) {
       assignedToUser: { select: { id: true, name: true, email: true } },
       parentTask: { select: { id: true, title: true } },
     },
+  });
+
+  // Emit Socket.IO event for real-time updates
+  // Emit only the fields needed for subtask display (id, title, status)
+  emitSubtaskCreated(data.parentTaskId, {
+    id: subtask.id,
+    title: subtask.title,
+    status: subtask.status,
   });
 
   return subtask;
