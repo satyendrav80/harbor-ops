@@ -8,7 +8,7 @@ import { TaskCard } from '../components/TaskCard';
 import { TaskDetailsSidePanel } from '../components/TaskDetailsSidePanel';
 import { Loading } from '../../../components/common/Loading';
 import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
-import { Search, Plus, Filter as FilterIcon, LayoutGrid, List, CheckSquare } from 'lucide-react';
+import { Search, Plus, Filter as FilterIcon, LayoutGrid, List, CheckSquare, ShieldCheck } from 'lucide-react';
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import { useDebounce } from '../../../hooks/useDebounce';
 import type { Task, TaskStatus, TaskPriority, TaskType } from '../../../services/tasks';
@@ -389,7 +389,17 @@ export function TasksPage() {
                     {task.assignedToUser?.name || task.assignedToUser?.email || '-'}
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                    {task.tester?.name || task.tester?.email || '-'}
+                    <div className="flex items-center gap-2">
+                      {task.tester && <ShieldCheck className="w-4 h-4 text-emerald-500" />}
+                      <div className="flex flex-col leading-tight">
+                        <span>{task.tester?.name || task.tester?.email || '-'}</span>
+                        {task.testerAssignedAt && (
+                          <span className="text-xs text-gray-500 dark:text-gray-500">
+                            {new Date(task.testerAssignedAt).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                     {task.attentionToUser?.name || task.attentionToUser?.email || '-'}

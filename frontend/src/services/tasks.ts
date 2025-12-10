@@ -232,6 +232,7 @@ export async function updateTaskStatus(id: number, data: {
   testingSkipReason?: string;
   attentionToId?: string | null;
   statusReason?: string;
+  testerId?: string | null;
 }): Promise<Task> {
   return apiFetch<Task>(`/tasks/${id}/status`, {
     method: 'PATCH',

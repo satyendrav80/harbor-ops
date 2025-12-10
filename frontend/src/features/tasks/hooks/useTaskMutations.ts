@@ -62,9 +62,9 @@ export function useDeleteTask() {
 
 export function useUpdateTaskStatus() {
   const queryClient = useQueryClient();
-  return useMutation<Task, Error, { id: number; status: TaskStatus; testingSkipped?: boolean; testingSkipReason?: string; attentionToId?: string | null; statusReason?: string }>({
-    mutationFn: ({ id, status, testingSkipped, testingSkipReason, attentionToId, statusReason }) =>
-      updateTaskStatus(id, { status, testingSkipped, testingSkipReason, attentionToId, statusReason }),
+  return useMutation<Task, Error, { id: number; status: TaskStatus; testingSkipped?: boolean; testingSkipReason?: string; attentionToId?: string | null; statusReason?: string; testerId?: string | null }>({
+    mutationFn: ({ id, status, testingSkipped, testingSkipReason, attentionToId, statusReason, testerId }) =>
+      updateTaskStatus(id, { status, testingSkipped, testingSkipReason, attentionToId, statusReason, testerId }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['task', variables.id] });

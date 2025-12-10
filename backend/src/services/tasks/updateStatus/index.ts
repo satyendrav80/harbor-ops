@@ -37,6 +37,7 @@ export async function updateStatus(context: RequestContext) {
   const isCompleting = data.status === 'completed';
   const isBlocked = data.status === 'blocked';
   const isInReview = data.status === 'in_review';
+  const isTesting = data.status === 'testing';
   const requiresAttentionUser = isBlocked || isInReview;
   const completionReason = isCompleting
     ? (data.testingSkipReason || '').trim()
@@ -72,7 +73,7 @@ export async function updateStatus(context: RequestContext) {
   // Validate status transition
   const validation = validateStatusTransition(task.status, data.status, {
     assignedTo: task.assignedTo,
-    testerId: task.testerId,
+    testerId: data.testerId || task.testerId,
     testingSkipped: data.testingSkipped || requireTestingReason,
     testingSkipReason: completionReason || data.testingSkipReason || null,
   });
@@ -100,6 +101,12 @@ export async function updateStatus(context: RequestContext) {
     status: data.status,
     updatedBy: userId,
   };
+
+  // Set tester if provided (esp. when moving to testing)
+  if (data.testerId) {
+    updateData.testerId = data.testerId;
+    updateData.testerAssignedAt = new Date();
+  }
 
   if (data.status === 'completed') {
     updateData.completedBy = userId;

@@ -3,7 +3,7 @@ import { useTask } from '../hooks/useTaskQueries';
 import { useUpdateTaskStatus, useReopenTask, useCreateSubtask } from '../hooks/useTaskMutations';
 import { CommentThread } from './CommentThread';
 import { TaskModal } from './TaskModal';
-import { Edit, Clock, User, Calendar, Tag as TagIcon, CheckSquare, Link2, Plus } from 'lucide-react';
+import { Edit, Clock, User, Calendar, Tag as TagIcon, ShieldCheck, CheckSquare, Link2, Plus } from 'lucide-react';
 import { useAuth } from '../../auth/context/AuthContext';
 import type { TaskStatus } from '../../../services/tasks';
 import { Loading } from '../../../components/common/Loading';
@@ -53,6 +53,7 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | null>(null);
   const [statusReason, setStatusReason] = useState('');
   const [statusAttentionId, setStatusAttentionId] = useState<string | null>(null);
+  const [statusTesterId, setStatusTesterId] = useState<string | null>(null);
 
   const { data: task, isLoading } = useTask(taskId);
   const queryClient = useQueryClient();
@@ -151,12 +152,14 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
     const requiresAttention = newStatus === 'blocked' || newStatus === 'in_review';
     const requiresReason = isBackward || newStatus === 'blocked';
     const needsTestingSkipReason = newStatus === 'completed' && !task.testerId;
+    const needsTesterSelection = newStatus === 'testing' && !task.testerId;
 
-    if (requiresAttention || requiresReason || needsTestingSkipReason) {
+    if (requiresAttention || requiresReason || needsTestingSkipReason || needsTesterSelection) {
       setSelectedStatus(newStatus);
       setShowStatusDialog(true);
       setStatusReason('');
       setStatusAttentionId(task.attentionToId || null);
+      setStatusTesterId(task.testerId || null);
       return;
     }
 
@@ -171,6 +174,7 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
 
     const requiresAttention = selectedStatus === 'blocked' || selectedStatus === 'in_review';
     const needsTestingSkipReason = selectedStatus === 'completed' && !task.testerId;
+    const needsTesterSelection = selectedStatus === 'testing' && !task.testerId && !statusTesterId;
     const currentOrder = statusOrder[task.status];
     const targetOrder = statusOrder[selectedStatus];
     const isBackward =
@@ -182,6 +186,7 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
 
     if (requiresAttention && !statusAttentionId) return;
     if ((requiresReason || needsTestingSkipReason) && !trimmedReason) return;
+    if (needsTesterSelection && !statusTesterId) return;
 
     await updateStatus.mutateAsync({
       id: taskId,
@@ -189,12 +194,14 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
       attentionToId: requiresAttention ? statusAttentionId : undefined,
       statusReason: (requiresReason || needsTestingSkipReason) ? trimmedReason : undefined,
       testingSkipReason: needsTestingSkipReason ? trimmedReason : undefined,
+      testerId: selectedStatus === 'testing' ? (statusTesterId || task.testerId || undefined) : undefined,
     });
 
     setShowStatusDialog(false);
     setSelectedStatus(null);
     setStatusReason('');
     setStatusAttentionId(null);
+    setStatusTesterId(null);
   };
 
   const handleReopen = async () => {
@@ -328,9 +335,14 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
               )}
               {task.tester && (
                 <div className="flex items-center gap-2">
-                  <CheckSquare className="w-4 h-4 text-gray-400" />
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
                   <span className="text-gray-600 dark:text-gray-400">Tester:</span>
                   <span className="text-gray-900 dark:text-white">{task.tester.name || task.tester.email}</span>
+                  {task.testerAssignedAt && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      (added {new Date(task.testerAssignedAt).toLocaleDateString()})
+                    </span>
+                  )}
                 </div>
               )}
               {task.attentionToUser && (
@@ -482,6 +494,7 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
             {(() => {
               const dialogNeedsTestingSkip = selectedStatus === 'completed' && task && !task.testerId;
               const dialogRequiresAttention = selectedStatus === 'blocked' || selectedStatus === 'in_review';
+              const dialogNeedsTester = selectedStatus === 'testing' && !task.testerId;
               const dialogCurrentOrder = task ? statusOrder[task.status] : undefined;
               const dialogTargetOrder = selectedStatus ? statusOrder[selectedStatus] : undefined;
               const dialogIsBackward =
@@ -490,6 +503,7 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
                 dialogTargetOrder < dialogCurrentOrder;
               const dialogTitle = (() => {
                 if (dialogNeedsTestingSkip) return 'Complete Without Tester';
+                if (dialogNeedsTester) return 'Assign Tester';
                 if (selectedStatus === 'blocked') return 'Mark Blocked';
                 if (selectedStatus === 'in_review') return 'Send to Review';
                 if (dialogIsBackward) return 'Provide Reason for Rollback';
@@ -520,6 +534,24 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
                           className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50"
                         >
                           <option value="">Select user</option>
+                          {usersData?.data?.map((u: any) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name || u.email}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {dialogNeedsTester && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-900 dark:text-white">Assign Tester</label>
+                        <select
+                          value={statusTesterId || ''}
+                          onChange={(e) => setStatusTesterId(e.target.value || null)}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                        >
+                          <option value="">Select tester</option>
                           {usersData?.data?.map((u: any) => (
                             <option key={u.id} value={u.id}>
                               {u.name || u.email}

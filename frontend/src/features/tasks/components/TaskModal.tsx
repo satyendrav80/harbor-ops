@@ -119,7 +119,7 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
         type: 'todo',
         priority: 'medium',
         sprintId: defaultSprintId || null,
-        assignedTo: user?.id || null, // Default to current user
+        assignedTo: (user?.id ? String(user.id) : null) as string | null, // Default to current user
         testerId: null,
         estimatedHours: null,
         dueDate: null,
@@ -289,13 +289,13 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
               <div>
                 <SearchableMultiSelect
                   options={usersData.data.map((u) => ({
-                    id: u.id,
+                    id: u.id as unknown as number,
                     name: u.name || u.email,
                   }))}
-                  selectedIds={form.watch('assignedTo') ? [form.watch('assignedTo')!] : [] as string[]}
+                  selectedIds={form.watch('assignedTo') ? [form.watch('assignedTo') as unknown as number] : []}
                   onChange={(selectedIds) => {
                     const id = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null;
-                    form.setValue('assignedTo', id as string, { shouldDirty: true });
+                    form.setValue('assignedTo', (id !== null ? String(id) : null) as string | null, { shouldDirty: true });
                   }}
                   label="Assigned To"
                   placeholder="Select user"
@@ -303,22 +303,29 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
                 />
               </div>
 
-              <div>
-                <SearchableMultiSelect
-                  options={usersData.data.map((u) => ({
-                    id: u.id,
-                    name: u.name || u.email,
-                  }))}
-                  selectedIds={form.watch('testerId') ? [form.watch('testerId')!] : [] as string[]}
-                  onChange={(selectedIds) => {
-                    const id = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null;
-                    form.setValue('testerId', id as string, { shouldDirty: true });
-                  }}
-                  label="Tester"
-                  placeholder="Select tester"
-                  disabled={isLoading}
-                />
-              </div>
+              {isEditing && (
+                <div>
+                  <SearchableMultiSelect
+                    options={usersData.data.map((u) => ({
+                      id: u.id as unknown as number,
+                      name: u.name || u.email,
+                    }))}
+                    selectedIds={form.watch('testerId') ? [form.watch('testerId') as unknown as number] : []}
+                    onChange={(selectedIds) => {
+                      const id = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null;
+                      form.setValue('testerId', (id !== null ? String(id) : null) as string | null, { shouldDirty: true });
+                    }}
+                    label="Tester (set during status updates)"
+                    placeholder="Select tester"
+                    disabled={isLoading}
+                  />
+                  {task?.testerAssignedAt && task?.tester && (
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                      <span>Tester since {new Date(task.testerAssignedAt).toLocaleDateString()}</span>
+                    </p>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>

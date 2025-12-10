@@ -1,5 +1,5 @@
 import { Task, TaskStatus, TaskPriority, TaskType } from '../../../services/tasks';
-import { Clock, User, MessageSquare, Link2, CheckSquare, Calendar, ShieldQuestion } from 'lucide-react';
+import { Clock, User, MessageSquare, Link2, CheckSquare, Calendar, ShieldCheck, BellRing } from 'lucide-react';
 
 type TaskCardProps = {
   task: Task;
@@ -125,16 +125,21 @@ export function TaskCard({ task, onClick, onParentTaskClick }: TaskCardProps) {
 
             {/* Tester */}
             {task.tester && (
-              <div className="flex items-center gap-1.5" title="Tester">
-                <ShieldQuestion className="w-3.5 h-3.5" />
-                <span>{task.tester.name || task.tester.email.split('@')[0]}</span>
+              <div className="flex items-center gap-1.5 text-xs" title="Tester">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="text-gray-700 dark:text-gray-300">{task.tester.name || task.tester.email.split('@')[0]}</span>
+                {task.testerAssignedAt && (
+                  <span className="text-gray-500 dark:text-gray-400">
+                    · {new Date(task.testerAssignedAt).toLocaleDateString()}
+                  </span>
+                )}
               </div>
             )}
 
             {/* Attention */}
             {task.attentionToUser && (
               <div className="flex items-center gap-1.5" title="Attention / Reviewer">
-                <ShieldQuestion className="w-3.5 h-3.5 text-purple-500" />
+                <BellRing className="w-3.5 h-3.5 text-purple-500" />
                 <span>{task.attentionToUser.name || task.attentionToUser.email.split('@')[0]}</span>
               </div>
             )}
