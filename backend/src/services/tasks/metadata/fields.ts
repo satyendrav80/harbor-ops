@@ -211,6 +211,48 @@ export function getFields(): FilterFieldMetadata[] {
       sortable: isFieldSortable('STRING', 'one'),
       ui: getDefaultUIConfig('STRING', 'name'),
     },
+    // Attention To User ID (for review/block handoffs)
+    {
+      key: 'attentionToId',
+      label: formatFieldLabel('attentionToId'),
+      type: 'STRING',
+      operators: getOperatorsForType('STRING', false).filter(op =>
+        ['eq', 'ne', 'in', 'notIn', 'isNull', 'isNotNull'].includes(op)
+      ),
+      relation: null,
+      relationType: null,
+      searchable: isFieldSearchable('attentionToId', 'STRING'),
+      sortable: isFieldSortable('STRING'),
+      relationModel: 'User',
+      relationField: 'email',
+      ui: getDefaultUIConfig('STRING', 'attentionToId'),
+    },
+    {
+      key: 'attentionToUser.email',
+      label: `Attention To - ${formatFieldLabel('email')}`,
+      type: 'STRING',
+      operators: getOperatorsForType('STRING', false).filter(op =>
+        ['eq', 'ne', 'contains', 'startsWith', 'endsWith'].includes(op)
+      ),
+      relation: 'attentionToUser',
+      relationType: 'one',
+      searchable: isFieldSearchable('email', 'STRING'),
+      sortable: isFieldSortable('STRING', 'one'),
+      ui: getDefaultUIConfig('STRING', 'email'),
+    },
+    {
+      key: 'attentionToUser.name',
+      label: `Attention To - ${formatFieldLabel('name')}`,
+      type: 'STRING',
+      operators: getOperatorsForType('STRING', false).filter(op =>
+        ['contains', 'startsWith', 'endsWith', 'eq', 'ne'].includes(op)
+      ),
+      relation: 'attentionToUser',
+      relationType: 'one',
+      searchable: isFieldSearchable('name', 'STRING'),
+      sortable: isFieldSortable('STRING', 'one'),
+      ui: getDefaultUIConfig('STRING', 'name'),
+    },
     // Tester User ID
     {
       key: 'testerId',

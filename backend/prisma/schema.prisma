@@ -70,6 +70,7 @@ model User {
   taskSprintHistoryMoves     TaskSprintHistory[]   @relation("TaskSprintHistoryMovedBy")
   createdTaskDependencies    TaskDependency[]      @relation("TaskDependencyCreatedBy")
   notifications              Notification[]        @relation("NotificationUser")
+  attentionTasks             Task[]                @relation("TaskAttentionTo")
 
   @@map("users")
 }
@@ -658,6 +659,10 @@ model Task {
   testerId         String?   @map("tester_id")
   tester           User?     @relation("TaskTester", fields: [testerId], references: [id])
   testerAssignedAt DateTime? @map("tester_assigned_at")
+
+  // Attention/notification for review or block
+  attentionToId   String? @map("attention_to_id")
+  attentionToUser User?   @relation("TaskAttentionTo", fields: [attentionToId], references: [id])
 
   // Testing skip tracking
   testingSkipped    Boolean @default(false) @map("testing_skipped")

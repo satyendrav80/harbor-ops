@@ -32,6 +32,8 @@ export type Task = {
   testerId?: string | null;
   tester?: User | null;
   testerAssignedAt?: string | null;
+  attentionToId?: string | null;
+  attentionToUser?: User | null;
   testingSkipped?: boolean;
   testingSkipReason?: string | null;
   completedBy?: string | null;
@@ -228,6 +230,8 @@ export async function updateTaskStatus(id: number, data: {
   status: TaskStatus;
   testingSkipped?: boolean;
   testingSkipReason?: string;
+  attentionToId?: string | null;
+  statusReason?: string;
 }): Promise<Task> {
   return apiFetch<Task>(`/tasks/${id}/status`, {
     method: 'PATCH',

@@ -10,7 +10,7 @@ const schema = z.object({ email: z.string().email('Enter a valid email') });
 type FormValues = z.infer<typeof schema>;
 
 export function ForgotPasswordPage() {
-  usePageTitle();
+  usePageTitle('Forgot Password');
   
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { email: '' } });
   const [sent, setSent] = useState(false);

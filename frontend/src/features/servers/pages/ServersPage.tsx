@@ -31,7 +31,7 @@ import { hasActiveFilters } from '../../release-notes/utils/filterState';
  * ServersPage component for managing servers
  */
 export function ServersPage() {
-  usePageTitle();
+  usePageTitle('Servers');
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();

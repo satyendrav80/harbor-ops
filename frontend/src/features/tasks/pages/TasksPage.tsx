@@ -97,6 +97,7 @@ export function TasksPage() {
             childs: [
               { key: 'assignedTo', type: 'STRING', operator: 'eq', value: user.id },
               { key: 'testerId', type: 'STRING', operator: 'eq', value: user.id },
+              { key: 'attentionToId', type: 'STRING', operator: 'eq', value: user.id },
             ],
           },
           { key: 'status', type: 'STRING', operator: 'ne', value: 'completed' },
@@ -146,12 +147,15 @@ export function TasksPage() {
     return [];
   }, [tasksDataToUse]);
 
-  // Infinite scroll observer
+  // Infinite scroll observer (only when using advanced filtering)
   const tasksObserverTarget = useInfiniteScroll({
-    hasNextPage: hasNextAdvancedTasksPage ?? false,
-    isFetchingNextPage: isFetchingNextAdvancedTasksPage,
-    fetchNextPage: fetchNextAdvancedTasksPage,
-    enabled: useAdvancedFiltering,
+    hasNextPage: useAdvancedFiltering ? (hasNextAdvancedTasksPage ?? false) : false,
+    isFetchingNextPage: useAdvancedFiltering ? isFetchingNextAdvancedTasksPage : false,
+    fetchNextPage: () => {
+      if (useAdvancedFiltering && fetchNextAdvancedTasksPage) {
+        fetchNextAdvancedTasksPage();
+      }
+    },
   });
 
   const { data: sprintsData } = useQuery({
@@ -323,6 +327,8 @@ export function TasksPage() {
                 <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Status</th>
                 <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Priority</th>
                 <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Assignee</th>
+                <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Tester</th>
+                <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Attention</th>
                 <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Created By</th>
                 <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Created At</th>
                 <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Assigned At</th>
@@ -381,6 +387,12 @@ export function TasksPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                     {task.assignedToUser?.name || task.assignedToUser?.email || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                    {task.tester?.name || task.tester?.email || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                    {task.attentionToUser?.name || task.attentionToUser?.email || '-'}
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                     {task.createdByUser?.name || task.createdByUser?.email || '-'}

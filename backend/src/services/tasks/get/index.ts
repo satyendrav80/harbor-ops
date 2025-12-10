@@ -17,6 +17,7 @@ export async function get(context: RequestContext) {
       tester: { select: { id: true, name: true, email: true } },
       completedByUser: { select: { id: true, name: true, email: true } },
       lastReopenedByUser: { select: { id: true, name: true, email: true } },
+      attentionToUser: { select: { id: true, name: true, email: true } },
       sprint: { select: { id: true, name: true, status: true } },
       tags: { include: { tag: true } },
       parentTask: { select: { id: true, title: true } },
@@ -64,7 +65,7 @@ export async function get(context: RequestContext) {
         },
         orderBy: { createdAt: 'asc' },
       },
-    },
+    } as any,
   });
 
   if (!task || task.deleted) {

@@ -10,6 +10,8 @@ import { Loading } from '../../../components/common/Loading';
 import { getSocket, joinTaskRoom, leaveTaskRoom } from '../../../services/socket';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Task } from '../../../services/tasks';
+import { useQuery } from '@tanstack/react-query';
+import { getUsers } from '../../../services/users';
 
 const statusColors: Record<TaskStatus, string> = {
   pending: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
@@ -23,12 +25,25 @@ const statusColors: Record<TaskStatus, string> = {
   reopened: 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-200',
 };
 
+const statusOrder: Record<TaskStatus, number> = {
+  pending: 0,
+  in_progress: 1,
+  in_review: 2,
+  testing: 3,
+  completed: 4,
+  paused: 2,
+  blocked: 2,
+  cancelled: 0,
+  reopened: 1,
+};
+
 type TaskDetailsContentProps = {
   taskId: number;
   onTaskClick?: (taskId: number) => void; // Callback for nested task clicks (subtasks, dependencies)
+  onClose?: () => void; // Allow parent side panel to close on delete
 };
 
-export function TaskDetailsContent({ taskId, onTaskClick }: TaskDetailsContentProps) {
+export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetailsContentProps) {
   const { hasPermission } = useAuth();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSubtaskModalOpen, setIsSubtaskModalOpen] = useState(false);
@@ -36,13 +51,20 @@ export function TaskDetailsContent({ taskId, onTaskClick }: TaskDetailsContentPr
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [reopenReason, setReopenReason] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | null>(null);
-  const [testingSkipReason, setTestingSkipReason] = useState('');
+  const [statusReason, setStatusReason] = useState('');
+  const [statusAttentionId, setStatusAttentionId] = useState<string | null>(null);
 
   const { data: task, isLoading } = useTask(taskId);
   const queryClient = useQueryClient();
   const updateStatus = useUpdateTaskStatus();
   const reopenTask = useReopenTask();
   const createSubtask = useCreateSubtask();
+  const { data: usersData } = useQuery({
+    queryKey: ['users', 'all'],
+    queryFn: () => getUsers(1, 1000),
+    staleTime: 5 * 60 * 1000,
+    enabled: showStatusDialog,
+  });
 
   // Join task room for real-time updates and listen for subtask creation
   useEffect(() => {
@@ -104,10 +126,37 @@ export function TaskDetailsContent({ taskId, onTaskClick }: TaskDetailsContentPr
     );
   }
 
+  const dialogCurrentOrder = statusOrder[task.status];
+  const dialogTargetOrder = selectedStatus ? statusOrder[selectedStatus] : undefined;
+  const dialogIsBackward =
+    dialogCurrentOrder !== undefined &&
+    dialogTargetOrder !== undefined &&
+    dialogTargetOrder < dialogCurrentOrder;
+  const dialogNeedsTestingSkip = selectedStatus === 'completed' && !task.testerId;
+  const dialogRequiresAttention = selectedStatus === 'blocked' || selectedStatus === 'in_review';
+  const dialogRequiresReason =
+    dialogIsBackward || selectedStatus === 'blocked' || dialogNeedsTestingSkip;
+  const statusConfirmDisabled =
+    updateStatus.isPending ||
+    (dialogRequiresAttention && !statusAttentionId) ||
+    (dialogRequiresReason && !statusReason.trim());
+
   const handleStatusChange = async (newStatus: TaskStatus) => {
-    if (newStatus === 'completed' && !task.testerId) {
+    const currentOrder = statusOrder[task.status];
+    const targetOrder = statusOrder[newStatus];
+    const isBackward =
+      currentOrder !== undefined &&
+      targetOrder !== undefined &&
+      targetOrder < currentOrder;
+    const requiresAttention = newStatus === 'blocked' || newStatus === 'in_review';
+    const requiresReason = isBackward || newStatus === 'blocked';
+    const needsTestingSkipReason = newStatus === 'completed' && !task.testerId;
+
+    if (requiresAttention || requiresReason || needsTestingSkipReason) {
       setSelectedStatus(newStatus);
       setShowStatusDialog(true);
+      setStatusReason('');
+      setStatusAttentionId(task.attentionToId || null);
       return;
     }
 
@@ -120,19 +169,32 @@ export function TaskDetailsContent({ taskId, onTaskClick }: TaskDetailsContentPr
   const handleStatusConfirm = async () => {
     if (!selectedStatus) return;
 
-    if (selectedStatus === 'completed' && !task.testerId && !testingSkipReason.trim()) {
-      return;
-    }
+    const requiresAttention = selectedStatus === 'blocked' || selectedStatus === 'in_review';
+    const needsTestingSkipReason = selectedStatus === 'completed' && !task.testerId;
+    const currentOrder = statusOrder[task.status];
+    const targetOrder = statusOrder[selectedStatus];
+    const isBackward =
+      currentOrder !== undefined &&
+      targetOrder !== undefined &&
+      targetOrder < currentOrder;
+    const requiresReason = isBackward || selectedStatus === 'blocked';
+    const trimmedReason = statusReason.trim();
+
+    if (requiresAttention && !statusAttentionId) return;
+    if ((requiresReason || needsTestingSkipReason) && !trimmedReason) return;
 
     await updateStatus.mutateAsync({
       id: taskId,
       status: selectedStatus,
-      testingSkipReason: testingSkipReason || undefined,
+      attentionToId: requiresAttention ? statusAttentionId : undefined,
+      statusReason: (requiresReason || needsTestingSkipReason) ? trimmedReason : undefined,
+      testingSkipReason: needsTestingSkipReason ? trimmedReason : undefined,
     });
 
     setShowStatusDialog(false);
     setSelectedStatus(null);
-    setTestingSkipReason('');
+    setStatusReason('');
+    setStatusAttentionId(null);
   };
 
   const handleReopen = async () => {
@@ -271,6 +333,13 @@ export function TaskDetailsContent({ taskId, onTaskClick }: TaskDetailsContentPr
                   <span className="text-gray-900 dark:text-white">{task.tester.name || task.tester.email}</span>
                 </div>
               )}
+              {task.attentionToUser && (
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-purple-500" />
+                  <span className="text-gray-600 dark:text-gray-400">Attention:</span>
+                  <span className="text-gray-900 dark:text-white">{task.attentionToUser.name || task.attentionToUser.email}</span>
+                </div>
+              )}
               {task.estimatedHours && (
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-gray-400" />
@@ -363,6 +432,10 @@ export function TaskDetailsContent({ taskId, onTaskClick }: TaskDetailsContentPr
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         task={task}
+        onDelete={() => {
+          setIsEditModalOpen(false);
+          if (onClose) onClose();
+        }}
       />
 
       <TaskModal
@@ -405,24 +478,81 @@ export function TaskDetailsContent({ taskId, onTaskClick }: TaskDetailsContentPr
       {/* Status Change Dialog */}
       {showStatusDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#1C252E] rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Complete Without Testing</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              This task has no tester assigned. Please provide a reason for skipping testing.
-            </p>
-            <textarea
-              value={testingSkipReason}
-              onChange={(e) => setTestingSkipReason(e.target.value)}
-              placeholder="Explain why testing is not needed..."
-              className="w-full px-4 py-3 text-sm border border-gray-200 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-0 focus:ring-2 focus:ring-primary/50 resize-y"
-              rows={4}
-            />
+          <div className="bg-white dark:bg-[#1C252E] rounded-lg p-6 max-w-lg w-full space-y-4">
+            {(() => {
+              const dialogNeedsTestingSkip = selectedStatus === 'completed' && task && !task.testerId;
+              const dialogRequiresAttention = selectedStatus === 'blocked' || selectedStatus === 'in_review';
+              const dialogCurrentOrder = task ? statusOrder[task.status] : undefined;
+              const dialogTargetOrder = selectedStatus ? statusOrder[selectedStatus] : undefined;
+              const dialogIsBackward =
+                dialogCurrentOrder !== undefined &&
+                dialogTargetOrder !== undefined &&
+                dialogTargetOrder < dialogCurrentOrder;
+              const dialogTitle = (() => {
+                if (dialogNeedsTestingSkip) return 'Complete Without Tester';
+                if (selectedStatus === 'blocked') return 'Mark Blocked';
+                if (selectedStatus === 'in_review') return 'Send to Review';
+                if (dialogIsBackward) return 'Provide Reason for Rollback';
+                return 'Update Status';
+              })();
+
+              return (
+                <>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{dialogTitle}</h3>
+                  <div className="space-y-3">
+                    {dialogNeedsTestingSkip && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        This task has no tester assigned. Please provide a reason for skipping testing.
+                      </p>
+                    )}
+                    {(dialogIsBackward || selectedStatus === 'blocked') && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Moving backward or blocking requires a reason so the team understands the change.
+                      </p>
+                    )}
+
+                    {dialogRequiresAttention && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-900 dark:text-white">Assign to review / unblock</label>
+                        <select
+                          value={statusAttentionId || ''}
+                          onChange={(e) => setStatusAttentionId(e.target.value || null)}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                        >
+                          <option value="">Select user</option>
+                          {usersData?.data?.map((u: any) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name || u.email}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {(dialogIsBackward || dialogNeedsTestingSkip || selectedStatus === 'blocked') && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-900 dark:text-white">Reason</label>
+                        <textarea
+                          value={statusReason}
+                          onChange={(e) => setStatusReason(e.target.value)}
+                          placeholder="Add context for this status change..."
+                          className="w-full px-4 py-3 text-sm border border-gray-200 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-0 focus:ring-2 focus:ring-primary/50 resize-y"
+                          rows={4}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+
             <div className="flex gap-3 mt-4">
               <button
                 onClick={() => {
                   setShowStatusDialog(false);
                   setSelectedStatus(null);
-                  setTestingSkipReason('');
+                  setStatusReason('');
+                  setStatusAttentionId(null);
                 }}
                 className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg"
               >
@@ -430,10 +560,10 @@ export function TaskDetailsContent({ taskId, onTaskClick }: TaskDetailsContentPr
               </button>
               <button
                 onClick={handleStatusConfirm}
-                disabled={!testingSkipReason.trim() || updateStatus.isPending}
+                disabled={statusConfirmDisabled}
                 className="flex-1 px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg disabled:opacity-50"
               >
-                {updateStatus.isPending ? 'Updating...' : 'Complete Task'}
+                {updateStatus.isPending ? 'Updating...' : 'Update Status'}
               </button>
             </div>
           </div>

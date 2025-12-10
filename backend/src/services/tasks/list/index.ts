@@ -70,6 +70,7 @@ export async function list(context: RequestContext): Promise<ListResult> {
           createdByUser: { select: { id: true, name: true, email: true } },
           assignedToUser: { select: { id: true, name: true, email: true } },
           tester: { select: { id: true, name: true, email: true } },
+          attentionToUser: { select: { id: true, name: true, email: true } },
           sprint: { select: { id: true, name: true, status: true } },
           tags: { include: { tag: true } },
           parentTask: { select: { id: true, title: true } },
@@ -80,11 +81,11 @@ export async function list(context: RequestContext): Promise<ListResult> {
               dependencies: true,
             },
           },
-        },
+        } as any,
         orderBy: orderByClause,
         skip: offset,
         take: params.limit,
-      }),
+      } as any),
       prisma.task.count({ where }),
     ]);
 
@@ -171,8 +172,8 @@ export async function list(context: RequestContext): Promise<ListResult> {
 
   if (legacyParams.search) {
     const searchOr = [
-      { title: { contains: legacyParams.search, mode: 'insensitive' } },
-      { description: { contains: legacyParams.search, mode: 'insensitive' } },
+      { title: { contains: legacyParams.search, mode: Prisma.QueryMode.insensitive } },
+      { description: { contains: legacyParams.search, mode: Prisma.QueryMode.insensitive } },
     ];
     if (where.OR) {
       where.OR = [...where.OR, ...searchOr];
@@ -194,6 +195,7 @@ export async function list(context: RequestContext): Promise<ListResult> {
       createdByUser: { select: { id: true, name: true, email: true } },
       assignedToUser: { select: { id: true, name: true, email: true } },
       tester: { select: { id: true, name: true, email: true } },
+        attentionToUser: { select: { id: true, name: true, email: true } },
       sprint: { select: { id: true, name: true, status: true } },
       tags: { include: { tag: true } },
       parentTask: { select: { id: true, title: true } },
@@ -204,11 +206,11 @@ export async function list(context: RequestContext): Promise<ListResult> {
           dependencies: true,
         },
       },
-    },
+    } as any,
     orderBy: { [legacyParams.sortBy]: legacyParams.sortOrder },
     skip,
     take: legacyParams.limit,
-  });
+  } as any);
 
   return {
     data: tasks,

@@ -21,7 +21,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  usePageTitle();
+  usePageTitle('Sign In');
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),

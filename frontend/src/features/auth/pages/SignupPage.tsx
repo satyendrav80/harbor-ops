@@ -24,7 +24,7 @@ export function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   
-  usePageTitle();
+  usePageTitle('Sign Up');
   
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { name: '', email: '', password: '', confirm: '' } });
 

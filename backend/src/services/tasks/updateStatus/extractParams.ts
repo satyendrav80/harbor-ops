@@ -7,7 +7,7 @@ export function extractParams(context: RequestContext) {
     throw new Error('Invalid task ID');
   }
 
-  const { status, testingSkipped, testingSkipReason } = context.body;
+  const { status, testingSkipped, testingSkipReason, attentionToId, statusReason } = context.body;
 
   if (!status) {
     throw new Error('Status is required');
@@ -18,5 +18,7 @@ export function extractParams(context: RequestContext) {
     status,
     testingSkipped: testingSkipped === true,
     testingSkipReason,
+    attentionToId: attentionToId || null,
+    statusReason: statusReason || '',
   };
 }

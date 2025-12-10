@@ -136,6 +136,17 @@ export function validateStatusTransition(
     };
   }
 
+  // 3b. Completing without a tester requires an explicit reason (e.g., testing skipped)
+  if (newStatus === 'completed' && !task.testerId) {
+    const reason = (task.testingSkipReason || '').trim();
+    if (!reason) {
+      return {
+        valid: false,
+        error: 'Assign a tester or provide a reason to complete without one',
+      };
+    }
+  }
+
   // 4. Blocked/Paused/Cancelled are always allowed
   if (['blocked', 'paused', 'cancelled'].includes(newStatus)) {
     return { valid: true };
