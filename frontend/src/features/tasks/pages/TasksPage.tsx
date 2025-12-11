@@ -8,7 +8,7 @@ import { TaskCard } from '../components/TaskCard';
 import { TaskDetailsSidePanel } from '../components/TaskDetailsSidePanel';
 import { Loading } from '../../../components/common/Loading';
 import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
-import { Search, Plus, Filter as FilterIcon, LayoutGrid, List, CheckSquare, ShieldCheck } from 'lucide-react';
+import { Search, Plus, Filter as FilterIcon, LayoutGrid, List, ShieldCheck } from 'lucide-react';
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import { useDebounce } from '../../../hooks/useDebounce';
 import type { Task, TaskStatus, TaskPriority, TaskType } from '../../../services/tasks';
@@ -20,6 +20,7 @@ import type { Filter } from '../../release-notes/types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../utils/urlSync';
 import { hasActiveFilters } from '../../release-notes/utils/filterState';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
+import { SelectionBar } from '../../../components/common/SelectionBar';
 
 export function TasksPage() {
   usePageTitle('Tasks');
@@ -46,7 +47,6 @@ export function TasksPage() {
     (searchParams.get('viewMode') as 'grid' | 'table') || 'grid'
   );
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
-  const [bulkSprintId, setBulkSprintId] = useState<string>('');
   const [sidePanelTaskId, setSidePanelTaskId] = useState<number | null>(null);
 
   const debouncedSearch = useDebounce(searchQuery, 500);
@@ -163,6 +163,14 @@ export function TasksPage() {
     queryFn: () => listSprints({ status: ['planned', 'active'], limit: 100 }),
     enabled: selectedTaskIds.size > 0 && hasPermission('sprints:view'),
   });
+  const sprintOptions = useMemo(
+    () =>
+      (sprintsData?.data || []).map((s: any) => ({
+        value: String(s.id),
+        label: s.name,
+      })),
+    [sprintsData?.data]
+  );
 
   // Memoize handlers
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -249,11 +257,10 @@ export function TasksPage() {
     }
   };
 
-  const handleBulkAddToSprint = async () => {
-    if (!bulkSprintId || selectedTaskIds.size === 0) return;
-
-    const sprintId = parseInt(bulkSprintId);
-    if (isNaN(sprintId)) return;
+  const handleBulkAddToSprint = async (sprintIdValue: string | null) => {
+    if (sprintIdValue === undefined || selectedTaskIds.size === 0) return;
+    const sprintId = sprintIdValue === null ? null : parseInt(sprintIdValue);
+    if (sprintIdValue !== null && isNaN(sprintId)) return;
 
     await Promise.all(
       Array.from(selectedTaskIds).map(id =>
@@ -262,7 +269,6 @@ export function TasksPage() {
     );
 
     setSelectedTaskIds(new Set());
-    setBulkSprintId('');
   };
 
   const clearSelection = () => {
@@ -438,7 +444,7 @@ export function TasksPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {tasks.map((task) => (
           <div key={task.id} className="relative group">
-            <div className={`absolute top-2 right-2 z-10 transition-opacity ${selectedTaskIds.has(task.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+            <div className={`absolute top-2 left-2 z-10 transition-opacity ${selectedTaskIds.has(task.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
               <input
                 type="checkbox"
                 checked={selectedTaskIds.has(task.id)}
@@ -453,7 +459,14 @@ export function TasksPage() {
             <div className={`${selectedTaskIds.has(task.id) ? 'ring-2 ring-primary rounded-lg' : ''}`}>
               <TaskCard
                 task={task}
-                onClick={() => setSidePanelTaskId(task.id)}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey) {
+                    e.stopPropagation();
+                    toggleTaskSelection(task.id);
+                  } else {
+                    setSidePanelTaskId(task.id);
+                  }
+                }}
                 onParentTaskClick={(id) => setSidePanelTaskId(id)}
               />
             </div>
@@ -575,41 +588,14 @@ export function TasksPage() {
       </div>
 
       {selectedTaskIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 bg-white dark:bg-[#1C252E] shadow-xl border border-gray-200 dark:border-gray-700 rounded-full px-6 py-3 flex items-center gap-4 animate-in slide-in-from-bottom-4">
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700 pr-4">
-            <CheckSquare className="w-4 h-4 text-primary" />
-            <span>{selectedTaskIds.size} selected</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <select
-              value={bulkSprintId}
-              onChange={(e) => setBulkSprintId(e.target.value)}
-              className="text-sm bg-gray-50 dark:bg-gray-800 dark:text-white border-none rounded-md py-1.5 focus:ring-2 focus:ring-primary/50"
-              disabled={!sprintsData?.data}
-            >
-              <option value="">Add to Sprint...</option>
-              {sprintsData?.data?.map((sprint: any) => (
-                <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
-              ))}
-            </select>
-
-            <button
-              onClick={handleBulkAddToSprint}
-              disabled={!bulkSprintId}
-              className="px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
-            >
-              Apply
-            </button>
-
-            <button
-              onClick={clearSelection}
-              className="ml-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+        <SelectionBar
+          count={selectedTaskIds.size}
+          options={[{ value: '', label: 'Backlog' }, ...sprintOptions]}
+          onApply={handleBulkAddToSprint}
+          onCancel={clearSelection}
+          placeholder="Add to Sprint..."
+          applyLabel="Apply"
+        />
       )}
 
       <TaskModal

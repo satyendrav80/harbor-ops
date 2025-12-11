@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Plus, Calendar, CheckCircle, Search, Trash2 } from 'lucide-react';
 import { useSprints } from '../hooks/useSprintQueries';
@@ -15,6 +15,7 @@ import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { addTasksToSprint, completeSprint, cancelSprint } from '../../../services/sprints';
 import { toast } from 'react-hot-toast';
 import { useDebounce } from '../../../hooks/useDebounce';
+import { SelectionBar } from '../../../components/common/SelectionBar';
 import { useUpdateTask } from '../../tasks/hooks/useTaskMutations';
 
 export function SprintsPage() {
@@ -207,6 +208,21 @@ export function SprintsPage() {
     setIsCompleteSprintModalOpen(true);
   };
 
+  const handleQuickMoveApply = async (targetSprintIdValue: string | null) => {
+    const ids = Array.from(selectedTaskIds);
+    if (ids.length === 0) return;
+    const targetSprintId = targetSprintIdValue === null ? null : Number(targetSprintIdValue);
+    try {
+      await Promise.all(ids.map((id) => updateTask.mutateAsync({ id, data: { sprintId: targetSprintId } })));
+      toast.success(`Moved ${ids.length} task${ids.length > 1 ? 's' : ''}`);
+      queryClient.invalidateQueries({ queryKey: ['sprints'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      clearSelection();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to move tasks');
+    }
+  };
+
   const handleOpenCancelSprint = (sprint: Sprint) => {
     setSprintToComplete(sprint);
     setCompleteModalMode('cancel');
@@ -254,6 +270,12 @@ export function SprintsPage() {
   const selectedTask = selectedTaskId
     ? [...backlogTasks, ...(sprintsData?.data.flatMap(s => s.tasks || []) || [])].find((t) => t.id === selectedTaskId)
     : null;
+
+  const sprintOptions = useMemo(() => {
+    return (sprintsData?.data || [])
+      .filter((s) => s.status !== 'completed')
+      .map((s) => ({ value: String(s.id), label: s.name }));
+  }, [sprintsData?.data]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -465,9 +487,13 @@ export function SprintsPage() {
                           onDragEnd={handleDragEnd}
                           onDragOver={handleDragOver}
                           onDrop={(e) => handleDropToSprint(e, sprint.id)}
-                          className={`relative ${draggingIds.includes(task.id) ? 'opacity-70' : ''}`}
+                          className={`relative group ${draggingIds.includes(task.id) ? 'opacity-70' : ''}`}
                         >
-                          <div className="absolute top-2 left-2 z-10">
+                          <div
+                            className={`absolute top-2 left-2 z-10 transition-opacity ${
+                              isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                            }`}
+                          >
                             <input
                               type="checkbox"
                               checked={isSelected}
@@ -475,12 +501,19 @@ export function SprintsPage() {
                                 e.stopPropagation();
                                 toggleTaskSelection(task.id);
                               }}
-                              className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50"
+                              className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50 shadow-sm bg-white dark:bg-gray-800"
                             />
                           </div>
                           <TaskCard
                             task={task}
-                            onClick={() => handleTaskClick(task.id)}
+                            onClick={(e) => {
+                              if (e.metaKey || e.ctrlKey) {
+                                e.stopPropagation();
+                                toggleTaskSelection(task.id);
+                              } else {
+                                handleTaskClick(task.id);
+                              }
+                            }}
                             onParentTaskClick={(id) => handleTaskClick(id)}
                           />
                         </div>
@@ -564,9 +597,13 @@ export function SprintsPage() {
                       onDragEnd={handleDragEnd}
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDropToSprint(e, null)}
-                      className={`relative ${draggingIds.includes(task.id) ? 'opacity-70' : ''}`}
+                      className={`relative group ${draggingIds.includes(task.id) ? 'opacity-70' : ''}`}
                     >
-                      <div className="absolute top-2 left-2 z-10">
+                      <div
+                        className={`absolute top-2 left-2 z-10 transition-opacity ${
+                          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                        }`}
+                      >
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -574,10 +611,21 @@ export function SprintsPage() {
                             e.stopPropagation();
                             toggleTaskSelection(task.id);
                           }}
-                          className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50"
+                          className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50 shadow-sm bg-white dark:bg-gray-800"
                         />
                       </div>
-                      <TaskCard key={task.id} task={task} onClick={() => handleTaskClick(task.id)} />
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        onClick={(e) => {
+                          if (e.metaKey || e.ctrlKey) {
+                            e.stopPropagation();
+                            toggleTaskSelection(task.id);
+                          } else {
+                            handleTaskClick(task.id);
+                          }
+                        }}
+                      />
                     </div>
                   );
                 })}
@@ -638,6 +686,18 @@ export function SprintsPage() {
           onConfirm={handleCompleteOrCancelConfirm}
           sprint={sprintToComplete}
           mode={completeModalMode}
+        />
+      )}
+
+      {/* Quick Move Bar */}
+      {selectedTaskIds.size > 0 && (
+        <SelectionBar
+          count={selectedTaskIds.size}
+          options={[{ value: '', label: 'Backlog' }, ...sprintOptions]}
+          onApply={handleQuickMoveApply}
+          onCancel={() => setSelectedTaskIds(new Set())}
+          placeholder="Add to Sprint..."
+          applyLabel="Apply"
         />
       )}
     </div>

@@ -3,7 +3,7 @@ import { Clock, User, MessageSquare, Link2, CheckSquare, Calendar, ShieldCheck, 
 
 type TaskCardProps = {
   task: Task;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
   onParentTaskClick?: (taskId: number) => void;
 };
 

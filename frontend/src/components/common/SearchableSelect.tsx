@@ -13,6 +13,7 @@ type SearchableSelectProps = {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  dropdownPlacement?: 'bottom' | 'top';
 };
 
 export function SearchableSelect({
@@ -22,6 +23,7 @@ export function SearchableSelect({
   placeholder = 'Select...',
   className = '',
   disabled = false,
+  dropdownPlacement = 'bottom',
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -173,8 +175,10 @@ export function SearchableSelect({
       </button>
 
       {isOpen && (
-        <div 
-          className="absolute z-[100] w-full mt-1 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-lg max-h-[calc(100vh-12rem)] overflow-hidden"
+        <div
+          className={`absolute z-[100] w-full ${
+            dropdownPlacement === 'top' ? 'bottom-full mb-1' : 'mt-1'
+          } bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-lg max-h-[calc(100vh-12rem)] overflow-hidden`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="p-2 border-b border-gray-200 dark:border-gray-700/50">

@@ -16,7 +16,7 @@ import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ReleaseNoteModal } from '../components/ReleaseNoteModal';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
-import { BulkSelectionToolbar } from '../../../components/common/BulkSelectionToolbar';
+import { SelectionBar } from '../../../components/common/SelectionBar';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
 import { AdvancedFiltersPanel } from '../components/AdvancedFiltersPanel';
 import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle, Filter as FilterIcon } from 'lucide-react';
@@ -34,6 +34,7 @@ import { hasActiveFilters } from '../utils/filterState';
 import { TaskDetailsSidePanel } from '../../tasks/components/TaskDetailsSidePanel';
 import { ServiceDetailsSidePanel } from '../../services/components/ServiceDetailsSidePanel';
 import dayjs from '../../../utils/dayjs';
+import { toast } from 'react-hot-toast';
 
 
 // Memoized header component - doesn't re-render when data changes
@@ -177,50 +178,64 @@ const ReleaseNoteItem = memo(({
   const preview = plainText.length > 100 ? `${plainText.substring(0, 100)}...` : plainText;
   
   return (
-    <div className={`bg-white dark:bg-[#1C252E] border rounded-xl p-6 ${
-      isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 dark:border-gray-700/50'
-    }`}>
-      <div className="flex items-start gap-4">
-        <label className="flex items-center pt-1 cursor-pointer flex-shrink-0">
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={(e) => {
-              if (e.target.checked) {
-                onSelect(releaseNote.id);
-              } else {
-                onDeselect(releaseNote.id);
-              }
-            }}
-            className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </label>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start gap-3 mb-2 flex-wrap">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white break-words flex-1 min-w-0">
-                {preview}
-              </h3>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span
-                className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
-                  releaseNote.status === 'deployed'
-                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                    : releaseNote.status === 'deployment_started'
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                    : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+            <div
+              className={`bg-white dark:bg-[#1C252E] border rounded-xl p-6 pt-10 relative group ${
+                isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 dark:border-gray-700/50'
+              }`}
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey) {
+                  e.stopPropagation();
+                  if (isSelected) onDeselect(releaseNote.id);
+                  else onSelect(releaseNote.id);
+                } else {
+                  onEdit(releaseNote);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onEdit(releaseNote);
+              }}
+              role="button"
+              tabIndex={0}
+            >
+              <div
+                className={`absolute top-3 left-3 z-10 flex items-center gap-2 transition-opacity ${
+                  isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 }`}
               >
-                {releaseNote.status === 'deployment_started' ? 'deployment started' : releaseNote.status}
-              </span>
-              <div className="flex items-center gap-2">
-                {/* Edit button - only for pending notes, requires update permission */}
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    if (e.target.checked) {
+                      onSelect(releaseNote.id);
+                    } else {
+                      onDeselect(releaseNote.id);
+                    }
+                  }}
+                  className="w-4 h-4 text-primary bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-primary focus:ring-2"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+              <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+                <span
+                  className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
+                    releaseNote.status === 'deployed'
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                      : releaseNote.status === 'deployment_started'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                      : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                  }`}
+                >
+                  {releaseNote.status === 'deployment_started' ? 'deployment started' : releaseNote.status}
+                </span>
+
                 {hasPermission('release-notes:update') && releaseNote.status === 'pending' && (
                   <button
-                    onClick={() => onEdit(releaseNote)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(releaseNote);
+                    }}
                     className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
                     aria-label="Edit release note"
                     title="Edit release note"
@@ -228,11 +243,13 @@ const ReleaseNoteItem = memo(({
                     <Edit className="w-4 h-4" />
                   </button>
                 )}
-                
-                {/* Delete button - only for pending notes, requires delete permission */}
+
                 {hasPermission('release-notes:delete') && releaseNote.status === 'pending' && (
                   <button
-                    onClick={() => onDelete(releaseNote.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(releaseNote.id);
+                    }}
                     disabled={deletePending}
                     className="text-gray-400 dark:text-gray-500 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 rounded p-1 disabled:opacity-50"
                     aria-label="Delete release note"
@@ -241,11 +258,13 @@ const ReleaseNoteItem = memo(({
                     <Trash2 className="w-4 h-4" />
                   </button>
                 )}
-                
-                {/* Deployment Started button - only for pending notes, requires deploy permission */}
+
                 {hasPermission('release-notes:deploy') && releaseNote.status === 'pending' && (
                   <button
-                    onClick={() => onMarkDeploymentStarted(releaseNote.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMarkDeploymentStarted(releaseNote.id);
+                    }}
                     disabled={markDeploymentStartedPending}
                     className="text-gray-400 dark:text-gray-500 hover:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 rounded p-1 disabled:opacity-50"
                     aria-label="Mark deployment started"
@@ -254,11 +273,13 @@ const ReleaseNoteItem = memo(({
                     <PlayCircle className="w-4 h-4" />
                   </button>
                 )}
-                
-                {/* Mark as Deployed button - for pending or deployment_started notes, requires deploy permission */}
+
                 {hasPermission('release-notes:deploy') && (releaseNote.status === 'pending' || releaseNote.status === 'deployment_started') && (
                   <button
-                    onClick={() => onMarkDeployed(releaseNote.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMarkDeployed(releaseNote.id);
+                    }}
                     disabled={markDeployedPending}
                     className="text-gray-400 dark:text-gray-500 hover:text-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 rounded p-1 disabled:opacity-50"
                     aria-label="Mark as deployed"
@@ -268,7 +289,16 @@ const ReleaseNoteItem = memo(({
                   </button>
                 )}
               </div>
+              <div className="flex items-start gap-4">
+                <div className="flex-1 min-w-0 pr-24">
+          <div className="flex items-start gap-3 mb-2 flex-wrap">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white break-words flex-1 min-w-0">
+                {preview}
+              </h3>
             </div>
+            <div className="flex items-center gap-2 flex-shrink-0" />
           </div>
           <div className="mt-2">
             <ExpandableContent
@@ -426,12 +456,13 @@ const ReleaseNotesList = memo(({
   markDeployedPending: boolean;
   markDeploymentStartedPending: boolean;
   deletePending: boolean;
-  observerTarget: React.RefObject<HTMLDivElement>;
+  observerTarget: React.RefObject<HTMLDivElement | null>;
   isFetchingNextPage: boolean;
   selectedIds: Set<number>;
   onSelect: (id: number) => void;
   onDeselect: (id: number) => void;
   onTaskClick?: (taskId: number) => void;
+  onServiceClick?: (serviceId: number) => void;
 }) => {
   return (
     <div className="space-y-4">
@@ -493,7 +524,9 @@ const ReleaseNotesList = memo(({
     prevProps.deletePending === nextProps.deletePending &&
     prevProps.isFetchingNextPage === nextProps.isFetchingNextPage &&
     prevProps.onSelect === nextProps.onSelect &&
-    prevProps.onDeselect === nextProps.onDeselect
+    prevProps.onDeselect === nextProps.onDeselect &&
+    prevProps.onTaskClick === nextProps.onTaskClick &&
+    prevProps.onServiceClick === nextProps.onServiceClick
   );
 });
 ReleaseNotesList.displayName = 'ReleaseNotesList';
@@ -703,6 +736,32 @@ export function ReleaseNotesPage() {
     setDeleteConfirmOpen(true);
   }, []);
 
+  const handleBulkActionApply = useCallback(
+    async (action: string | null) => {
+      if (!action || selectedIds.size === 0) return;
+      const ids = Array.from(selectedIds);
+
+      try {
+        if (action === 'delete') {
+          await bulkDeleteReleaseNotes.mutateAsync(ids);
+          setSelectedIds(new Set());
+          toast.success('Release notes deleted');
+        } else if (action === 'deployment_started') {
+          await bulkMarkDeploymentStarted.mutateAsync(ids);
+          setSelectedIds(new Set());
+          toast.success('Marked deployment started');
+        } else if (action === 'deployed') {
+          await bulkMarkDeployed.mutateAsync(ids);
+          setSelectedIds(new Set());
+          toast.success('Marked deployed');
+        }
+      } catch {
+        // handled by toasts in mutations if configured
+      }
+    },
+    [bulkDeleteReleaseNotes, bulkMarkDeployed, bulkMarkDeploymentStarted, selectedIds]
+  );
+
   const confirmDeleteReleaseNote = useCallback(async () => {
     if (releaseNoteToDelete !== null) {
       try {
@@ -838,42 +897,36 @@ export function ReleaseNotesPage() {
         hasPermission={hasPermission}
       />
 
-      {/* Bulk Selection Toolbar - combines select all and bulk actions */}
-      {releaseNotes.length > 0 && (
-        <BulkSelectionToolbar
-          totalCount={releaseNotes.length}
-          selectedCount={selectedIds.size}
-          isAllSelected={isAllSelected}
-          onSelectAll={handleSelectAll}
-          onDeselectAll={handleDeselectAll}
-          onClearSelection={handleDeselectAll}
-          isProcessing={isProcessing}
-          actions={[
-            {
-              id: 'delete',
-              label: 'Delete',
-              icon: <Trash2 className="w-4 h-4" />,
-              onClick: handleBulkDelete,
-              variant: 'danger',
-              show: hasPermission('release-notes:delete') && canBulkDelete,
-            },
-            {
-              id: 'mark-deployment-started',
-              label: 'Mark Deployment Started',
-              icon: <PlayCircle className="w-4 h-4" />,
-              onClick: handleBulkMarkDeploymentStarted,
-              variant: 'primary',
-              show: hasPermission('release-notes:deploy') && canBulkMarkDeploymentStarted,
-            },
-            {
-              id: 'mark-deployed',
-              label: 'Mark Deployed',
-              icon: <CheckCircle className="w-4 h-4" />,
-              onClick: handleBulkMarkDeployed,
-              variant: 'success',
-              show: hasPermission('release-notes:deploy') && canBulkMarkDeployed,
-            },
+      {/* Selection bar shown only when items are selected */}
+      {selectedIds.size > 0 && (
+        <SelectionBar
+          count={selectedIds.size}
+          options={[
+            ...(hasPermission('release-notes:deploy') && canBulkMarkDeploymentStarted
+              ? [{ value: 'deployment_started', label: 'Mark Deployment Started' }]
+              : []),
+            ...(hasPermission('release-notes:deploy') && canBulkMarkDeployed
+              ? [{ value: 'deployed', label: 'Mark Deployed' }]
+              : []),
+            ...(hasPermission('release-notes:delete') && canBulkDelete
+              ? [{ value: 'delete', label: 'Delete' }]
+              : []),
           ]}
+          onApply={handleBulkActionApply}
+          onCancel={handleDeselectAll}
+          placeholder="Select action..."
+          applyLabel="Apply"
+          leftContent={
+            <div className="flex items-center gap-3 text-sm font-medium text-gray-900 dark:text-white">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                onChange={() => (isAllSelected ? handleDeselectAll() : handleSelectAll())}
+                className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50"
+              />
+              <span>{selectedIds.size} selected</span>
+            </div>
+          }
         />
       )}
 
@@ -909,13 +962,13 @@ export function ReleaseNotesPage() {
           markDeployedPending={markDeployed.isPending}
           markDeploymentStartedPending={markDeploymentStarted.isPending}
           deletePending={deleteReleaseNote.isPending}
-          observerTarget={releaseNotesObserverTarget}
+          observerTarget={releaseNotesObserverTarget as any}
           isFetchingNextPage={isFetchingNextReleaseNotesPage}
           selectedIds={selectedIds}
           onSelect={handleSelect}
           onDeselect={handleDeselect}
-          onTaskClick={(id) => setSidePanelTaskId(id)}
-          onServiceClick={(id) => setSidePanelServiceId(id)}
+          onTaskClick={(id: number) => setSidePanelTaskId(id)}
+          onServiceClick={(id: number) => setSidePanelServiceId(id)}
         />
       )}
 
