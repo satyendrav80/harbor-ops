@@ -18,7 +18,7 @@ import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll'
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import { useConstants } from '../../constants/hooks/useConstants';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getServers } from '../../../services/servers';
 import { getGroups, getGroupsByItem } from '../../../services/groups';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
@@ -27,12 +27,14 @@ import { useDebounce } from '../../../hooks/useDebounce';
 import type { Filter } from '../../release-notes/types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../../release-notes/utils/urlSync';
 import { hasActiveFilters } from '../../release-notes/utils/filterState';
+import { getSocket } from '../../../services/socket';
 
 /**
  * ServicesPage component for managing services
  */
 export function ServicesPage() {
   usePageTitle('Services');
+  const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
   const { data: constants } = useConstants();
@@ -66,6 +68,18 @@ export function ServicesPage() {
     queryKey: ['services', 'filter-metadata'],
     queryFn: () => getServicesFilterMetadata(),
   });
+
+  // Real-time invalidation for services
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const refetch = () =>
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+    socket.on('service:changed', refetch);
+    return () => {
+      socket.off('service:changed', refetch);
+    };
+  }, [queryClient]);
 
   // Update filters when URL changes
   useEffect(() => {

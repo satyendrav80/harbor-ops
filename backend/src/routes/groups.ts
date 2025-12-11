@@ -3,11 +3,26 @@ import { PrismaClient } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
 import { AuditResourceType, AuditAction } from '@prisma/client';
+import { emitEntityChanged } from '../socket/socket';
 
 const prisma = new PrismaClient();
 const router = Router();
 
 router.use(requireAuth);
+
+// Broadcast group changes on successful mutations
+router.use((req, res, next) => {
+  res.on('finish', () => {
+    if (req.method !== 'GET' && res.statusCode < 400) {
+      try {
+        emitEntityChanged('group');
+      } catch (err) {
+        // ignore socket emission failures
+      }
+    }
+  });
+  next();
+});
 
 // Get all groups with item counts
 router.get('/', requirePermission('groups:view'), async (req, res) => {

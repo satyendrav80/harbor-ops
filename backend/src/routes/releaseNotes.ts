@@ -2,11 +2,75 @@ import { Router } from 'express';
 import { PrismaClient, ReleaseStatus } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 import { list, getMetadata } from '../controllers/releaseNotesController';
+import { createNotification } from '../services/notifications';
+import { emitEntityChanged } from '../socket/socket';
 
 const prisma = new PrismaClient();
 const router = Router();
 
+async function notifyReleaseNoteDeployUsers(releaseNote: any) {
+  const deployUsers = await prisma.user.findMany({
+    where: {
+      roles: {
+        some: {
+          OR: [
+            { role: { name: 'admin' } },
+            {
+              role: {
+                permissions: {
+                  some: {
+                    permission: {
+                      name: {
+                        in: ['release-notes:deploy', 'release-notes:manage'],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  const notified = new Set<string>();
+  const serviceName = releaseNote?.service?.name || 'a service';
+
+  await Promise.all(
+    deployUsers.map((user) => {
+      if (!user.id || notified.has(user.id)) return null;
+      notified.add(user.id);
+      return createNotification({
+        userId: user.id,
+        type: 'release_note_created',
+        title: 'New release note created',
+        message: `A release note for ${serviceName} was created`,
+      }).catch(() => null);
+    })
+  );
+}
+
 router.use(requireAuth);
+
+// Broadcast release note changes to connected clients after successful mutations
+router.use((req, res, next) => {
+  res.on('finish', () => {
+    const isReadOnly =
+      req.method === 'GET' ||
+      req.path.includes('/list') ||
+      req.path.includes('filter-metadata');
+    if (!isReadOnly && res.statusCode < 400) {
+      try {
+        emitEntityChanged('release-note');
+      } catch (err) {
+        // ignore socket emission failures
+      }
+    }
+  });
+  next();
+});
 
 /**
  * GET /release-notes/filter-metadata
@@ -179,7 +243,13 @@ router.post('/', requirePermission('release-notes:create'), async (req: AuthRequ
       },
     });
   });
-  
+
+  try {
+    await notifyReleaseNoteDeployUsers(created);
+  } catch (err) {
+    // ignore notification failures
+  }
+
   res.status(201).json(created);
 });
 
@@ -270,6 +340,42 @@ router.post('/:id/mark-deployed', requirePermission('release-notes:deploy'), asy
       updatedBy: (req as AuthRequest).user?.id || null,
     } 
   });
+
+  try {
+    const releaseTasks = await prisma.releaseNoteTask.findMany({
+      where: { releaseNoteId: id },
+      include: {
+        task: {
+          select: {
+            id: true,
+            title: true,
+            createdBy: true,
+          },
+        },
+      },
+    });
+
+    const notified = new Set<string>();
+    await Promise.all(
+      releaseTasks.map((rt) => {
+        const creator = rt.task?.createdBy;
+        if (!creator) return null;
+        const dedupeKey = `${creator}-${rt.task?.id}`;
+        if (notified.has(dedupeKey)) return null;
+        notified.add(dedupeKey);
+        return createNotification({
+          userId: creator,
+          type: 'task_deployed',
+          taskId: rt.task?.id,
+          title: 'Task deployed',
+          message: `“${rt.task?.title || 'Task'}” was deployed`,
+        }).catch(() => null);
+      })
+    );
+  } catch (err) {
+    // ignore notification failures
+  }
+
   res.json(updated);
 });
 

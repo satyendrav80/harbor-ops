@@ -25,7 +25,7 @@ import { getReleaseNotesFilterMetadata } from '../../../services/releaseNotes';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import { useDebounce } from '../../../hooks/useDebounce';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getServices } from '../../../services/services';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import type { Filter } from '../types/filters';
@@ -35,6 +35,7 @@ import { TaskDetailsSidePanel } from '../../tasks/components/TaskDetailsSidePane
 import { ServiceDetailsSidePanel } from '../../services/components/ServiceDetailsSidePanel';
 import dayjs from '../../../utils/dayjs';
 import { toast } from 'react-hot-toast';
+import { getSocket } from '../../../services/socket';
 
 
 // Memoized header component - doesn't re-render when data changes
@@ -536,6 +537,7 @@ ReleaseNotesList.displayName = 'ReleaseNotesList';
  */
 export function ReleaseNotesPage() {
   usePageTitle('Release Notes');
+  const queryClient = useQueryClient();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [releaseNoteToDelete, setReleaseNoteToDelete] = useState<number | null>(null);
   const { hasPermission } = useAuth();
@@ -562,6 +564,18 @@ export function ReleaseNotesPage() {
     queryKey: ['release-notes', 'filter-metadata'],
     queryFn: () => getReleaseNotesFilterMetadata(),
   });
+
+  // Real-time invalidation for release notes
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const refetch = () =>
+      queryClient.invalidateQueries({ queryKey: ['release-notes'] });
+    socket.on('release-note:changed', refetch);
+    return () => {
+      socket.off('release-note:changed', refetch);
+    };
+  }, [queryClient]);
 
   // Update filters when URL changes
   useEffect(() => {

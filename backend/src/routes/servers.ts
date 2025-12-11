@@ -5,6 +5,7 @@ import { encrypt, decrypt } from '../utils/encryption';
 import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
 import { AuditResourceType, AuditAction } from '@prisma/client';
 import { list, getMetadata } from '../controllers/serversController';
+import { emitEntityChanged } from '../socket/socket';
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -17,6 +18,24 @@ function removePassword(server: any) {
 }
 
 router.use(requireAuth);
+
+// Broadcast server changes on successful mutations
+router.use((req, res, next) => {
+  res.on('finish', () => {
+    const isReadOnly =
+      req.method === 'GET' ||
+      req.path.includes('/list') ||
+      req.path.includes('filter-metadata');
+    if (!isReadOnly && res.statusCode < 400) {
+      try {
+        emitEntityChanged('server');
+      } catch (err) {
+        // ignore socket emission failures
+      }
+    }
+  });
+  next();
+});
 
 /**
  * GET /servers/filter-metadata

@@ -9,6 +9,8 @@ import { GroupModal } from '../components/GroupModal';
 import { GroupItemModal } from '../components/GroupItemModal';
 import { Search, Plus, Edit, Server, Cloud, X, FolderOpen, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import type { Group } from '../../../services/groups';
+import { useQueryClient } from '@tanstack/react-query';
+import { getSocket } from '../../../services/socket';
 
 /**
  * Debounce hook to delay search input
@@ -34,6 +36,7 @@ function useDebounce<T>(value: T, delay: number = 500): T {
  */
 export function GroupsPage() {
   const { hasPermission } = useAuth();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
@@ -49,6 +52,18 @@ export function GroupsPage() {
 
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
+
+  // Real-time invalidation for groups
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const refetch = () =>
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+    socket.on('group:changed', refetch);
+    return () => {
+      socket.off('group:changed', refetch);
+    };
+  }, [queryClient]);
 
   // Fetch groups
   const { data: groupsData, isLoading: groupsLoading, error: groupsError } = useGroups({

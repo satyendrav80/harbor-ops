@@ -4,11 +4,30 @@ import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth'
 import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
 import { AuditResourceType, AuditAction } from '@prisma/client';
 import { list, getMetadata } from '../controllers/domainsController';
+import { emitEntityChanged } from '../socket/socket';
 
 const prisma = new PrismaClient();
 const router = Router();
 
 router.use(requireAuth);
+
+// Broadcast domain changes on successful mutations
+router.use((req, res, next) => {
+  res.on('finish', () => {
+    const isReadOnly =
+      req.method === 'GET' ||
+      req.path.includes('/list') ||
+      req.path.includes('filter-metadata');
+    if (!isReadOnly && res.statusCode < 400) {
+      try {
+        emitEntityChanged('domain');
+      } catch (err) {
+        // ignore socket emission failures
+      }
+    }
+  });
+  next();
+});
 
 /**
  * GET /domains/filter-metadata

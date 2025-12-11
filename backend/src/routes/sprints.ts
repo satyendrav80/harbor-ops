@@ -1,11 +1,29 @@
 import { Router } from 'express';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import * as sprintController from '../controllers/sprintController';
+import { emitEntityChanged } from '../socket/socket';
 
 const router = Router();
 
 // All routes require authentication
 router.use(requireAuth);
+
+// Broadcast sprint changes on successful mutations
+router.use((req, res, next) => {
+  res.on('finish', () => {
+    const isReadOnly =
+      req.method === 'GET' ||
+      req.path.includes('/list');
+    if (!isReadOnly && res.statusCode < 400) {
+      try {
+        emitEntityChanged('sprint');
+      } catch (err) {
+        // ignore socket emission failures
+      }
+    }
+  });
+  next();
+});
 
 // Sprint CRUD
 router.post('/', requirePermission('sprints:create'), sprintController.create);

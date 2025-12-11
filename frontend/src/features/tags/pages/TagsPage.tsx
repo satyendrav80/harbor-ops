@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, memo, useRef } from 'react';
+import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useTags } from '../hooks/useTags';
 import { useDeleteTag } from '../hooks/useTagMutations';
@@ -11,6 +11,8 @@ import type { Tag } from '../../../services/tags';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import { useDebounce } from '../../../hooks/useDebounce';
+import { useQueryClient } from '@tanstack/react-query';
+import { getSocket } from '../../../services/socket';
 
 // Memoized header component - doesn't re-render when data changes
 const TagsHeader = memo(({
@@ -170,6 +172,7 @@ TagItem.displayName = 'TagItem';
  */
 export function TagsPage() {
   usePageTitle('Tags');
+  const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [tagModalOpen, setTagModalOpen] = useState(false);
@@ -182,6 +185,17 @@ export function TagsPage() {
 
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
+
+  // Real-time invalidation for tags
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const refetch = () => queryClient.invalidateQueries({ queryKey: ['tags'] });
+    socket.on('tag:changed', refetch);
+    return () => {
+      socket.off('tag:changed', refetch);
+    };
+  }, [queryClient]);
 
   // Fetch tags with infinite scroll
   const {

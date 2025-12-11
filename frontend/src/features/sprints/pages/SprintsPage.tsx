@@ -128,6 +128,19 @@ export function SprintsPage() {
     };
   }, [queryClient]);
 
+  // Socket: refresh sprints on sprint changes
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const refetchSprints = () => {
+      queryClient.invalidateQueries({ queryKey: ['sprints'] });
+    };
+    socket.on('sprint:changed', refetchSprints);
+    return () => {
+      socket.off('sprint:changed', refetchSprints);
+    };
+  }, [queryClient]);
+
   // Mutations
   const addTasksMutation = useMutation({
     mutationFn: ({ sprintId, taskIds }: { sprintId: number, taskIds: number[] }) =>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGroups } from '../../../services/groups';
 import { ItemGroups } from '../../../components/common/ItemGroups';
 import { ItemTags } from '../../../components/common/ItemTags';
@@ -20,6 +20,7 @@ import { PermissionModal } from '../components/PermissionModal';
 import { CollapsibleResourcePermissions } from '../components/CollapsibleResourcePermissions';
 import { Users, Shield, Search, Plus, X, Check, AlertCircle, Edit, Key, Ban, CheckCircle, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import type { UserWithRoles, RoleWithPermissions, Permission } from '../../../services/users';
+import { getSocket } from '../../../services/socket';
 
 /**
  * Debounce hook to delay search input
@@ -45,6 +46,7 @@ function useDebounce<T>(value: T, delay: number = 500): T {
  */
 export function UsersRolesPage() {
   const { hasPermission } = useAuth();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   
   // Memoize search handler to prevent input from losing focus
@@ -66,6 +68,24 @@ export function UsersRolesPage() {
 
   // Debounce search query to avoid too many API calls
   const debouncedSearch = useDebounce(searchQuery, 500);
+
+  // Real-time invalidation for users and roles
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const refetchUsers = () =>
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    const refetchRoles = () => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      queryClient.invalidateQueries({ queryKey: ['permissions'] });
+    };
+    socket.on('user:changed', refetchUsers);
+    socket.on('role:changed', refetchRoles);
+    return () => {
+      socket.off('user:changed', refetchUsers);
+      socket.off('role:changed', refetchRoles);
+    };
+  }, [queryClient]);
 
   const {
     data: usersData,

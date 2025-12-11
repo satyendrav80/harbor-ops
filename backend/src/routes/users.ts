@@ -5,11 +5,27 @@ import bcrypt from 'bcryptjs';
 import { PERMISSION_RESOURCES, PERMISSION_ACTIONS, isSystemPermission, getActionsForResource } from '../constants/permissions';
 import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
 import { AuditResourceType, AuditAction } from '@prisma/client';
+import { emitEntityChanged } from '../socket/socket';
 
 const prisma = new PrismaClient();
 const router = Router();
 
 router.use(requireAuth);
+
+// Broadcast user changes on successful mutations
+router.use((req, res, next) => {
+  res.on('finish', () => {
+    if (req.method !== 'GET' && res.statusCode < 400) {
+      try {
+        emitEntityChanged('user');
+        emitEntityChanged('role');
+      } catch (err) {
+        // ignore socket emission failures
+      }
+    }
+  });
+  next();
+});
 
 // Get all users with their roles
 router.get('/users', async (req: AuthRequest, res) => {

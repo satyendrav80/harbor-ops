@@ -16,7 +16,7 @@ import { ServerGroups } from '../components/ServerGroups';
 import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
 import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Eye, EyeOff, Cloud, Filter as FilterIcon } from 'lucide-react';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGroups } from '../../../services/groups';
 import type { Server } from '../../../services/servers';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
@@ -26,12 +26,14 @@ import { useDebounce } from '../../../hooks/useDebounce';
 import type { Filter } from '../../release-notes/types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../../release-notes/utils/urlSync';
 import { hasActiveFilters } from '../../release-notes/utils/filterState';
+import { getSocket } from '../../../services/socket';
 
 /**
  * ServersPage component for managing servers
  */
 export function ServersPage() {
   usePageTitle('Servers');
+  const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -63,6 +65,17 @@ export function ServersPage() {
     queryKey: ['servers', 'filter-metadata'],
     queryFn: () => getServersFilterMetadata(),
   });
+
+  // Real-time invalidation for servers
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const refetch = () => queryClient.invalidateQueries({ queryKey: ['servers'] });
+    socket.on('server:changed', refetch);
+    return () => {
+      socket.off('server:changed', refetch);
+    };
+  }, [queryClient]);
 
   // Update filters when URL changes
   useEffect(() => {

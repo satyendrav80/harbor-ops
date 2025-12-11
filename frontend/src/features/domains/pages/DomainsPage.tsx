@@ -13,7 +13,7 @@ import { Search, Plus, Edit, Trash2, Globe, X, Filter as FilterIcon } from 'luci
 import type { Domain } from '../../../services/domains';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGroups } from '../../../services/groups';
 import { ItemGroups } from '../../../components/common/ItemGroups';
 import { ItemTags } from '../../../components/common/ItemTags';
@@ -23,6 +23,7 @@ import { getDomainsFilterMetadata } from '../../../services/domains';
 import type { Filter } from '../../release-notes/types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../../release-notes/utils/urlSync';
 import { hasActiveFilters } from '../../release-notes/utils/filterState';
+import { getSocket } from '../../../services/socket';
 
 
 /**
@@ -30,6 +31,7 @@ import { hasActiveFilters } from '../../release-notes/utils/filterState';
  */
 export function DomainsPage() {
   usePageTitle('Domains');
+  const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
@@ -54,6 +56,18 @@ export function DomainsPage() {
     queryKey: ['domains', 'filter-metadata'],
     queryFn: () => getDomainsFilterMetadata(),
   });
+
+  // Real-time invalidation for domains
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const refetch = () =>
+      queryClient.invalidateQueries({ queryKey: ['domains'] });
+    socket.on('domain:changed', refetch);
+    return () => {
+      socket.off('domain:changed', refetch);
+    };
+  }, [queryClient]);
 
   // Update filters when URL changes
   useEffect(() => {

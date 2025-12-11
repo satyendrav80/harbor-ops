@@ -19,7 +19,7 @@ import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll'
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import { getServers } from '../../../services/servers';
 import { getServices } from '../../../services/services';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGroups } from '../../../services/groups';
 import { ItemGroups } from '../../../components/common/ItemGroups';
 import { ItemTags } from '../../../components/common/ItemTags';
@@ -27,6 +27,7 @@ import { useDebounce } from '../../../hooks/useDebounce';
 import type { Filter } from '../../release-notes/types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../../release-notes/utils/urlSync';
 import { hasActiveFilters } from '../../release-notes/utils/filterState';
+import { getSocket } from '../../../services/socket';
 
 
 /**
@@ -34,6 +35,7 @@ import { hasActiveFilters } from '../../release-notes/utils/filterState';
  */
 export function CredentialsPage() {
   usePageTitle('Credentials');
+  const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -66,6 +68,18 @@ export function CredentialsPage() {
     queryKey: ['credentials', 'filter-metadata'],
     queryFn: () => getCredentialsFilterMetadata(),
   });
+
+  // Real-time invalidation for credentials
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const refetch = () =>
+      queryClient.invalidateQueries({ queryKey: ['credentials'] });
+    socket.on('credential:changed', refetch);
+    return () => {
+      socket.off('credential:changed', refetch);
+    };
+  }, [queryClient]);
 
   // Update filters when URL changes
   useEffect(() => {

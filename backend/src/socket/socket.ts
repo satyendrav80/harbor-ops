@@ -156,3 +156,9 @@ export function emitTaskCreated(task: any) {
   const ioInstance = getIO();
   ioInstance.emit('task:created', task);
 }
+
+// Generic broadcast for list invalidation / real-time refresh of entities
+export function emitEntityChanged(entity: string, payload?: any) {
+  const ioInstance = getIO();
+  ioInstance.emit(`${entity}:changed`, payload);
+}
