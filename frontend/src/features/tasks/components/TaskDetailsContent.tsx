@@ -35,10 +35,10 @@ const statusOrder: Record<TaskStatus, number> = {
   testing: 3,
   not_fixed: 1,
   completed: 4,
-  paused: 2,
-  blocked: 2,
+  paused: 1,
+  blocked: 1,
   cancelled: 0,
-  reopened: 1,
+  reopened: 0,
 };
 
 type TaskDetailsContentProps = {

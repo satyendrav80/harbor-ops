@@ -332,45 +332,89 @@ router.put('/:id', requirePermission('release-notes:update'), async (req: AuthRe
 // POST /release-notes/:id/mark-deployed
 router.post('/:id/mark-deployed', requirePermission('release-notes:deploy'), async (req, res) => {
   const id = Number(req.params.id);
-  const updated = await prisma.releaseNote.update({ 
-    where: { id }, 
-    data: { 
-      status: ReleaseStatus.deployed,
-      deployedAt: new Date(),
-      updatedBy: (req as AuthRequest).user?.id || null,
-    } 
-  });
+  const currentUserId = (req as AuthRequest).user?.id || null;
 
-  try {
-    const releaseTasks = await prisma.releaseNoteTask.findMany({
-      where: { releaseNoteId: id },
+  const updated = await prisma.$transaction(async (tx) => {
+    const releaseNote = await tx.releaseNote.update({
+      where: { id },
+      data: {
+        status: ReleaseStatus.deployed,
+        deployedAt: new Date(),
+        updatedBy: currentUserId,
+      },
       include: {
-        task: {
-          select: {
-            id: true,
-            title: true,
-            createdBy: true,
+        service: { select: { id: true, name: true } },
+        createdByUser: { select: { id: true, name: true, email: true } },
+        tasks: {
+          include: {
+            task: {
+              select: {
+                id: true,
+                title: true,
+                createdBy: true,
+                assignedTo: true,
+                testerId: true,
+              },
+            },
           },
         },
       },
     });
 
-    const notified = new Set<string>();
+    return releaseNote;
+  });
+
+  const serviceName = updated.service?.name || 'a service';
+
+  try {
+    // Notify release note creator (if different from deployer)
+    if (updated.createdBy && updated.createdBy !== currentUserId) {
+      await createNotification({
+        userId: updated.createdBy,
+        type: 'release_note_deployed',
+        title: 'Release note deployed',
+        message: `Release note for ${serviceName} was deployed`,
+      }).catch(() => null);
+    }
+
+    // Aggregate notifications by role to avoid spamming users
+    const assignedMap = new Map<string, string[]>(); // userId -> task titles
+    const testerMap = new Map<string, string[]>(); // userId -> task titles
+
+    updated.tasks.forEach((rt) => {
+      const title = rt.task?.title || 'Task';
+      if (rt.task?.assignedTo) {
+        if (!assignedMap.has(rt.task.assignedTo)) assignedMap.set(rt.task.assignedTo, []);
+        assignedMap.get(rt.task.assignedTo)!.push(title);
+      }
+      if (rt.task?.testerId) {
+        if (!testerMap.has(rt.task.testerId)) testerMap.set(rt.task.testerId, []);
+        testerMap.get(rt.task.testerId)!.push(title);
+      }
+    });
+
+    // Notify assignees
     await Promise.all(
-      releaseTasks.map((rt) => {
-        const creator = rt.task?.createdBy;
-        if (!creator) return null;
-        const dedupeKey = `${creator}-${rt.task?.id}`;
-        if (notified.has(dedupeKey)) return null;
-        notified.add(dedupeKey);
-        return createNotification({
-          userId: creator,
+      Array.from(assignedMap.entries()).map(([userId, titles]) =>
+        createNotification({
+          userId,
           type: 'task_deployed',
-          taskId: rt.task?.id,
-          title: 'Task deployed',
-          message: `“${rt.task?.title || 'Task'}” was deployed`,
-        }).catch(() => null);
-      })
+          title: 'Tasks deployed',
+          message: `Deployed: ${titles.join(', ')}`,
+        }).catch(() => null)
+      )
+    );
+
+    // Notify testers
+    await Promise.all(
+      Array.from(testerMap.entries()).map(([userId, titles]) =>
+        createNotification({
+          userId,
+          type: 'task_deployed',
+          title: 'Tasks deployed',
+          message: `Deployed: ${titles.join(', ')}`,
+        }).catch(() => null)
+      )
     );
   } catch (err) {
     // ignore notification failures

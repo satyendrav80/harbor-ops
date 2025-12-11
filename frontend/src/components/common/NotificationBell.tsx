@@ -95,7 +95,7 @@ export function NotificationBell({ onTaskClick }: NotificationBellProps) {
       if ('Notification' in window && Notification.permission === 'granted') {
         const n = new Notification(notification.title, {
           body: notification.message,
-          tag: `task-${notification.taskId || notification.id}`,
+          tag: `notif-${notification.id}-${Date.now()}`,
         });
         n.onclick = () => {
           if (notification.taskId) {
