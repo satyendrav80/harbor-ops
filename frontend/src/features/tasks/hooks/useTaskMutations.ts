@@ -38,6 +38,7 @@ export function useUpdateTask() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['task', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['sprints'] });
       toast.success('Task updated successfully');
     },
     onError: (error) => {

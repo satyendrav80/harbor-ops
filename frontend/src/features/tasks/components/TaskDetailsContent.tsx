@@ -135,8 +135,12 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
     dialogTargetOrder < dialogCurrentOrder;
   const dialogNeedsTestingSkip = selectedStatus === 'completed' && !task.testerId;
   const dialogRequiresAttention = selectedStatus === 'blocked' || selectedStatus === 'in_review';
+  const isResumingFromPause = task.status === 'paused' && selectedStatus === 'in_progress';
   const dialogRequiresReason =
-    dialogIsBackward || selectedStatus === 'blocked' || dialogNeedsTestingSkip;
+    (dialogIsBackward && !isResumingFromPause) ||
+    selectedStatus === 'blocked' ||
+    selectedStatus === 'paused' ||
+    dialogNeedsTestingSkip;
   const statusConfirmDisabled =
     updateStatus.isPending ||
     (dialogRequiresAttention && !statusAttentionId) ||
@@ -150,7 +154,8 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
       targetOrder !== undefined &&
       targetOrder < currentOrder;
     const requiresAttention = newStatus === 'blocked' || newStatus === 'in_review';
-    const requiresReason = isBackward || newStatus === 'blocked';
+    const isResuming = task.status === 'paused' && newStatus === 'in_progress';
+    const requiresReason = (!isResuming && isBackward) || newStatus === 'blocked' || newStatus === 'paused';
     const needsTestingSkipReason = newStatus === 'completed' && !task.testerId;
     const needsTesterSelection = newStatus === 'testing' && !task.testerId;
 
@@ -181,7 +186,8 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
       currentOrder !== undefined &&
       targetOrder !== undefined &&
       targetOrder < currentOrder;
-    const requiresReason = isBackward || selectedStatus === 'blocked';
+    const isResuming = task.status === 'paused' && selectedStatus === 'in_progress';
+    const requiresReason = (!isResuming && isBackward) || selectedStatus === 'blocked' || selectedStatus === 'paused';
     const trimmedReason = statusReason.trim();
 
     if (requiresAttention && !statusAttentionId) return;
@@ -519,9 +525,9 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
                         This task has no tester assigned. Please provide a reason for skipping testing.
                       </p>
                     )}
-                    {(dialogIsBackward || selectedStatus === 'blocked') && (
+                    {(dialogIsBackward || selectedStatus === 'blocked' || selectedStatus === 'paused') && (
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Moving backward or blocking requires a reason so the team understands the change.
+                        Moving backward, blocking, or pausing requires a reason so the team understands the change.
                       </p>
                     )}
 
@@ -561,7 +567,7 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
                       </div>
                     )}
 
-                    {(dialogIsBackward || dialogNeedsTestingSkip || selectedStatus === 'blocked') && (
+                    {(dialogIsBackward || dialogNeedsTestingSkip || selectedStatus === 'blocked' || selectedStatus === 'paused') && (
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-900 dark:text-white">Reason</label>
                         <textarea

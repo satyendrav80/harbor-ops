@@ -12,6 +12,8 @@ import type { ReleaseNote } from '../../../services/releaseNotes';
 import type { Service } from '../../../services/services';
 import { X } from 'lucide-react';
 import dayjs from '../../../utils/dayjs';
+import { useQuery } from '@tanstack/react-query';
+import { listReleaseNotesAdvanced } from '../../../services/releaseNotes';
 
 type ReleaseNoteModalProps = {
   isOpen: boolean;
@@ -119,9 +121,38 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
 
   const selectedTasks = selectedTasksData?.data?.filter(task => selectedTaskIds.includes(task.id)) || [];
 
+  // Fetch tasks already linked to non-deployed release notes (pending or deployment_started)
+  const { data: blockedTaskIds = [] } = useQuery({
+    queryKey: ['release-notes', 'tasks-in-active-notes'],
+    enabled: isTaskSelectionModalOpen,
+    queryFn: async () => {
+      const res = await listReleaseNotesAdvanced({
+        filters: {
+          condition: 'or',
+          childs: [
+            { key: 'status', operator: 'eq', value: 'pending' },
+            { key: 'status', operator: 'eq', value: 'deployment_started' },
+          ],
+        },
+        page: 1,
+        limit: 500,
+      });
+      const tasks = res.data.flatMap((rn) => rn.tasks || []);
+      const ids = tasks.map((t) => t.task.id);
+      // Allow tasks already on this release note (when editing)
+      const allowedIds = new Set(releaseNote?.tasks?.map((t) => t.task.id) || []);
+      return ids.filter((id) => !allowedIds.has(id));
+    },
+  });
+
   const handleTaskSelectionConfirm = (taskIds: number[]) => {
-    // Replace selection with what user selected in modal
-    setSelectedTaskIds(taskIds);
+    // Merge with existing selection so previously-added tasks remain visible/removable
+    setSelectedTaskIds((prev) => {
+      const merged = new Set(prev);
+      taskIds.forEach((id) => merged.add(id));
+      // Also keep tasks that were previously selected but not in the new list (so user can remove)
+      return Array.from(merged);
+    });
   };
 
   const handleRemoveTask = (taskId: number) => {
@@ -279,6 +310,9 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         title="Select Tasks for Release Note"
         initialSelectedIds={selectedTaskIds}
         showAllTasks={true}
+        allowedStatuses={['completed']}
+        excludedTaskIds={blockedTaskIds}
+        alwaysIncludeTasks={selectedTasks}
       />
     </Modal>
   );

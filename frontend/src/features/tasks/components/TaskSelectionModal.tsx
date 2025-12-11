@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Search } from 'lucide-react';
 import { useTasks } from '../hooks/useTaskQueries';
 import { Loading } from '../../../components/common/Loading';
+import type { TaskStatus, Task } from '../../../services/tasks';
 
 interface TaskSelectionModalProps {
   isOpen: boolean;
@@ -10,6 +11,9 @@ interface TaskSelectionModalProps {
   title?: string;
   initialSelectedIds?: number[];
   showAllTasks?: boolean; // If true, show all tasks instead of just backlog
+  allowedStatuses?: TaskStatus[];
+  excludedTaskIds?: number[];
+  alwaysIncludeTasks?: Task[]; // Always show these tasks even if they don't match filters (e.g., already selected)
 }
 
 export function TaskSelectionModal({ 
@@ -19,16 +23,21 @@ export function TaskSelectionModal({
   title = 'Select Tasks',
   initialSelectedIds = [],
   showAllTasks = false,
+  allowedStatuses,
+  excludedTaskIds = [],
+  alwaysIncludeTasks = [],
 }: TaskSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set(initialSelectedIds));
+  const lastInitialIdsKey = useRef<string>('');
 
   // Initialize selected tasks when modal opens
   useEffect(() => {
-    if (isOpen && initialSelectedIds.length > 0) {
+    if (!isOpen) return;
+    const key = initialSelectedIds.slice().sort().join(',');
+    if (key !== lastInitialIdsKey.current) {
+      lastInitialIdsKey.current = key;
       setSelectedTaskIds(new Set(initialSelectedIds));
-    } else if (isOpen && initialSelectedIds.length === 0) {
-      setSelectedTaskIds(new Set());
     }
   }, [isOpen, initialSelectedIds]);
 
@@ -36,11 +45,27 @@ export function TaskSelectionModal({
   const { data, isLoading } = useTasks({
     sprintId: showAllTasks ? undefined : null, // Backlog or all
     search: searchQuery || undefined,
-    status: showAllTasks ? undefined : ['pending', 'in_progress', 'reopened', 'in_review'], // All statuses if showAllTasks
+    status: allowedStatuses
+      ? allowedStatuses
+      : showAllTasks
+      ? undefined
+      : ['pending', 'in_progress', 'reopened', 'in_review'],
     limit: 100,
   });
 
-  const tasks = data?.data || [];
+  const filteredTasks = (data?.data || [])
+    .filter((t) => !excludedTaskIds.includes(t.id))
+    .filter((t) => !allowedStatuses || allowedStatuses.includes(t.status));
+
+  // Merge always-include tasks (e.g., already selected) even if they don't meet filters
+  const taskMap = new Map<number, Task>();
+  [...filteredTasks, ...alwaysIncludeTasks].forEach((t) => {
+    if (!excludedTaskIds.includes(t.id)) {
+      taskMap.set(t.id, t);
+    }
+  });
+
+  const tasks = Array.from(taskMap.values());
 
   const toggleSelection = (taskId: number) => {
     const newSet = new Set(selectedTaskIds);
@@ -116,7 +141,7 @@ export function TaskSelectionModal({
                 {tasks.map(task => (
                   <li
                     key={task.id}
-                    className={`p-3 flex items-center gap-3 hover:bg-white dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${selectedTaskIds.has(task.id)
+                    className={`p-3 flex items-start gap-3 hover:bg-white dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${selectedTaskIds.has(task.id)
                         ? 'bg-blue-50 dark:bg-primary/10'
                         : ''
                       }`}
@@ -126,16 +151,27 @@ export function TaskSelectionModal({
                       type="checkbox"
                       checked={selectedTaskIds.has(task.id)}
                       onChange={() => toggleSelection(task.id)}
-                      className="rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50 dark:bg-gray-800"
+                      className="mt-1 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50 dark:bg-gray-800"
                     />
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 space-y-1">
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-200 truncate">{task.title}</p>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className={`text-xs px-2 py-0.5 rounded capitalize ${getPriorityColor(task.priority)}`}>
                           {task.priority}
                         </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">{task.status.replace('_', ' ')}</span>
+                        {task.sprint && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            Sprint: {task.sprint.name}
+                          </span>
+                        )}
                       </div>
+                      {task.description && (
+                        <div
+                          className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 prose prose-xs dark:prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{ __html: task.description }}
+                        />
+                      )}
                     </div>
                   </li>
                 ))}

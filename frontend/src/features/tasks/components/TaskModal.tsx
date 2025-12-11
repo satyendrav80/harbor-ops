@@ -381,7 +381,7 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
           </div>
         )}
 
-        {form.watch('testerId') === null && (
+        {isEditing && form.watch('testerId') === null && (
           <div>
             <label className="flex flex-col">
               <span className="text-sm font-medium leading-normal pb-2 text-gray-900 dark:text-white">

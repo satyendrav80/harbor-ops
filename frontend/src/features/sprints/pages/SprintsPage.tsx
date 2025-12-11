@@ -15,6 +15,7 @@ import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { addTasksToSprint, completeSprint, cancelSprint } from '../../../services/sprints';
 import { toast } from 'react-hot-toast';
 import { useDebounce } from '../../../hooks/useDebounce';
+import { useUpdateTask } from '../../tasks/hooks/useTaskMutations';
 
 export function SprintsPage() {
   const { hasPermission } = useAuth();
@@ -32,6 +33,8 @@ export function SprintsPage() {
   const [selectedSprintForNewTask, setSelectedSprintForNewTask] = useState<number | null>(null);
   const [sprintToComplete, setSprintToComplete] = useState<Sprint | null>(null);
   const [addToSprintId, setAddToSprintId] = useState<number | null>(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
+  const [draggingIds, setDraggingIds] = useState<number[]>([]);
 
   // Initialize filters from URL params
   const getStatusFilterFromUrl = (): SprintStatus[] => {
@@ -39,7 +42,7 @@ export function SprintsPage() {
     if (statusParam) {
       const statuses = statusParam.split(',') as SprintStatus[];
       // Validate statuses
-      const validStatuses: SprintStatus[] = ['active', 'planned', 'completed', 'cancelled'];
+      const validStatuses: SprintStatus[] = ['active', 'planned', 'completed', 'cancelled'] as SprintStatus[];
       return statuses.filter(s => validStatuses.includes(s));
     }
     return ['active', 'planned']; // Default
@@ -54,7 +57,7 @@ export function SprintsPage() {
     const statusParam = searchParams.get('status');
     if (statusParam) {
       const statuses = statusParam.split(',') as SprintStatus[];
-      const validStatuses: SprintStatus[] = ['active', 'planned', 'completed', 'cancelled'];
+      const validStatuses: SprintStatus[] = ['active', 'planned', 'completed', 'cancelled'] as SprintStatus[];
       const filteredStatuses = statuses.filter(s => validStatuses.includes(s));
       if (filteredStatuses.length > 0) {
         setSprintStatusFilter(filteredStatuses);
@@ -76,6 +79,8 @@ export function SprintsPage() {
     sprintId: null,
     limit: 100,
   });
+  const backlogTasks = (backlogData?.data || []).filter((t) => t.sprintId === null);
+  const updateTask = useUpdateTask();
 
   // Mutations
   const addTasksMutation = useMutation({
@@ -122,6 +127,68 @@ export function SprintsPage() {
 
   const handleTaskClick = (taskId: number) => {
     setSelectedTaskId(taskId);
+  };
+
+  const toggleTaskSelection = (taskId: number) => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedTaskIds(new Set());
+
+  const getDragIds = (taskId: number) => {
+    return selectedTaskIds.has(taskId) ? Array.from(selectedTaskIds) : [taskId];
+  };
+
+  const handleDragStart = (event: React.DragEvent<HTMLDivElement>, taskId: number) => {
+    const ids = getDragIds(taskId);
+    setDraggingIds(ids);
+    event.dataTransfer.setData('application/json', JSON.stringify({ taskIds: ids }));
+    event.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragEnd = () => {
+    setDraggingIds([]);
+  };
+
+  const handleDropToSprint = async (event: React.DragEvent<HTMLDivElement>, targetSprintId: number | null) => {
+    event.preventDefault();
+    const data = event.dataTransfer.getData('application/json');
+    let taskIds: number[] = [];
+    try {
+      const parsed = JSON.parse(data);
+      taskIds = Array.isArray(parsed.taskIds) ? parsed.taskIds : [];
+    } catch {
+      return;
+    }
+    if (taskIds.length === 0) return;
+    try {
+      await Promise.all(
+        taskIds.map((id) =>
+          updateTask.mutateAsync({ id, data: { sprintId: targetSprintId } })
+        )
+      );
+      toast.success(`Moved ${taskIds.length} task${taskIds.length > 1 ? 's' : ''}`);
+      queryClient.invalidateQueries({ queryKey: ['sprints'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      clearSelection();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to move tasks');
+    } finally {
+      setDraggingIds([]);
+    }
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
   };
 
   const handleCreateTaskInSprint = (sprintId: number | null) => {
@@ -185,7 +252,7 @@ export function SprintsPage() {
     : null;
 
   const selectedTask = selectedTaskId
-    ? [...(backlogData?.data || []), ...(sprintsData?.data.flatMap(s => s.tasks || []) || [])].find((t) => t.id === selectedTaskId)
+    ? [...backlogTasks, ...(sprintsData?.data.flatMap(s => s.tasks || []) || [])].find((t) => t.id === selectedTaskId)
     : null;
 
   const formatDate = (dateString: string) => {
@@ -382,25 +449,57 @@ export function SprintsPage() {
                 )}
               </div>
               <div className="p-4 bg-white dark:bg-[#1C252E]">
-                {sprint.tasks && sprint.tasks.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {sprint.tasks.map((task) => (
-                      <TaskCard key={task.id} task={task} onClick={() => handleTaskClick(task.id)} onParentTaskClick={(id) => handleTaskClick(id)} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-8 text-gray-400 dark:text-gray-500 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-lg">
-                    <p className="text-sm">No tasks in this sprint</p>
-                    {sprint.status !== 'completed' && (
-                      <button
-                        onClick={() => handleOpenAddExisting(sprint.id)}
-                        className="text-primary hover:underline text-xs mt-1"
-                      >
-                        Add tasks from backlog
-                      </button>
-                    )}
-                  </div>
-                )}
+                <div
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 min-h-[120px]"
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDropToSprint(e, sprint.id)}
+                >
+                  {sprint.tasks && sprint.tasks.length > 0 ? (
+                    sprint.tasks.map((task) => {
+                      const isSelected = selectedTaskIds.has(task.id);
+                      return (
+                        <div
+                          key={task.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, task.id)}
+                          onDragEnd={handleDragEnd}
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDropToSprint(e, sprint.id)}
+                          className={`relative ${draggingIds.includes(task.id) ? 'opacity-70' : ''}`}
+                        >
+                          <div className="absolute top-2 left-2 z-10">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                toggleTaskSelection(task.id);
+                              }}
+                              className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50"
+                            />
+                          </div>
+                          <TaskCard
+                            task={task}
+                            onClick={() => handleTaskClick(task.id)}
+                            onParentTaskClick={(id) => handleTaskClick(id)}
+                          />
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-8 text-gray-400 dark:text-gray-500 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-lg col-span-full">
+                      <p className="text-sm">Drop tasks here to add to this sprint</p>
+                      {sprint.status !== 'completed' && (
+                        <button
+                          onClick={() => handleOpenAddExisting(sprint.id)}
+                          className="text-primary hover:underline text-xs mt-1"
+                        >
+                          Add tasks from backlog
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))
@@ -434,7 +533,7 @@ export function SprintsPage() {
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   Backlog
                   <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full">
-                    {backlogData?.data.length || 0}
+                    {backlogTasks.length || 0}
                   </span>
                 </h2>
               </div>
@@ -449,11 +548,39 @@ export function SprintsPage() {
             </div>
           </div>
           <div className="p-4">
-            {backlogData?.data && backlogData.data.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {backlogData.data.map((task) => (
-                  <TaskCard key={task.id} task={task} onClick={() => handleTaskClick(task.id)} />
-                ))}
+            {backlogTasks.length > 0 ? (
+              <div
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDropToSprint(e, null)}
+              >
+                {backlogTasks.map((task) => {
+                  const isSelected = selectedTaskIds.has(task.id);
+                  return (
+                    <div
+                      key={task.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, task.id)}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDropToSprint(e, null)}
+                      className={`relative ${draggingIds.includes(task.id) ? 'opacity-70' : ''}`}
+                    >
+                      <div className="absolute top-2 left-2 z-10">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            toggleTaskSelection(task.id);
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50"
+                        />
+                      </div>
+                      <TaskCard key={task.id} task={task} onClick={() => handleTaskClick(task.id)} />
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">

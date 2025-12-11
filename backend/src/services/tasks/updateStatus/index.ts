@@ -38,6 +38,8 @@ export async function updateStatus(context: RequestContext) {
   const isBlocked = data.status === 'blocked';
   const isInReview = data.status === 'in_review';
   const isTesting = data.status === 'testing';
+  const isPaused = data.status === 'paused';
+  const isResumingFromPause = task.status === 'paused' && data.status === 'in_progress';
   const requiresAttentionUser = isBlocked || isInReview;
   const completionReason = isCompleting
     ? (data.testingSkipReason || '').trim()
@@ -66,8 +68,8 @@ export async function updateStatus(context: RequestContext) {
     throw new Error('Select a user to notify for blocked or review status');
   }
 
-  if ((isBackward || isBlocked) && !statusReason) {
-    throw new Error('Reason is required when moving status backward or blocking a task');
+  if (!isResumingFromPause && (isBackward || isBlocked || isPaused) && !statusReason) {
+    throw new Error('Reason is required when moving status backward, blocking, or pausing a task');
   }
 
   // Validate status transition
