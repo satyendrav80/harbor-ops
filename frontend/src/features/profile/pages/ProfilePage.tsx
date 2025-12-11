@@ -7,7 +7,9 @@ import { useUpdateProfile } from '../hooks/useUpdateProfile';
 import { useChangePassword } from '../hooks/useChangePassword';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
-import { User, Mail, Calendar, Eye, EyeOff, Save, Lock, AlertCircle, AtSign } from 'lucide-react';
+import { User, Mail, Calendar, Eye, EyeOff, Save, Lock, AlertCircle, AtSign, Bell, Volume2 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import tonesUrl from '../../../assets/tones.mp3?url';
 
 const profileSchema = z.object({
   name: z.string().optional(),
@@ -63,6 +65,16 @@ export function ProfilePage() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [soundChoice, setSoundChoice] = useState<'default' | 'none'>(() => {
+    const storedChoice = localStorage.getItem('notifySoundChoice');
+    if (storedChoice === 'none' || storedChoice === 'default') return storedChoice;
+    const storedEnabled = localStorage.getItem('notifySoundEnabled');
+    if (storedEnabled === 'false') return 'none';
+    return 'default';
+  });
+  const [notifStatus, setNotifStatus] = useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  );
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -86,6 +98,12 @@ export function ProfilePage() {
       });
     }
   }, [profile, profileForm]);
+
+  useEffect(() => {
+    localStorage.setItem('notifySoundChoice', soundChoice);
+    // Also keep the legacy enable flag in sync for playback logic
+    localStorage.setItem('notifySoundEnabled', String(soundChoice !== 'none'));
+  }, [soundChoice]);
 
   const onProfileSubmit = (values: ProfileFormValues) => {
     setProfileSuccess(false);
@@ -175,6 +193,52 @@ export function ProfilePage() {
     });
   };
 
+  const handleRequestPermission = async () => {
+    if (typeof Notification === 'undefined') {
+      toast.error('Desktop notifications are not supported in this browser.');
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    setNotifStatus(perm);
+    if (perm === 'granted') {
+      toast.success('Desktop notifications enabled');
+    } else if (perm === 'denied') {
+      toast.error('Desktop notifications blocked in browser settings.');
+    }
+  };
+
+  const handleShowExample = async () => {
+    if (typeof Notification === 'undefined') {
+      toast.error('Desktop notifications are not supported in this browser.');
+      return;
+    }
+    let perm = Notification.permission;
+    if (perm !== 'granted') {
+      perm = await Notification.requestPermission();
+      setNotifStatus(perm);
+    }
+    if (perm !== 'granted') {
+      toast.error('Please allow desktop notifications to see the example.');
+      return;
+    }
+
+    try {
+      const n = new Notification('Hello from Harbor Ops!', {
+        body: "Here's the desktop notification that you asked to see 👍",
+        tag: `sample-${Date.now()}`, // ensure re-show on repeated clicks
+      });
+      n.onclick = () => window.focus();
+    } catch (err) {
+      toast.error('Unable to show desktop notification (browser blocked).');
+    }
+
+    if (soundChoice !== 'none') {
+      const audio = new Audio(tonesUrl);
+      audio.volume = 0.4;
+      audio.play().catch(() => {});
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
@@ -184,6 +248,79 @@ export function ProfilePage() {
           Manage your account information and security settings.
         </p>
       </header>
+
+      {/* Notification Preferences */}
+      <div className="mb-8 rounded-xl bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 p-6">
+        <h2 className="text-gray-900 dark:text-white text-xl font-semibold mb-4 flex items-center gap-2">
+          <Bell className="w-5 h-5" />
+          Notifications
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          Control desktop alerts and sounds for new notifications.
+        </p>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Desktop notifications</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Status: {notifStatus === 'granted' ? 'Allowed' : notifStatus === 'denied' ? 'Blocked in browser' : 'Not set'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRequestPermission}
+              className="px-3 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors"
+            >
+              {notifStatus === 'granted' ? 'Recheck' : 'Enable'}
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Notification sound</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Play a sound when a new notification arrives.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <select
+                value={soundChoice}
+                onChange={async (e) => {
+                  const next = e.target.value as 'default' | 'none';
+                  setSoundChoice(next);
+                  if (next !== 'none') {
+                    const audio = new Audio(tonesUrl);
+                    audio.volume = 0.6;
+                    audio.currentTime = 0;
+                    try {
+                      await audio.play();
+                    } catch (err) {
+                      toast.error('Unable to play sound (browser blocked autoplay).');
+                    }
+                  }
+                }}
+                className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50"
+              >
+                <option value="default">Default tone</option>
+                <option value="none">None</option>
+              </select>
+              <button
+                type="button"
+                onClick={handleShowExample}
+                className="px-3 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors"
+              >
+                Show example
+              </button>
+            </div>
+          </div>
+
+          {notifStatus === 'denied' && (
+            <p className="text-xs text-red-500">
+              Notifications are blocked in your browser settings. Please enable them manually to receive desktop alerts.
+            </p>
+          )}
+        </div>
+      </div>
 
       {/* Profile Information Card */}
       <div className="mb-8 rounded-xl bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 p-6">

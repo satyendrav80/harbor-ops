@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Plus, Calendar, CheckCircle, Search, Trash2 } from 'lucide-react';
-import { useSprints } from '../hooks/useSprintQueries';
-import { useTasks } from '../../tasks/hooks/useTaskQueries';
+import { useInfiniteSprints } from '../hooks/useInfiniteSprints';
+import { useInfiniteTasks } from '../../tasks/hooks/useTaskQueries';
 import { SprintModal } from '../components/SprintModal';
 import { TaskCard } from '../../tasks/components/TaskCard';
 import { TaskModal } from '../../tasks/components/TaskModal';
@@ -17,6 +17,8 @@ import { toast } from 'react-hot-toast';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { SelectionBar } from '../../../components/common/SelectionBar';
 import { useUpdateTask } from '../../tasks/hooks/useTaskMutations';
+import { getSocket } from '../../../services/socket';
+import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 
 export function SprintsPage() {
   const { hasPermission } = useAuth();
@@ -70,18 +72,61 @@ export function SprintsPage() {
     }
   }, [searchParams]);
 
-  const { data: sprintsData, isLoading: sprintsLoading } = useSprints({
+  const {
+    data: sprintsPages,
+    isLoading: sprintsLoading,
+    isFetchingNextPage: isFetchingNextSprints,
+    hasNextPage: hasNextSprints,
+    fetchNextPage: fetchNextSprints,
+  } = useInfiniteSprints({
     status: sprintStatusFilter,
-    search: debouncedSearch || undefined,
-    limit: 100,
+    limit: 20,
   });
 
-  const { data: backlogData } = useTasks({
+  const {
+    data: backlogPages,
+    isLoading: backlogLoading,
+    isFetchingNextPage: isFetchingNextBacklog,
+    hasNextPage: hasNextBacklog,
+    fetchNextPage: fetchNextBacklog,
+  } = useInfiniteTasks({
     sprintId: null,
-    limit: 100,
+    limit: 50,
   });
-  const backlogTasks = (backlogData?.data || []).filter((t) => t.sprintId === null);
+
+  const sprints = sprintsPages?.pages.flatMap((p) => p.data) || [];
+  const backlogTasks = (backlogPages?.pages.flatMap((p) => p.data) || []).filter((t) => t.sprintId === null);
+  const backlogObserverTarget = useInfiniteScroll({
+    hasNextPage: !!hasNextBacklog,
+    isFetchingNextPage: isFetchingNextBacklog,
+    fetchNextPage: () => {
+      if (hasNextBacklog && fetchNextBacklog) fetchNextBacklog();
+    },
+  });
+  const sprintsObserverTarget = useInfiniteScroll({
+    hasNextPage: !!hasNextSprints,
+    isFetchingNextPage: isFetchingNextSprints,
+    fetchNextPage: () => {
+      if (hasNextSprints && fetchNextSprints) fetchNextSprints();
+    },
+  });
   const updateTask = useUpdateTask();
+
+  // Socket: refresh sprints/tasks on task create/update
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const refetch = () => {
+      queryClient.invalidateQueries({ queryKey: ['sprints'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    };
+    socket.on('task:created', refetch);
+    socket.on('task:updated', refetch);
+    return () => {
+      socket.off('task:created', refetch);
+      socket.off('task:updated', refetch);
+    };
+  }, [queryClient]);
 
   // Mutations
   const addTasksMutation = useMutation({
@@ -263,19 +308,17 @@ export function SprintsPage() {
     setSelectedSprintForNewTask(null);
   };
 
-  const selectedSprint = selectedSprintId
-    ? sprintsData?.data.find((s) => s.id === selectedSprintId)
-    : null;
+  const selectedSprint = selectedSprintId ? sprints.find((s) => s.id === selectedSprintId) : null;
 
   const selectedTask = selectedTaskId
-    ? [...backlogTasks, ...(sprintsData?.data.flatMap(s => s.tasks || []) || [])].find((t) => t.id === selectedTaskId)
+    ? [...backlogTasks, ...(sprints.flatMap((s) => s.tasks || []) || [])].find((t) => t.id === selectedTaskId)
     : null;
 
   const sprintOptions = useMemo(() => {
-    return (sprintsData?.data || [])
+    return sprints
       .filter((s) => s.status !== 'completed')
       .map((s) => ({ value: String(s.id), label: s.name }));
-  }, [sprintsData?.data]);
+  }, [sprints]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -375,8 +418,9 @@ export function SprintsPage() {
           <div className="flex items-center justify-center h-40">
             <div className="text-gray-500 dark:text-gray-400">Loading sprints...</div>
           </div>
-        ) : sprintsData?.data && sprintsData.data.length > 0 ? (
-          sprintsData.data.map((sprint) => (
+        ) : sprints.length > 0 ? (
+          <>
+            {sprints.map((sprint) => (
             <div
               key={sprint.id}
               className={`bg-white dark:bg-[#1C252E] border rounded-lg shadow-sm transition-shadow hover:shadow-md ${sprint.status === 'active'
@@ -535,7 +579,16 @@ export function SprintsPage() {
                 </div>
               </div>
             </div>
-          ))
+            ))}
+            {hasNextSprints && (
+              <div
+                ref={sprintsObserverTarget}
+                className="h-10 flex items-center justify-center text-xs text-gray-500 dark:text-gray-400"
+              >
+                {isFetchingNextSprints ? 'Loading more sprints...' : 'Scroll to load more'}
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center h-64 text-center bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg">
             <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-full mb-4">
@@ -583,7 +636,7 @@ export function SprintsPage() {
           <div className="p-4">
             {backlogTasks.length > 0 ? (
               <div
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl-grid-cols-4 gap-4"
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDropToSprint(e, null)}
               >
@@ -629,6 +682,14 @@ export function SprintsPage() {
                     </div>
                   );
                 })}
+                {hasNextBacklog && (
+                  <div
+                    ref={backlogObserverTarget}
+                    className="col-span-full h-10 flex items-center justify-center text-xs text-gray-500 dark:text-gray-400"
+                  >
+                    {isFetchingNextBacklog ? 'Loading more tasks...' : 'Scroll to load more'}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">

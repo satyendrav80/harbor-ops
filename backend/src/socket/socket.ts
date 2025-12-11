@@ -149,4 +149,10 @@ export function emitSubtaskCreated(parentTaskId: number, subtask: any) {
 export function emitTaskUpdated(taskId: number, task: any) {
   const ioInstance = getIO();
   ioInstance.to(`task:${taskId}`).emit('task:updated', task);
+  ioInstance.emit('task:updated', task);
+}
+
+export function emitTaskCreated(task: any) {
+  const ioInstance = getIO();
+  ioInstance.emit('task:created', task);
 }

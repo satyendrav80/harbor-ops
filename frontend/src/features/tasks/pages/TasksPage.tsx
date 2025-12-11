@@ -15,17 +15,19 @@ import type { Task, TaskStatus, TaskPriority, TaskType } from '../../../services
 import { useUpdateTask } from '../hooks/useTaskMutations';
 import { listSprints } from '../../../services/sprints';
 import { getTasksFilterMetadata } from '../../../services/tasks';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Filter } from '../../release-notes/types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../utils/urlSync';
 import { hasActiveFilters } from '../../release-notes/utils/filterState';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { SelectionBar } from '../../../components/common/SelectionBar';
+import { getSocket } from '../../../services/socket';
 
 export function TasksPage() {
   usePageTitle('Tasks');
   const navigate = useNavigate();
   const { hasPermission, user } = useAuth();
+  const queryClient = useQueryClient();
   const updateTask = useUpdateTask();
   const [searchParams, setSearchParams] = useSearchParams();
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
@@ -84,7 +86,9 @@ export function TasksPage() {
   // Use advanced filtering if advanced filters are active, otherwise use default "My Tasks" filter
   const useAdvancedFiltering = hasActiveFilters(advancedFilters) || orderBy !== undefined;
 
-  // Build default "My Tasks" filter: (assignedTo = userId OR testerId = userId) AND status != completed
+  // Build default "My Tasks" filter with role-aware status visibility:
+  // - Assignee sees all except completed (includes not_fixed/reopened)
+  // - Tester/Attention hides not_fixed and reopened (and completed)
   const myTasksFilter: Filter | undefined = useMemo(() => {
     if (useAdvancedFiltering || !user?.id) return undefined;
     
@@ -95,12 +99,36 @@ export function TasksPage() {
           {
             condition: 'or',
             childs: [
-              { key: 'assignedTo', type: 'STRING', operator: 'eq', value: user.id },
-              { key: 'testerId', type: 'STRING', operator: 'eq', value: user.id },
-              { key: 'attentionToId', type: 'STRING', operator: 'eq', value: user.id },
+              // Assignee: see everything except completed
+              {
+                condition: 'and',
+                childs: [
+                  { key: 'assignedTo', type: 'STRING', operator: 'eq', value: user.id },
+                  { key: 'status', type: 'STRING', operator: 'ne', value: 'completed' },
+                ],
+              },
+              // Tester: hide completed, reopened, not_fixed
+              {
+                condition: 'and',
+                childs: [
+                  { key: 'testerId', type: 'STRING', operator: 'eq', value: user.id },
+                  { key: 'status', type: 'STRING', operator: 'ne', value: 'completed' },
+                  { key: 'status', type: 'STRING', operator: 'ne', value: 'reopened' },
+                  { key: 'status', type: 'STRING', operator: 'ne', value: 'not_fixed' },
+                ],
+              },
+              // Attention: hide completed, reopened, not_fixed
+              {
+                condition: 'and',
+                childs: [
+                  { key: 'attentionToId', type: 'STRING', operator: 'eq', value: user.id },
+                  { key: 'status', type: 'STRING', operator: 'ne', value: 'completed' },
+                  { key: 'status', type: 'STRING', operator: 'ne', value: 'reopened' },
+                  { key: 'status', type: 'STRING', operator: 'ne', value: 'not_fixed' },
+                ],
+              },
             ],
           },
-          { key: 'status', type: 'STRING', operator: 'ne', value: 'completed' },
         ],
       };
     }
@@ -147,16 +175,48 @@ export function TasksPage() {
     return [];
   }, [tasksDataToUse]);
 
-  // Infinite scroll observer (only when using advanced filtering)
+  // Infinite scroll observer (always on, advanced hook handles pagination)
   const tasksObserverTarget = useInfiniteScroll({
-    hasNextPage: useAdvancedFiltering ? (hasNextAdvancedTasksPage ?? false) : false,
-    isFetchingNextPage: useAdvancedFiltering ? isFetchingNextAdvancedTasksPage : false,
+    hasNextPage: hasNextAdvancedTasksPage ?? false,
+    isFetchingNextPage: isFetchingNextAdvancedTasksPage,
     fetchNextPage: () => {
-      if (useAdvancedFiltering && fetchNextAdvancedTasksPage) {
+      if (fetchNextAdvancedTasksPage) {
         fetchNextAdvancedTasksPage();
       }
     },
   });
+
+  // Socket: refresh tasks and sprints when tasks change
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const refetch = () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['sprints'] });
+    };
+    socket.on('task:created', refetch);
+    socket.on('task:updated', refetch);
+    return () => {
+      socket.off('task:created', refetch);
+      socket.off('task:updated', refetch);
+    };
+  }, [queryClient]);
+
+  // Socket: refresh lists on task create/update
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const refetch = () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['sprints'] });
+    };
+    socket.on('task:created', refetch);
+    socket.on('task:updated', refetch);
+    return () => {
+      socket.off('task:created', refetch);
+      socket.off('task:updated', refetch);
+    };
+  }, [queryClient]);
 
   const { data: sprintsData } = useQuery({
     queryKey: ['sprints', { status: ['planned', 'active'] }],
@@ -259,8 +319,12 @@ export function TasksPage() {
 
   const handleBulkAddToSprint = async (sprintIdValue: string | null) => {
     if (sprintIdValue === undefined || selectedTaskIds.size === 0) return;
-    const sprintId = sprintIdValue === null ? null : parseInt(sprintIdValue);
-    if (sprintIdValue !== null && isNaN(sprintId)) return;
+    let sprintId: number | null = null;
+    if (sprintIdValue !== null) {
+      const parsed = parseInt(sprintIdValue, 10);
+      if (isNaN(parsed)) return;
+      sprintId = parsed;
+    }
 
     await Promise.all(
       Array.from(selectedTaskIds).map(id =>
@@ -273,8 +337,7 @@ export function TasksPage() {
 
   const clearSelection = () => {
     setSelectedTaskIds(new Set());
-    setBulkSprintId('');
-  }
+  };
 
   // --- RENDERING HELPERS ---
 

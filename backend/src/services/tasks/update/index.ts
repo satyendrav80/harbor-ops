@@ -2,6 +2,8 @@ import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
 import { extractParams } from './extractParams';
 import { createSprintHistoryRecord } from '../../../utils/taskValidation';
+import { createNotification } from '../../notifications';
+import { emitTaskUpdated } from '../../../socket/socket';
 
 const prisma = new PrismaClient();
 
@@ -107,6 +109,24 @@ export async function update(context: RequestContext) {
       changes: { before: existingTask, after: task },
     },
   });
+
+  // Notify newly assigned user that the task was added to their My Tasks
+  if ((isBeingAssigned || isBeingReassigned) && updateData.assignedTo && updateData.assignedTo !== userId) {
+    try {
+      await createNotification({
+        userId: updateData.assignedTo,
+        type: 'task_assignment',
+        taskId: data.taskId,
+        title: 'Task assigned to you',
+        message: `“${task.title}” was added to your My Tasks`,
+      });
+    } catch (err) {
+      // swallow notification errors
+    }
+  }
+
+  // Emit real-time task updated event
+  emitTaskUpdated(task.id, task);
 
   return task;
 }

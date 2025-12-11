@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Search } from 'lucide-react';
-import { useTasks } from '../hooks/useTaskQueries';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { listTasks, type TasksResponse } from '../../../services/tasks';
 import { Loading } from '../../../components/common/Loading';
 import type { TaskStatus, Task } from '../../../services/tasks';
 
@@ -30,6 +31,7 @@ export function TaskSelectionModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set(initialSelectedIds));
   const lastInitialIdsKey = useRef<string>('');
+  const listRef = useRef<HTMLDivElement>(null);
 
   // Initialize selected tasks when modal opens
   useEffect(() => {
@@ -41,19 +43,44 @@ export function TaskSelectionModal({
     }
   }, [isOpen, initialSelectedIds]);
 
-  // Fetch tasks - all tasks if showAllTasks is true, otherwise backlog only
-  const { data, isLoading } = useTasks({
-    sprintId: showAllTasks ? undefined : null, // Backlog or all
-    search: searchQuery || undefined,
-    status: allowedStatuses
-      ? allowedStatuses
-      : showAllTasks
-      ? undefined
-      : ['pending', 'in_progress', 'reopened', 'in_review'],
-    limit: 100,
+  const PAGE_SIZE = 50;
+
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+  } = useInfiniteQuery<TasksResponse>({
+    queryKey: [
+      'task-selection',
+      { searchQuery, showAllTasks, allowedStatuses, excludedTaskIds, alwaysIncludeTasks },
+    ],
+    queryFn: ({ pageParam = 1 }: any) =>
+      listTasks({
+        sprintId: showAllTasks ? undefined : null, // Backlog or all
+        search: searchQuery || undefined,
+        status: allowedStatuses
+          ? allowedStatuses
+          : showAllTasks
+          ? undefined
+          : ['pending', 'in_progress', 'reopened', 'in_review'],
+        page: pageParam,
+        limit: PAGE_SIZE,
+      }),
+    getNextPageParam: (lastPage: TasksResponse) => {
+      const nextPage = lastPage.pagination.page + 1;
+      return nextPage <= lastPage.pagination.totalPages ? nextPage : undefined;
+    },
+    enabled: isOpen,
+    staleTime: 0,
+    initialPageParam: 1,
   });
 
-  const filteredTasks = (data?.data || [])
+  const tasksFromPages = (data?.pages as TasksResponse[] | undefined)?.flatMap((p) => p.data) || [];
+
+  const filteredTasks = tasksFromPages
     .filter((t) => !excludedTaskIds.includes(t.id))
     .filter((t) => !allowedStatuses || allowedStatuses.includes(t.status));
 
@@ -66,6 +93,26 @@ export function TaskSelectionModal({
   });
 
   const tasks = Array.from(taskMap.values());
+
+  useEffect(() => {
+    if (isOpen) {
+      refetch();
+      setTimeout(() => {
+        if (listRef.current) listRef.current.scrollTop = 0;
+      }, 0);
+    }
+  }, [isOpen, refetch, searchQuery, showAllTasks, allowedStatuses]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (
+      hasNextPage &&
+      !isFetchingNextPage &&
+      target.scrollTop + target.clientHeight >= target.scrollHeight - 50
+    ) {
+      fetchNextPage();
+    }
+  };
 
   const toggleSelection = (taskId: number) => {
     const newSet = new Set(selectedTaskIds);
@@ -131,20 +178,25 @@ export function TaskSelectionModal({
           </div>
 
           {/* Task List */}
-          <div className="max-h-[60vh] overflow-y-auto border border-gray-200 dark:border-gray-700/50 rounded-lg bg-gray-50 dark:bg-gray-900/20">
+          <div
+            ref={listRef}
+            className="max-h-[60vh] overflow-y-auto border border-gray-200 dark:border-gray-700/50 rounded-lg bg-gray-50 dark:bg-gray-900/20"
+            onScroll={handleScroll}
+          >
             {isLoading ? (
-              <div className="p-8 text-center text-gray-500"><Loading className="w-6 h-6 mx-auto" /></div>
+              <div className="p-8 text-center text-gray-500">
+                <Loading className="w-6 h-6 mx-auto" />
+              </div>
             ) : tasks.length === 0 ? (
               <div className="p-8 text-center text-gray-500 dark:text-gray-400">No tasks found</div>
             ) : (
               <ul className="divide-y divide-gray-200 dark:divide-gray-700/50">
-                {tasks.map(task => (
+                {tasks.map((task) => (
                   <li
                     key={task.id}
-                    className={`p-3 flex items-start gap-3 hover:bg-white dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${selectedTaskIds.has(task.id)
-                        ? 'bg-blue-50 dark:bg-primary/10'
-                        : ''
-                      }`}
+                    className={`p-3 flex items-start gap-3 hover:bg-white dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${
+                      selectedTaskIds.has(task.id) ? 'bg-blue-50 dark:bg-primary/10' : ''
+                    }`}
                     onClick={() => toggleSelection(task.id)}
                   >
                     <input
@@ -159,7 +211,9 @@ export function TaskSelectionModal({
                         <span className={`text-xs px-2 py-0.5 rounded capitalize ${getPriorityColor(task.priority)}`}>
                           {task.priority}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">{task.status.replace('_', ' ')}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                          {task.status.replace('_', ' ')}
+                        </span>
                         {task.sprint && (
                           <span className="text-xs text-gray-500 dark:text-gray-400">
                             Sprint: {task.sprint.name}
@@ -176,6 +230,12 @@ export function TaskSelectionModal({
                   </li>
                 ))}
               </ul>
+            )}
+            {isFetchingNextPage && (
+              <div className="p-3 text-center text-xs text-gray-500 dark:text-gray-400">Loading more...</div>
+            )}
+            {!hasNextPage && tasks.length > 0 && (
+              <div className="p-2 text-center text-xs text-gray-400 dark:text-gray-500">No more tasks</div>
             )}
           </div>
 

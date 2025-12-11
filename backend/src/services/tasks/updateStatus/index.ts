@@ -6,6 +6,8 @@ import {
   hasUnresolvedDependencies,
   areAllSubtasksCompleted,
 } from '../../../utils/taskValidation';
+import { createNotification } from '../../notifications';
+import { emitTaskUpdated } from '../../../socket/socket';
 
 const prisma = new PrismaClient();
 
@@ -13,8 +15,14 @@ const statusOrder: Record<string, number> = {
   pending: 0,
   in_progress: 1,
   in_review: 2,
+  proceed: 2,
   testing: 3,
+  not_fixed: 1,
   completed: 4,
+  paused: 1,
+  blocked: 1,
+  cancelled: 0,
+  reopened: 0,
 };
 
 export async function updateStatus(context: RequestContext) {
@@ -37,7 +45,9 @@ export async function updateStatus(context: RequestContext) {
   const isCompleting = data.status === 'completed';
   const isBlocked = data.status === 'blocked';
   const isInReview = data.status === 'in_review';
+  const isProceed = data.status === 'proceed';
   const isTesting = data.status === 'testing';
+  const isNotFixed = data.status === 'not_fixed';
   const isPaused = data.status === 'paused';
   const isResumingFromPause = task.status === 'paused' && data.status === 'in_progress';
   const requiresAttentionUser = isBlocked || isInReview;
@@ -64,12 +74,39 @@ export async function updateStatus(context: RequestContext) {
     throw new Error('Provide a completion reason when no tester is assigned');
   }
 
+  if (isProceed) {
+    if (!task.attentionToId) {
+      throw new Error('Task has no attention user to mark as proceed');
+    }
+    if (task.attentionToId !== userId) {
+      throw new Error('Only the attention user can mark this task as proceed');
+    }
+    if (!statusReason) {
+      throw new Error('Reason is required when marking proceed');
+    }
+  }
+
+  if (isNotFixed) {
+    if (!task.testerId) {
+      throw new Error('Task has no tester assigned');
+    }
+    if (task.testerId !== userId) {
+      throw new Error('Only the tester can mark this task as not fixed');
+    }
+    if (task.status !== 'testing') {
+      throw new Error('Not fixed can only be set while task is in testing');
+    }
+    if (!statusReason) {
+      throw new Error('Reason is required when marking not fixed');
+    }
+  }
+
   if (requiresAttentionUser && !data.attentionToId) {
     throw new Error('Select a user to notify for blocked or review status');
   }
 
-  if (!isResumingFromPause && (isBackward || isBlocked || isPaused) && !statusReason) {
-    throw new Error('Reason is required when moving status backward, blocking, or pausing a task');
+  if (!isResumingFromPause && (isBackward || isBlocked || isPaused || isInReview) && !statusReason) {
+    throw new Error('Reason is required when moving status backward, blocking, pausing, or sending to review');
   }
 
   // Validate status transition
@@ -120,6 +157,8 @@ export async function updateStatus(context: RequestContext) {
     updateData.attentionToId = null;
   } else if (requiresAttentionUser) {
     updateData.attentionToId = data.attentionToId;
+  } else if (isProceed || isNotFixed) {
+    updateData.attentionToId = null;
   } else {
     updateData.attentionToId = null;
   }
@@ -171,6 +210,75 @@ export async function updateStatus(context: RequestContext) {
       },
     },
   });
+
+  // Notify attention user when they are newly set
+  const attentionChanged =
+    requiresAttentionUser &&
+    data.attentionToId &&
+    data.attentionToId !== task.attentionToId &&
+    data.attentionToId !== userId;
+  if (attentionChanged) {
+    try {
+      await createNotification({
+        userId: data.attentionToId,
+        type: 'task_attention',
+        taskId: data.taskId,
+        title: 'Task needs your attention',
+        message: `“${task.title}” was added to your My Tasks`,
+      });
+    } catch (err) {
+      // ignore notification failures
+    }
+  }
+
+  // Notify newly set tester when moving to testing and assigning tester
+  const testerChanged = data.testerId && data.testerId !== task.testerId && data.testerId !== userId;
+  if (testerChanged) {
+    try {
+      await createNotification({
+        userId: data.testerId,
+        type: 'task_assignment',
+        taskId: data.taskId,
+        title: 'Task assigned to you',
+        message: `“${task.title}” was added to your My Tasks`,
+      });
+    } catch (err) {
+      // ignore notification failures
+    }
+  }
+
+  // Notify assignee when tester marks not fixed
+  if (isNotFixed && task.assignedTo && task.assignedTo !== userId) {
+    try {
+      await createNotification({
+        userId: task.assignedTo,
+        type: 'task_not_fixed',
+        taskId: data.taskId,
+        title: 'Task marked Not Fixed',
+        message: `“${task.title}” was marked as not fixed by the tester`,
+      });
+    } catch (err) {
+      // ignore notification failures
+    }
+  }
+
+  // Notify assignee when attention user marks proceed
+  if (isProceed && task.assignedTo && task.assignedTo !== userId) {
+    try {
+      await createNotification({
+        userId: task.assignedTo,
+        type: 'task_attention_resolved',
+        taskId: data.taskId,
+        title: 'Attention resolved',
+        message: `“${task.title}” was marked as proceed`,
+      });
+    } catch (err) {
+      // ignore notification failures
+    }
+  }
+
+  // Emit real-time task updated event
+  emitTaskUpdated(data.taskId, updatedTask);
 
   return updatedTask;
 }

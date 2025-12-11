@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
-import { Bell, CheckCheck } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Bell, CheckCheck, VolumeX, Volume2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getNotifications, getUnreadCount, markAsRead, markAllAsRead, type Notification } from '../../services/notifications';
 import { getSocket } from '../../services/socket';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import tonesUrl from '../../assets/tones.mp3?url';
 // Format date relative to now
 const formatRelativeTime = (date: string) => {
   const now = new Date();
@@ -44,11 +46,40 @@ export function NotificationBell({ onTaskClick }: NotificationBellProps) {
   });
 
   // Fetch notifications when dropdown is open
-  const { data: notificationsData, refetch: refetchNotifications } = useQuery({
-    queryKey: ['notifications', 'list'],
-    queryFn: () => getNotifications({ limit: 20 }),
-    enabled: isOpen,
+  const PAGE_SIZE = 20;
+
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  );
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [allowSound, setAllowSound] = useState<boolean>(() => {
+    const stored = localStorage.getItem('notifySoundEnabled');
+    return stored === null ? true : stored === 'true';
   });
+  const [soundChoice, setSoundChoice] = useState<'default' | 'none'>(() => {
+    const storedChoice = localStorage.getItem('notifySoundChoice');
+    if (storedChoice === 'none' || storedChoice === 'default') return storedChoice;
+    return allowSound ? 'default' : 'none';
+  });
+
+  const loadNotifications = useCallback(
+    async ({ reset = false } = {}) => {
+      const nextOffset = reset ? 0 : offset;
+      setIsLoadingMore(true);
+      const res = await getNotifications({ limit: PAGE_SIZE, offset: nextOffset });
+      setNotifications((prev) => (reset ? res.notifications : [...prev, ...res.notifications]));
+      const newOffset = nextOffset + res.notifications.length;
+      setOffset(newOffset);
+      setHasMore(newOffset < res.total);
+      setIsLoadingMore(false);
+    },
+    [offset]
+  );
 
   // Listen for new notifications via Socket.IO
   useEffect(() => {
@@ -58,7 +89,38 @@ export function NotificationBell({ onTaskClick }: NotificationBellProps) {
     const handleNewNotification = (notification: Notification) => {
       // Invalidate queries to refetch
       queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'list'] });
+      // Prepend and keep offset consistent by resetting
+      loadNotifications({ reset: true });
+      // Fire desktop notification if permitted
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const n = new Notification(notification.title, {
+          body: notification.message,
+          tag: `task-${notification.taskId || notification.id}`,
+        });
+        n.onclick = () => {
+          if (notification.taskId) {
+            window.focus();
+            if (onTaskClick) {
+              onTaskClick(notification.taskId);
+            }
+          }
+        };
+      }
+      // Play sound if allowed and user has interacted
+      const canPlay = allowSound && soundChoice !== 'none';
+      if (canPlay && hasUserInteracted) {
+        if (!audioRef.current) {
+          const audio = new Audio(tonesUrl);
+          audio.volume = 0.6;
+          audioRef.current = audio;
+        }
+        audioRef.current!.currentTime = 0;
+        audioRef.current!
+          .play()
+          .catch(() => {
+            toast.error('Unable to play notification sound (browser blocked autoplay).');
+          });
+      }
     };
 
     socket.on('notification:new', handleNewNotification);
@@ -66,7 +128,61 @@ export function NotificationBell({ onTaskClick }: NotificationBellProps) {
     return () => {
       socket.off('notification:new', handleNewNotification);
     };
-  }, [queryClient]);
+  }, [queryClient, loadNotifications, allowSound, soundChoice, hasUserInteracted, onTaskClick]);
+
+  // Listen to storage changes for sound toggle (so profile changes reflect here)
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key === 'notifySoundEnabled' && e.newValue !== null) {
+        setAllowSound(e.newValue === 'true');
+      }
+      if (e.key === 'notifySoundChoice' && e.newValue) {
+        if (e.newValue === 'none' || e.newValue === 'default') {
+          setSoundChoice(e.newValue);
+        }
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, []);
+
+  // Session-level prompt to enable desktop notifications if permission was reset to default
+  useEffect(() => {
+    if (typeof Notification === 'undefined') return;
+    const alreadyPrompted = sessionStorage.getItem('notifPromptShown');
+    if (alreadyPrompted) return;
+    if (Notification.permission === 'default') {
+      const tId = toast((t) => (
+        <div className="text-sm text-gray-900 dark:text-gray-100">
+          Enable desktop notifications?
+          <div className="mt-2 flex gap-2">
+            <button
+              className="px-3 py-1 text-xs font-medium bg-primary text-white rounded"
+              onClick={async () => {
+                const perm = await Notification.requestPermission();
+                setNotifPermission(perm);
+                toast.dismiss(t.id);
+                sessionStorage.setItem('notifPromptShown', 'true');
+              }}
+            >
+              Allow
+            </button>
+            <button
+              className="px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded"
+              onClick={() => {
+                toast.dismiss(t.id);
+                sessionStorage.setItem('notifPromptShown', 'true');
+              }}
+            >
+              Maybe later
+            </button>
+          </div>
+        </div>
+      ), { duration: 8000 });
+    } else {
+      sessionStorage.setItem('notifPromptShown', 'true');
+    }
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -86,7 +202,10 @@ export function NotificationBell({ onTaskClick }: NotificationBellProps) {
     if (!notification.read) {
       await markAsRead(notification.id);
       queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'list'] });
+      // Update local list
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notification.id ? { ...n, read: true, readAt: new Date().toISOString() } : n))
+      );
     }
 
     setIsOpen(false);
@@ -104,19 +223,25 @@ export function NotificationBell({ onTaskClick }: NotificationBellProps) {
   const handleMarkAllAsRead = async () => {
     await markAllAsRead();
     queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
-    queryClient.invalidateQueries({ queryKey: ['notifications', 'list'] });
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true, readAt: new Date().toISOString() })));
   };
 
-  const notifications = notificationsData?.notifications || [];
-  const unreadNotifications = notifications.filter(n => !n.read);
+  const unreadNotifications = notifications.filter((n) => !n.read);
 
   return (
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => {
-          setIsOpen(!isOpen);
+          setHasUserInteracted(true);
+          const nextOpen = !isOpen;
+          setIsOpen(nextOpen);
+          // Prompt for notification permission when opening if still default
+          if (!isOpen && typeof Notification !== 'undefined' && notifPermission === 'default') {
+            Notification.requestPermission().then((perm) => setNotifPermission(perm));
+          }
           if (!isOpen) {
-            refetchNotifications();
+            loadNotifications({ reset: true });
+            queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
           }
         }}
         className="relative p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-lg transition-colors"
@@ -133,21 +258,59 @@ export function NotificationBell({ onTaskClick }: NotificationBellProps) {
       {isOpen && (
         <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-lg z-50 max-h-[600px] flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700/50">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Notifications</h3>
-            {unreadNotifications.length > 0 && (
-              <button
-                onClick={handleMarkAllAsRead}
-                className="text-xs text-primary hover:text-primary/80 flex items-center gap-1"
-              >
-                <CheckCheck className="w-4 h-4" />
-                Mark all as read
-              </button>
-            )}
-          </div>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700/50">
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Notifications</h3>
+                <button
+                  onClick={() => {
+          setAllowSound((prev) => {
+            const next = !prev;
+            localStorage.setItem('notifySoundEnabled', String(next));
+            return next;
+          });
+                  }}
+                  className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                  title={allowSound ? 'Mute notification sound' : 'Unmute notification sound'}
+                >
+                  {allowSound ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                </button>
+                {typeof Notification !== 'undefined' && notifPermission === 'default' && (
+                  <button
+                    onClick={async () => {
+                      const perm = await Notification.requestPermission();
+                      setNotifPermission(perm);
+                    }}
+                    className="text-xs text-primary hover:text-primary/80 underline"
+                  >
+                    Enable desktop alerts
+                  </button>
+                )}
+              </div>
+              {unreadNotifications.length > 0 && (
+                <button
+                  onClick={handleMarkAllAsRead}
+                  className="text-xs text-primary hover:text-primary/80 flex items-center gap-1"
+                >
+                  <CheckCheck className="w-4 h-4" />
+                  Mark all as read
+                </button>
+              )}
+            </div>
 
           {/* Notifications List */}
-          <div className="overflow-y-auto flex-1">
+          <div
+            className="overflow-y-auto flex-1"
+            onScroll={(e) => {
+              const target = e.currentTarget;
+              if (
+                hasMore &&
+                !isLoadingMore &&
+                target.scrollTop + target.clientHeight >= target.scrollHeight - 50
+              ) {
+                loadNotifications();
+              }
+            }}
+          >
             {notifications.length === 0 ? (
               <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                 <Bell className="w-12 h-12 mx-auto mb-2 opacity-50" />
@@ -182,6 +345,12 @@ export function NotificationBell({ onTaskClick }: NotificationBellProps) {
                   </button>
                 ))}
               </div>
+            )}
+            {isLoadingMore && (
+              <div className="py-3 text-center text-xs text-gray-500 dark:text-gray-400">Loading...</div>
+            )}
+            {!hasMore && notifications.length > 0 && (
+              <div className="py-2 text-center text-xs text-gray-400 dark:text-gray-500">No more notifications</div>
             )}
           </div>
         </div>

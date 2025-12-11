@@ -147,8 +147,8 @@ export function validateStatusTransition(
     }
   }
 
-  // 4. Blocked/Paused/Cancelled are always allowed
-  if (['blocked', 'paused', 'cancelled'].includes(newStatus)) {
+  // 4. Blocked/Paused/Cancelled/Proceed/Not Fixed are always allowed (field-level checks handled elsewhere)
+  if (['blocked', 'paused', 'cancelled', 'proceed', 'not_fixed'].includes(newStatus)) {
     return { valid: true };
   }
 

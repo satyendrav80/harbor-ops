@@ -41,7 +41,18 @@ export interface UpdateTaskDTO {
 }
 
 export interface UpdateTaskStatusDTO {
-  status: 'pending' | 'in_progress' | 'in_review' | 'testing' | 'completed' | 'paused' | 'blocked' | 'cancelled' | 'reopened';
+  status:
+    | 'pending'
+    | 'in_progress'
+    | 'in_review'
+    | 'proceed'
+    | 'testing'
+    | 'not_fixed'
+    | 'completed'
+    | 'paused'
+    | 'blocked'
+    | 'cancelled'
+    | 'reopened';
   testingSkipped?: boolean;
   testingSkipReason?: string;
 }

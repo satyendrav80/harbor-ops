@@ -1,7 +1,18 @@
 import { apiFetch } from './apiClient';
 
 // Task Types
-export type TaskStatus = 'pending' | 'in_progress' | 'in_review' | 'testing' | 'completed' | 'paused' | 'blocked' | 'cancelled' | 'reopened';
+export type TaskStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'in_review'
+  | 'proceed'
+  | 'testing'
+  | 'not_fixed'
+  | 'completed'
+  | 'paused'
+  | 'blocked'
+  | 'cancelled'
+  | 'reopened';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 export type TaskType = 'bug' | 'feature' | 'todo' | 'epic' | 'improvement';
 

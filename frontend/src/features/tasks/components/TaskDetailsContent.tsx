@@ -17,7 +17,9 @@ const statusColors: Record<TaskStatus, string> = {
   pending: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
   in_progress: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200',
   in_review: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200',
+  proceed: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200',
   testing: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200',
+  not_fixed: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200',
   completed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200',
   paused: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200',
   blocked: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200',
@@ -29,7 +31,9 @@ const statusOrder: Record<TaskStatus, number> = {
   pending: 0,
   in_progress: 1,
   in_review: 2,
+  proceed: 2,
   testing: 3,
+  not_fixed: 1,
   completed: 4,
   paused: 2,
   blocked: 2,
@@ -44,7 +48,7 @@ type TaskDetailsContentProps = {
 };
 
 export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetailsContentProps) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSubtaskModalOpen, setIsSubtaskModalOpen] = useState(false);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
@@ -127,6 +131,12 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
     );
   }
 
+const currentUserId = user?.id ? String(user.id) : null;
+const isAttentionUser = !!(task.attentionToId && currentUserId && task.attentionToId === currentUserId);
+const isTesterUser = !!(task.testerId && currentUserId && task.testerId === currentUserId);
+const canMarkProceed = isAttentionUser;
+const canMarkNotFixed = isTesterUser && task.status === 'testing';
+
   const dialogCurrentOrder = statusOrder[task.status];
   const dialogTargetOrder = selectedStatus ? statusOrder[selectedStatus] : undefined;
   const dialogIsBackward =
@@ -140,6 +150,9 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
     (dialogIsBackward && !isResumingFromPause) ||
     selectedStatus === 'blocked' ||
     selectedStatus === 'paused' ||
+    selectedStatus === 'in_review' ||
+    selectedStatus === 'proceed' ||
+    selectedStatus === 'not_fixed' ||
     dialogNeedsTestingSkip;
   const statusConfirmDisabled =
     updateStatus.isPending ||
@@ -155,11 +168,20 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
       targetOrder < currentOrder;
     const requiresAttention = newStatus === 'blocked' || newStatus === 'in_review';
     const isResuming = task.status === 'paused' && newStatus === 'in_progress';
-    const requiresReason = (!isResuming && isBackward) || newStatus === 'blocked' || newStatus === 'paused';
+    const requiresReason =
+      (!isResuming && isBackward) ||
+      newStatus === 'blocked' ||
+      newStatus === 'paused' ||
+      newStatus === 'in_review' ||
+      newStatus === 'proceed' ||
+      newStatus === 'not_fixed';
     const needsTestingSkipReason = newStatus === 'completed' && !task.testerId;
     const needsTesterSelection = newStatus === 'testing' && !task.testerId;
+    const wantsReviewComment = newStatus === 'in_review';
+    const shouldShowDialog =
+      requiresAttention || requiresReason || needsTestingSkipReason || needsTesterSelection || wantsReviewComment;
 
-    if (requiresAttention || requiresReason || needsTestingSkipReason || needsTesterSelection) {
+    if (shouldShowDialog) {
       setSelectedStatus(newStatus);
       setShowStatusDialog(true);
       setStatusReason('');
@@ -178,6 +200,8 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
     if (!selectedStatus) return;
 
     const requiresAttention = selectedStatus === 'blocked' || selectedStatus === 'in_review';
+    const requiresProceed = selectedStatus === 'proceed';
+    const requiresNotFixed = selectedStatus === 'not_fixed';
     const needsTestingSkipReason = selectedStatus === 'completed' && !task.testerId;
     const needsTesterSelection = selectedStatus === 'testing' && !task.testerId && !statusTesterId;
     const currentOrder = statusOrder[task.status];
@@ -187,7 +211,14 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
       targetOrder !== undefined &&
       targetOrder < currentOrder;
     const isResuming = task.status === 'paused' && selectedStatus === 'in_progress';
-    const requiresReason = (!isResuming && isBackward) || selectedStatus === 'blocked' || selectedStatus === 'paused';
+    const requiresReason =
+      (!isResuming && isBackward) ||
+      selectedStatus === 'blocked' ||
+      selectedStatus === 'paused' ||
+      selectedStatus === 'in_review' ||
+      requiresProceed ||
+      requiresNotFixed;
+    const wantsReviewComment = selectedStatus === 'in_review';
     const trimmedReason = statusReason.trim();
 
     if (requiresAttention && !statusAttentionId) return;
@@ -198,7 +229,9 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
       id: taskId,
       status: selectedStatus,
       attentionToId: requiresAttention ? statusAttentionId : undefined,
-      statusReason: (requiresReason || needsTestingSkipReason) ? trimmedReason : undefined,
+      statusReason: (requiresReason || needsTestingSkipReason || wantsReviewComment || trimmedReason)
+        ? trimmedReason
+        : undefined,
       testingSkipReason: needsTestingSkipReason ? trimmedReason : undefined,
       testerId: selectedStatus === 'testing' ? (statusTesterId || task.testerId || undefined) : undefined,
     });
@@ -307,13 +340,42 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
                     onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
                     className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50"
                   >
-                    <option value="pending">Pending</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="in_review">In Review</option>
-                    <option value="testing">Testing</option>
-                    <option value="completed">Completed</option>
-                    <option value="paused">Paused</option>
-                    <option value="blocked">Blocked</option>
+                    {[
+                      { value: 'pending', label: 'Pending' },
+                      { value: 'in_progress', label: 'In Progress' },
+                      { value: 'in_review', label: 'In Review' },
+                      { value: 'proceed', label: 'Proceed', visible: canMarkProceed },
+                      { value: 'testing', label: 'Testing' },
+                      { value: 'not_fixed', label: 'Not Fixed', visible: canMarkNotFixed },
+                      { value: 'completed', label: 'Completed' },
+                      { value: 'paused', label: 'Paused' },
+                      { value: 'blocked', label: 'Blocked' },
+                    ]
+                      .map((opt) => ({
+                        ...opt,
+                        disabled: opt.visible === false && opt.value !== task.status,
+                      }))
+                      .filter((opt) => opt.visible === undefined || opt.visible || opt.value === task.status)
+                      .map((opt) => (
+                        <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    {![
+                      'pending',
+                      'in_progress',
+                      'in_review',
+                      'proceed',
+                      'testing',
+                      'not_fixed',
+                      'completed',
+                      'paused',
+                      'blocked',
+                    ].includes(task.status) && (
+                      <option value={task.status} disabled>
+                        {task.status.replace('_', ' ')}
+                      </option>
+                    )}
                   </select>
                 )}
               </div>
@@ -511,6 +573,8 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
                 if (dialogNeedsTestingSkip) return 'Complete Without Tester';
                 if (dialogNeedsTester) return 'Assign Tester';
                 if (selectedStatus === 'blocked') return 'Mark Blocked';
+              if (selectedStatus === 'proceed') return 'Mark Proceed';
+              if (selectedStatus === 'not_fixed') return 'Mark Not Fixed';
                 if (selectedStatus === 'in_review') return 'Send to Review';
                 if (dialogIsBackward) return 'Provide Reason for Rollback';
                 return 'Update Status';
@@ -525,9 +589,14 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
                         This task has no tester assigned. Please provide a reason for skipping testing.
                       </p>
                     )}
-                    {(dialogIsBackward || selectedStatus === 'blocked' || selectedStatus === 'paused') && (
+                    {(dialogIsBackward ||
+                      selectedStatus === 'blocked' ||
+                      selectedStatus === 'paused' ||
+                      selectedStatus === 'in_review' ||
+                      selectedStatus === 'proceed' ||
+                      selectedStatus === 'not_fixed') && (
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Moving backward, blocking, or pausing requires a reason so the team understands the change.
+                        Please add a brief note for this status change so the team has context.
                       </p>
                     )}
 
@@ -567,7 +636,13 @@ export function TaskDetailsContent({ taskId, onTaskClick, onClose }: TaskDetails
                       </div>
                     )}
 
-                    {(dialogIsBackward || dialogNeedsTestingSkip || selectedStatus === 'blocked' || selectedStatus === 'paused') && (
+                    {(dialogIsBackward ||
+                      dialogNeedsTestingSkip ||
+                      selectedStatus === 'blocked' ||
+                      selectedStatus === 'paused' ||
+                      selectedStatus === 'in_review' ||
+                      selectedStatus === 'proceed' ||
+                      selectedStatus === 'not_fixed') && (
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-900 dark:text-white">Reason</label>
                         <textarea

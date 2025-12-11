@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
 import { extractParams } from './extractParams';
 import { createSprintHistoryRecord } from '../../../utils/taskValidation';
-import { emitSubtaskCreated } from '../../../socket/socket';
+import { emitSubtaskCreated, emitTaskCreated } from '../../../socket/socket';
 
 const prisma = new PrismaClient();
 
@@ -76,6 +76,9 @@ export async function create(context: RequestContext) {
       status: task.status,
     });
   }
+
+  // Emit global task created event for real-time updates
+  emitTaskCreated(task);
 
   return task;
 }

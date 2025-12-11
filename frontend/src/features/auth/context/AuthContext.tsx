@@ -29,6 +29,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('user', JSON.stringify(u));
     // Initialize Socket.IO connection after login
     getSocket();
+    // Prompt for notification permission on login (best effort, ignore if not supported)
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
   }, []);
 
   const logout = useCallback(() => {

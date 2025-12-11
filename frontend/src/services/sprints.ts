@@ -1,7 +1,7 @@
 import { apiFetch } from './apiClient';
 import type { Task } from './tasks';
 
-export type SprintStatus = 'planned' | 'active' | 'completed';
+export type SprintStatus = 'planned' | 'active' | 'completed' | 'cancelled';
 
 export interface Sprint {
   id: number;
@@ -24,10 +24,24 @@ export async function getSprint(id: number): Promise<Sprint> {
   return apiFetch(`/sprints/${id}`);
 }
 
+export type SprintsResponse = {
+  data: Sprint[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 export async function listSprints(params: {
   status?: SprintStatus[];
+  search?: string;
+  page?: number;
   limit?: number;
-}): Promise<{ data: Sprint[] }> {
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}): Promise<SprintsResponse> {
   return apiFetch('/sprints/list', {
     method: 'POST',
     body: JSON.stringify(params),
