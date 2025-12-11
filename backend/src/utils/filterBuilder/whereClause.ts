@@ -26,7 +26,7 @@ function buildWhereClauseRecursive(node: FilterNode): any {
   if (childs.length === 1) {
     const childClause = buildWhereClauseRecursive(childs[0]);
     if (condition === 'not') {
-      return { not: childClause };
+      return { NOT: childClause };
     }
     return childClause;
   }
@@ -42,7 +42,7 @@ function buildWhereClauseRecursive(node: FilterNode): any {
 
   if (childClauses.length === 1) {
     if (condition === 'not') {
-      return { not: childClauses[0] };
+      return { NOT: childClauses[0] };
     }
     return childClauses[0];
   }
@@ -56,7 +56,7 @@ function buildWhereClauseRecursive(node: FilterNode): any {
       return { OR: childClauses };
     
     case 'not':
-      return { not: { AND: childClauses } };
+      return { NOT: { AND: childClauses } };
     
     default:
       return { AND: childClauses };

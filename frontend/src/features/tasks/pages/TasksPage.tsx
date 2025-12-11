@@ -105,6 +105,39 @@ export function TasksPage() {
                 childs: [
                   { key: 'assignedTo', type: 'STRING', operator: 'eq', value: user.id },
                   { key: 'status', type: 'STRING', operator: 'ne', value: 'completed' },
+                  // Hide if testing with tester assigned
+                  {
+                    condition: 'not',
+                    childs: [
+                      {
+                        condition: 'and',
+                        childs: [
+                          { key: 'status', type: 'STRING', operator: 'eq', value: 'testing' },
+                          { key: 'testerId', type: 'STRING', operator: 'isNotNull' },
+                        ],
+                      },
+                    ],
+                  },
+                  // Hide if in attention statuses with attention user assigned
+                  {
+                    condition: 'not',
+                    childs: [
+                      {
+                        condition: 'and',
+                        childs: [
+                          {
+                            condition: 'or',
+                            childs: [
+                              { key: 'status', type: 'STRING', operator: 'eq', value: 'in_review' },
+                              { key: 'status', type: 'STRING', operator: 'eq', value: 'blocked' },
+                              { key: 'status', type: 'STRING', operator: 'eq', value: 'proceed' },
+                            ],
+                          },
+                          { key: 'attentionToId', type: 'STRING', operator: 'isNotNull' },
+                        ],
+                      },
+                    ],
+                  },
                 ],
               },
               // Tester: hide completed, reopened, not_fixed
@@ -115,6 +148,7 @@ export function TasksPage() {
                   { key: 'status', type: 'STRING', operator: 'ne', value: 'completed' },
                   { key: 'status', type: 'STRING', operator: 'ne', value: 'reopened' },
                   { key: 'status', type: 'STRING', operator: 'ne', value: 'not_fixed' },
+                  { key: 'status', type: 'STRING', operator: 'ne', value: 'proceed' },
                 ],
               },
               // Attention: hide completed, reopened, not_fixed
