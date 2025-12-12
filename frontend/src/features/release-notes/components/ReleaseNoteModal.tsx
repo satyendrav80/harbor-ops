@@ -313,6 +313,7 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         allowedStatuses={['completed', 'testing']}
         excludedTaskIds={blockedTaskIds}
         alwaysIncludeTasks={selectedTasks}
+        serviceId={form.watch('serviceId') || null}
       />
     </Modal>
   );
