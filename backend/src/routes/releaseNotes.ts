@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { PrismaClient, ReleaseStatus } from '@prisma/client';
+import { PrismaClient, ReleaseStatus, TaskStatus } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 import { list, getMetadata } from '../controllers/releaseNotesController';
 import { list as listService } from '../services/releaseNotes';
@@ -9,6 +9,97 @@ import { randomBytes } from 'crypto';
 
 const prisma = new PrismaClient();
 const router = Router();
+
+/**
+ * Validate that all task IDs have status 'completed' or 'testing'
+ */
+async function validateTaskStatuses(taskIds: number[]): Promise<{ valid: boolean; invalidTasks?: Array<{ id: number; status: string }> }> {
+  if (!taskIds || taskIds.length === 0) {
+    return { valid: true };
+  }
+
+  const tasks = await prisma.task.findMany({
+    where: {
+      id: { in: taskIds },
+      deleted: false,
+    },
+    select: {
+      id: true,
+      status: true,
+      title: true,
+    },
+  });
+
+  const invalidTasks = tasks.filter(
+    (task) => task.status !== TaskStatus.completed && task.status !== TaskStatus.testing
+  );
+
+  if (invalidTasks.length > 0) {
+    return {
+      valid: false,
+      invalidTasks: invalidTasks.map((t) => ({ id: t.id, status: t.status })),
+    };
+  }
+
+  // Check if all provided task IDs exist
+  const foundTaskIds = new Set(tasks.map((t) => t.id));
+  const missingTaskIds = taskIds.filter((id) => !foundTaskIds.has(id));
+  if (missingTaskIds.length > 0) {
+    return {
+      valid: false,
+      invalidTasks: missingTaskIds.map((id) => ({ id, status: 'not_found' })),
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate that all tasks in a release note are completed
+ */
+async function validateAllTasksCompleted(releaseNoteId: number): Promise<{ valid: boolean; incompleteTasks?: Array<{ id: number; title: string; status: string }> }> {
+  const releaseNote = await prisma.releaseNote.findUnique({
+    where: { id: releaseNoteId },
+    include: {
+      tasks: {
+        include: {
+          task: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!releaseNote) {
+    return { valid: false };
+  }
+
+  if (releaseNote.tasks.length === 0) {
+    return { valid: true };
+  }
+
+  const incompleteTasks = releaseNote.tasks
+    .filter((rt) => rt.task.status !== TaskStatus.completed)
+    .map((rt) => ({
+      id: rt.task.id,
+      title: rt.task.title,
+      status: rt.task.status,
+    }));
+
+  if (incompleteTasks.length > 0) {
+    return {
+      valid: false,
+      incompleteTasks,
+    };
+  }
+
+  return { valid: true };
+}
 
 async function notifyReleaseNoteDeployUsers(releaseNote: any, createdByUserId?: string | null) {
   const deployUsers = await prisma.user.findMany({
@@ -384,6 +475,18 @@ router.post('/', requirePermission('release-notes:create'), async (req: AuthRequ
     taskIds?: number[];
   };
   
+  // Validate task statuses if tasks are provided
+  if (taskIds && Array.isArray(taskIds) && taskIds.length > 0) {
+    const validation = await validateTaskStatuses(taskIds);
+    if (!validation.valid) {
+      return res.status(400).json({
+        error: 'Invalid task statuses',
+        message: 'Only tasks with status "completed" or "testing" can be added to release notes',
+        invalidTasks: validation.invalidTasks,
+      });
+    }
+  }
+  
   const created = await prisma.$transaction(async (tx) => {
     const releaseNote = await tx.releaseNote.create({
       data: {
@@ -466,6 +569,18 @@ router.put('/:id', requirePermission('release-notes:update'), async (req: AuthRe
     taskIds?: number[];
   };
   
+  // Validate task statuses if tasks are provided
+  if (taskIds !== undefined && Array.isArray(taskIds) && taskIds.length > 0) {
+    const validation = await validateTaskStatuses(taskIds);
+    if (!validation.valid) {
+      return res.status(400).json({
+        error: 'Invalid task statuses',
+        message: 'Only tasks with status "completed" or "testing" can be added to release notes',
+        invalidTasks: validation.invalidTasks,
+      });
+    }
+  }
+  
   const updated = await prisma.$transaction(async (tx) => {
     const updateData: any = {
       updatedBy: req.user?.id || null,
@@ -539,6 +654,19 @@ router.put('/:id', requirePermission('release-notes:update'), async (req: AuthRe
 router.post('/:id/mark-deployed', requirePermission('release-notes:deploy'), async (req, res) => {
   const id = Number(req.params.id);
   const currentUserId = (req as AuthRequest).user?.id || null;
+  
+  const existing = await prisma.releaseNote.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  
+  // Validate that all tasks are completed
+  const validation = await validateAllTasksCompleted(id);
+  if (!validation.valid) {
+    return res.status(400).json({
+      error: 'Cannot deploy',
+      message: 'All tasks must be completed before deployment',
+      incompleteTasks: validation.incompleteTasks,
+    });
+  }
 
   const updated = await prisma.$transaction(async (tx) => {
     const releaseNote = await tx.releaseNote.update({
@@ -637,7 +765,24 @@ router.post('/:id/mark-deployment-started', requirePermission('release-notes:dep
   if (existing.status !== ReleaseStatus.pending) {
     return res.status(400).json({ error: 'Can only mark pending notes as deployment started' });
   }
-  const updated = await prisma.releaseNote.update({ where: { id }, data: { status: ReleaseStatus.deployment_started } });
+  
+  // Validate that all tasks are completed
+  const validation = await validateAllTasksCompleted(id);
+  if (!validation.valid) {
+    return res.status(400).json({
+      error: 'Cannot start deployment',
+      message: 'All tasks must be completed before deployment can be started',
+      incompleteTasks: validation.incompleteTasks,
+    });
+  }
+  
+  const updated = await prisma.releaseNote.update({ 
+    where: { id }, 
+    data: { 
+      status: ReleaseStatus.deployment_started,
+      updatedBy: (req as AuthRequest).user?.id || null,
+    } 
+  });
   res.json(updated);
 });
 

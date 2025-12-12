@@ -310,7 +310,7 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         title="Select Tasks for Release Note"
         initialSelectedIds={selectedTaskIds}
         showAllTasks={true}
-        allowedStatuses={['completed']}
+        allowedStatuses={['completed', 'testing']}
         excludedTaskIds={blockedTaskIds}
         alwaysIncludeTasks={selectedTasks}
       />

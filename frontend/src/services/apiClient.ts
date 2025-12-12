@@ -1,6 +1,6 @@
 import { env } from '../constants/env';
 
-export type ApiError = { message: string; status?: number };
+export type ApiError = { message: string; status?: number; data?: any };
 
 function baseUrl() {
   return env.app_backend_url || '';
@@ -18,7 +18,13 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { skipAuth?
     const errorMessage = json && data?.error ? data.error : (json && data?.message ? data.message : 'Request failed');
     try {
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('api-error', { detail: { message: errorMessage, status: res.status } }));
+        window.dispatchEvent(new CustomEvent('api-error', { 
+          detail: { 
+            message: errorMessage, 
+            status: res.status,
+            data: json ? data : undefined
+          } 
+        }));
       }
     } catch {}
     if (res.status === 401 || (res.status === 403 && (
@@ -38,7 +44,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { skipAuth?
         }
       }
     }
-    throw { message: errorMessage, status: res.status } as ApiError;
+    throw { message: errorMessage, status: res.status, data: json ? data : undefined } as ApiError & { data?: any };
   }
   return data as T;
 }
