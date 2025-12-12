@@ -20,7 +20,7 @@ import filterPresetsRouter from './routes/filterPresets';
 import tasksRouter from './routes/tasks';
 import sprintsRouter from './routes/sprints';
 import notificationsRouter from './routes/notifications';
-import { requireApprovedUser } from './middleware/auth';
+import { requireApprovedUser, skipAuthForPaths } from './middleware/auth';
 import { initializeSocket } from './socket/socket';
 
 const app = express();
@@ -40,7 +40,8 @@ app.use('/services', requireApprovedUser, servicesRouter);
 app.use('/credentials', requireApprovedUser, credentialsRouter);
 app.use('/groups', requireApprovedUser, groupsRouter);
 app.use('/tags', requireApprovedUser, tagsRouter);
-app.use('/release-notes', requireApprovedUser, releaseNotesRouter);
+// Release notes router with conditional auth - public routes skip auth
+app.use('/release-notes', skipAuthForPaths(['/public/:token'], requireApprovedUser), releaseNotesRouter);
 app.use('/domains', requireApprovedUser, domainsRouter);
 app.use('/dashboard', requireApprovedUser, dashboardRouter);
 app.use('/resource-map', requireApprovedUser, resourceMapRouter);

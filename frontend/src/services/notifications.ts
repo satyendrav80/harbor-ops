@@ -13,6 +13,10 @@ export type Notification = {
   comment?: {
     id: number;
   };
+  releaseNoteId?: number;
+  releaseNote?: {
+    id: number;
+  };
   title: string;
   message: string;
   read: boolean;

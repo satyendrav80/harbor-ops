@@ -57,8 +57,16 @@ export async function list(context: RequestContext): Promise<ListResult> {
               select: {
                 id: true,
                 title: true,
+                description: true,
                 status: true,
                 type: true,
+                sprint: {
+                  select: {
+                    id: true,
+                    name: true,
+                    status: true,
+                  },
+                },
               },
             },
           },

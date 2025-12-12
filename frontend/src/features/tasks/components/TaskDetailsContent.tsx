@@ -14,6 +14,8 @@ import { useQuery } from '@tanstack/react-query';
 import { getUsers } from '../../../services/users';
 import { RichTextEditor } from '../../../components/common/RichTextEditor';
 import { SearchableSelect } from '../../../components/common/SearchableSelect';
+import { toast } from 'react-hot-toast';
+import { CopyButton } from '../../../components/common/CopyButton';
 
 const statusColors: Record<TaskStatus, string> = {
   pending: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
@@ -263,6 +265,7 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
     setReopenReason('');
   };
 
+
   return (
     <div>
       {/* Header */}
@@ -288,6 +291,10 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
           </div>
 
           <div className="flex items-center gap-2">
+            <CopyButton
+              text={`${window.location.origin}/tasks?taskId=${taskId}`}
+              iconOnly={true}
+            />
             {hasPermission('tasks:create') && (
               <button
                 onClick={() => setIsSubtaskModalOpen(true)}

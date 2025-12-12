@@ -30,9 +30,10 @@ const formatRelativeTime = (date: string) => {
 
 type NotificationBellProps = {
   onTaskClick?: (taskId: number) => void;
+  onReleaseNoteClick?: (releaseNoteId: number) => void;
 };
 
-export function NotificationBell({ onTaskClick }: NotificationBellProps) {
+export function NotificationBell({ onTaskClick, onReleaseNoteClick }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -216,6 +217,15 @@ export function NotificationBell({ onTaskClick }: NotificationBellProps) {
         onTaskClick(notification.taskId);
       } else {
         navigate(`/tasks/${notification.taskId}`);
+      }
+    }
+    
+    // Navigate to release note if available
+    if (notification.releaseNoteId) {
+      if (onReleaseNoteClick) {
+        onReleaseNoteClick(notification.releaseNoteId);
+      } else {
+        navigate(`/release-notes?releaseNoteId=${notification.releaseNoteId}`);
       }
     }
   };

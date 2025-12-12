@@ -8,6 +8,7 @@ export async function createNotification(data: {
   type: string;
   taskId?: number;
   commentId?: number;
+  releaseNoteId?: number;
   title: string;
   message: string;
 }) {
@@ -17,6 +18,7 @@ export async function createNotification(data: {
       type: data.type,
       taskId: data.taskId,
       commentId: data.commentId,
+      releaseNoteId: data.releaseNoteId,
       title: data.title,
       message: data.message,
     },
@@ -28,6 +30,11 @@ export async function createNotification(data: {
         },
       },
       comment: {
+        select: {
+          id: true,
+        },
+      },
+      releaseNote: {
         select: {
           id: true,
         },

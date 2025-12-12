@@ -2,13 +2,15 @@ import { Router } from 'express';
 import { PrismaClient, ReleaseStatus } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 import { list, getMetadata } from '../controllers/releaseNotesController';
+import { list as listService } from '../services/releaseNotes';
 import { createNotification } from '../services/notifications';
 import { emitEntityChanged } from '../socket/socket';
+import { randomBytes } from 'crypto';
 
 const prisma = new PrismaClient();
 const router = Router();
 
-async function notifyReleaseNoteDeployUsers(releaseNote: any) {
+async function notifyReleaseNoteDeployUsers(releaseNote: any, createdByUserId?: string | null) {
   const deployUsers = await prisma.user.findMany({
     where: {
       roles: {
@@ -40,6 +42,10 @@ async function notifyReleaseNoteDeployUsers(releaseNote: any) {
 
   await Promise.all(
     deployUsers.map((user) => {
+      // Skip the creator if they have deploy access
+      if (createdByUserId && user.id === createdByUserId) {
+        return null;
+      }
       if (!user.id || notified.has(user.id)) return null;
       notified.add(user.id);
       return createNotification({
@@ -47,10 +53,70 @@ async function notifyReleaseNoteDeployUsers(releaseNote: any) {
         type: 'release_note_created',
         title: 'New release note created',
         message: `A release note for ${serviceName} was created`,
+        releaseNoteId: releaseNote.id,
       }).catch(() => null);
     })
   );
 }
+
+// Public route - no auth required (handled by skipAuthForPaths middleware)
+// GET /release-notes/public/:token (public view - no auth required)
+router.get('/public/:token', async (req, res) => {
+  const { token } = req.params;
+  
+  const shareLink = await prisma.releaseNoteShareLink.findUnique({
+    where: { shareToken: token },
+  });
+
+  if (!shareLink) {
+    return res.status(404).json({ error: 'Share link not found or expired' });
+  }
+
+  // Check if expired
+  if (shareLink.expiresAt && shareLink.expiresAt < new Date()) {
+    return res.status(410).json({ error: 'Share link has expired' });
+  }
+
+  // Update view count and last viewed
+  await prisma.releaseNoteShareLink.update({
+    where: { id: shareLink.id },
+    data: {
+      viewCount: { increment: 1 },
+      lastViewedAt: new Date(),
+    },
+  });
+
+  // Fetch release notes with filters
+  const filters = shareLink.filters as any;
+  
+  // Use the list service to get filtered release notes
+  const context = {
+    body: { 
+      filters: filters || undefined,
+      page: 1,
+      limit: 100, // Get more results for public view
+    },
+    query: {},
+    params: {},
+    headers: {},
+  };
+
+  try {
+    const result = await listService(context);
+    res.json({
+      shareLink: {
+        id: shareLink.id,
+        createdAt: shareLink.createdAt,
+        expiresAt: shareLink.expiresAt,
+        viewCount: shareLink.viewCount + 1, // Include the increment
+      },
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch release notes' });
+  }
+});
 
 router.use(requireAuth);
 
@@ -103,6 +169,122 @@ router.get('/filter-metadata', getMetadata);
  */
 router.post('/list', list);
 
+// Share links routes - must be defined before /:id route to avoid route conflicts
+// POST /release-notes/share-links (create share link)
+router.post('/share-links', requirePermission('release-notes:view'), async (req: AuthRequest, res) => {
+  const { filters, expiresInDays } = req.body as { 
+    filters?: any; 
+    expiresInDays?: number | null; 
+  };
+
+  // Validate that at least one filter is present
+  if (!filters || (typeof filters === 'object' && Object.keys(filters).length === 0)) {
+    return res.status(400).json({ error: 'At least one filter is required to create a share link' });
+  }
+
+  // Generate a secure random token
+  const shareToken = randomBytes(32).toString('hex');
+  
+  // Calculate expiry date (null means never expires)
+  let expiresAt: Date | null = null;
+  if (expiresInDays !== null && expiresInDays !== undefined) {
+    expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+  }
+
+  const shareLink = await prisma.releaseNoteShareLink.create({
+    data: {
+      shareToken,
+      filters: filters || null,
+      expiresAt,
+      createdBy: req.user?.id || null,
+    },
+  });
+
+  res.status(201).json(shareLink);
+});
+
+// GET /release-notes/share-links (list user's share links)
+router.get('/share-links', requirePermission('release-notes:view'), async (req: AuthRequest, res) => {
+  const shareLinks = await prisma.releaseNoteShareLink.findMany({
+    where: {
+      createdBy: req.user?.id || undefined,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+
+  res.json(shareLinks);
+});
+
+// DELETE /release-notes/share-links/:id (delete share link)
+router.delete('/share-links/:id', requirePermission('release-notes:view'), async (req: AuthRequest, res) => {
+  const id = req.params.id;
+  const shareLink = await prisma.releaseNoteShareLink.findUnique({ where: { id } });
+  
+  if (!shareLink) {
+    return res.status(404).json({ error: 'Share link not found' });
+  }
+
+  // Only allow creator to delete
+  if (shareLink.createdBy !== req.user?.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  await prisma.releaseNoteShareLink.delete({ where: { id } });
+  res.status(204).end();
+});
+
+// GET /release-notes/:id (get single release note)
+router.get('/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid release note ID' });
+  }
+
+  const releaseNote = await prisma.releaseNote.findUnique({
+    where: { id },
+    include: {
+      service: {
+        select: {
+          id: true,
+          name: true,
+          port: true,
+        },
+      },
+      createdByUser: { select: { id: true, name: true, email: true } },
+      updatedByUser: { select: { id: true, name: true, email: true } },
+      tasks: {
+        include: {
+          task: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              status: true,
+              type: true,
+              sprint: {
+                select: {
+                  id: true,
+                  name: true,
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!releaseNote) {
+    return res.status(404).json({ error: 'Release note not found' });
+  }
+
+  res.json(releaseNote);
+});
+
 // GET /release-notes?status=pending&serviceId=123
 router.get('/', async (req, res) => {
   const page = parseInt(req.query.page as string) || 1;
@@ -145,8 +327,16 @@ router.get('/', async (req, res) => {
               select: {
                 id: true,
                 title: true,
+                description: true,
                 status: true,
                 type: true,
+                sprint: {
+                  select: {
+                    id: true,
+                    name: true,
+                    status: true,
+                  },
+                },
               },
             },
           },
@@ -234,8 +424,16 @@ router.post('/', requirePermission('release-notes:create'), async (req: AuthRequ
               select: {
                 id: true,
                 title: true,
+                description: true,
                 status: true,
                 type: true,
+                sprint: {
+                  select: {
+                    id: true,
+                    name: true,
+                    status: true,
+                  },
+                },
               },
             },
           },
@@ -245,7 +443,7 @@ router.post('/', requirePermission('release-notes:create'), async (req: AuthRequ
   });
 
   try {
-    await notifyReleaseNoteDeployUsers(created);
+    await notifyReleaseNoteDeployUsers(created, req.user?.id);
   } catch (err) {
     // ignore notification failures
   }
@@ -316,8 +514,16 @@ router.put('/:id', requirePermission('release-notes:update'), async (req: AuthRe
               select: {
                 id: true,
                 title: true,
+                description: true,
                 status: true,
                 type: true,
+                sprint: {
+                  select: {
+                    id: true,
+                    name: true,
+                    status: true,
+                  },
+                },
               },
             },
           },

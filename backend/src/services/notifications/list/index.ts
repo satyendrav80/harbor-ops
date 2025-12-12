@@ -30,6 +30,11 @@ export async function listNotifications(userId: string, options?: {
             id: true,
           },
         },
+        releaseNote: {
+          select: {
+            id: true,
+          },
+        },
         user: {
           select: {
             id: true,

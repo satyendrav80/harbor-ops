@@ -65,7 +65,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
   // On desktop (>= lg), sidebar is always visible at 256px width
   if (size === 'full') {
     return (
-      <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose}>
+      <div className="fixed inset-0 z-[60] bg-black/50" onClick={onClose}>
         <div
           ref={modalRef}
           className="bg-white dark:bg-[#1C252E] shadow-lg h-full flex flex-col lg:ml-64" // Sidebar width (w-64 = 256px) only on desktop
@@ -91,7 +91,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
       <div
         ref={modalRef}
         className={`bg-white dark:bg-[#1C252E] rounded-xl shadow-lg w-full ${sizeClasses[size]} max-h-[90vh] overflow-hidden flex flex-col`}

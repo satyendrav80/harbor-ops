@@ -72,3 +72,35 @@ export async function requireApprovedUser(req: AuthRequest, res: Response, next:
     return res.status(401).json({ error: 'Invalid token' });
   }
 }
+
+/**
+ * Middleware wrapper that conditionally skips authentication for specific paths
+ * @param paths - Array of path patterns to skip auth for (supports Express path patterns)
+ *                 Paths are relative to the router mount point
+ * @param authMiddleware - The authentication middleware to apply conditionally
+ */
+export function skipAuthForPaths(paths: string[], authMiddleware: (req: AuthRequest, res: Response, next: NextFunction) => void | Promise<void>) {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    // Check if the current path matches any of the skip patterns
+    // req.path is relative to the mount point when inside a router
+    const currentPath = req.path;
+    const shouldSkip = paths.some(pattern => {
+      // Convert Express pattern to regex
+      // Pattern like "/public/:token" should match "/public/abc123"
+      const regexPattern = pattern
+        .replace(/\//g, '\\/')
+        .replace(/:(\w+)/g, '[^/]+')  // Replace :param with [^/]+
+        .replace(/\*/g, '.*');        // Replace * with .*
+      const regex = new RegExp(`^${regexPattern}$`);
+      return regex.test(currentPath);
+    });
+
+    if (shouldSkip) {
+      // Skip authentication for this path
+      return next();
+    }
+
+    // Apply authentication middleware for other paths
+    return authMiddleware(req, res, next);
+  };
+}

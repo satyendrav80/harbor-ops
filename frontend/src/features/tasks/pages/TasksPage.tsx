@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/context/AuthContext';
+import { useSidePanelSync } from '../../../hooks/useSidePanelSync';
 import { useTasks } from '../hooks/useTaskQueries';
 import { useTasksAdvanced } from '../hooks/useTasksAdvanced';
 import { TaskModal } from '../components/TaskModal';
@@ -49,7 +50,14 @@ export function TasksPage() {
     (searchParams.get('viewMode') as 'grid' | 'table') || 'grid'
   );
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
-  const [sidePanelTaskId, setSidePanelTaskId] = useState<number | null>(null);
+  
+  // Initialize side panel from URL params
+  const urlTaskId = searchParams.get('taskId');
+  const {
+    panelId: sidePanelTaskId,
+    openPanel: openTaskPanel,
+    closePanel: closeTaskPanel,
+  } = useSidePanelSync('taskId', urlTaskId ? Number(urlTaskId) : null);
 
   const debouncedSearch = useDebounce(searchQuery, 500);
 
@@ -454,7 +462,9 @@ export function TasksPage() {
                       className="rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50 bg-white dark:bg-gray-800"
                     />
                   </td>
-                  <td className="px-4 py-3 cursor-pointer" onClick={() => setSidePanelTaskId(task.id)}>
+                  <td className="px-4 py-3 cursor-pointer" onClick={() => {
+                    openTaskPanel(task.id);
+                  }}>
                     <div className="flex items-center gap-2">
                       <span className="text-base">
                         {task.type === 'bug' && '🐛'}
@@ -522,7 +532,7 @@ export function TasksPage() {
                         className="flex items-center gap-1 hover:text-primary cursor-pointer max-w-[150px] truncate"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSidePanelTaskId(task.parentTask!.id);
+                          openTaskPanel(task.parentTask!.id);
                         }}
                       >
                         <span className="text-xs">↳</span> {task.parentTask.title}
@@ -561,10 +571,10 @@ export function TasksPage() {
                     e.stopPropagation();
                     toggleTaskSelection(task.id);
                   } else {
-                    setSidePanelTaskId(task.id);
+                    openTaskPanel(task.id);
                   }
                 }}
-                onParentTaskClick={(id) => setSidePanelTaskId(id)}
+                onParentTaskClick={openTaskPanel}
               />
             </div>
           </div>
@@ -721,9 +731,9 @@ export function TasksPage() {
       {/* Task Details Side Panel */}
       <TaskDetailsSidePanel
         isOpen={sidePanelTaskId !== null}
-        onClose={() => setSidePanelTaskId(null)}
+        onClose={closeTaskPanel}
         taskId={sidePanelTaskId}
-        onTaskClick={(id) => setSidePanelTaskId(id)}
+        onTaskClick={openTaskPanel}
       />
     </div>
   );

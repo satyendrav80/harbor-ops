@@ -23,8 +23,9 @@ export function useUpdateReleaseNote() {
   return useMutation({
     mutationFn: ({ id, note, publishDate, serviceId, taskIds }: { id: number; note?: string; publishDate?: string; serviceId?: number; taskIds?: number[] }) =>
       updateReleaseNote(id, note, publishDate, serviceId, taskIds),
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['release-notes'] });
+      queryClient.invalidateQueries({ queryKey: ['release-note', variables.id] });
     },
   });
 }
@@ -33,8 +34,9 @@ export function useMarkReleaseNoteDeployed() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => markReleaseNoteDeployed(id),
-    onSuccess: () => {
+    onSuccess: (data, id) => {
       queryClient.invalidateQueries({ queryKey: ['release-notes'] });
+      queryClient.invalidateQueries({ queryKey: ['release-note', id] });
     },
   });
 }
@@ -43,8 +45,9 @@ export function useMarkReleaseNoteDeploymentStarted() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => markReleaseNoteDeploymentStarted(id),
-    onSuccess: () => {
+    onSuccess: (data, id) => {
       queryClient.invalidateQueries({ queryKey: ['release-notes'] });
+      queryClient.invalidateQueries({ queryKey: ['release-note', id] });
     },
   });
 }
@@ -53,7 +56,10 @@ export function useDeleteReleaseNote() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => deleteReleaseNote(id),
-    onSuccess: () => {
+    onSuccess: (data, id) => {
+      // Remove the specific item from cache to prevent further queries
+      queryClient.removeQueries({ queryKey: ['release-note', id] });
+      // Invalidate the list to refresh it
       queryClient.invalidateQueries({ queryKey: ['release-notes'] });
     },
   });

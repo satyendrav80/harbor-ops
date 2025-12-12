@@ -129,7 +129,13 @@ export function AppLayout({ children }: AppLayoutProps) {
           </button>
           <div className="flex-1" />
           <div className="flex items-center gap-2">
-            <NotificationBell onTaskClick={(id) => setSidePanelTaskId(id)} />
+            <NotificationBell 
+              onTaskClick={(id) => setSidePanelTaskId(id)}
+              onReleaseNoteClick={(id) => {
+                // Navigate to release notes page with the release note ID
+                navigate(`/release-notes?releaseNoteId=${id}`);
+              }}
+            />
           <ThemeToggle />
           </div>
         </header>

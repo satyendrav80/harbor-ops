@@ -31,8 +31,14 @@ export type ReleaseNote = {
     task: {
       id: number;
       title: string;
+      description?: string | null;
       status: string;
       type: string;
+      sprint?: {
+        id: number;
+        name: string;
+        status: string;
+      } | null;
     };
   }>;
 };
@@ -154,10 +160,81 @@ export async function listReleaseNotesAdvanced(request: {
 }
 
 /**
+ * Get a single release note by ID
+ */
+export async function getReleaseNote(id: number): Promise<ReleaseNote> {
+  return apiFetch<ReleaseNote>(`/release-notes/${id}`);
+}
+
+/**
  * Get filter metadata
  * GET /release-notes/filter-metadata
  */
 export async function getReleaseNotesFilterMetadata(): Promise<any> {
   return apiFetch<any>('/release-notes/filter-metadata');
+}
+
+export type ReleaseNoteShareLink = {
+  id: string;
+  shareToken: string;
+  filters?: any;
+  expiresAt?: string | null;
+  createdAt: string;
+  createdBy?: string | null;
+  viewCount: number;
+  lastViewedAt?: string | null;
+};
+
+/**
+ * Create a public share link
+ */
+export async function createReleaseNoteShareLink(
+  filters?: any,
+  expiresInDays?: number | null
+): Promise<ReleaseNoteShareLink> {
+  return apiFetch<ReleaseNoteShareLink>('/release-notes/share-links', {
+    method: 'POST',
+    body: JSON.stringify({ filters, expiresInDays }),
+  });
+}
+
+/**
+ * Get user's share links
+ */
+export async function getReleaseNoteShareLinks(): Promise<ReleaseNoteShareLink[]> {
+  return apiFetch<ReleaseNoteShareLink[]>('/release-notes/share-links');
+}
+
+/**
+ * Delete a share link
+ */
+export async function deleteReleaseNoteShareLink(id: string): Promise<void> {
+  return apiFetch<void>(`/release-notes/share-links/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Get public release notes via share token (no auth required)
+ */
+export async function getPublicReleaseNotes(token: string): Promise<{
+  shareLink: {
+    id: string;
+    createdAt: string;
+    expiresAt?: string | null;
+    viewCount: number;
+  };
+  data: ReleaseNote[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}> {
+  return apiFetch(`/release-notes/public/${token}`, {
+    method: 'GET',
+    skipAuth: true, // Public endpoint, no auth required
+  });
 }
 

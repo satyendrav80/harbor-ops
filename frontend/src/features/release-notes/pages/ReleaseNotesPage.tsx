@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react';
 import { useAuth } from '../../auth/context/AuthContext';
+import { useSidePanelSync } from '../../../hooks/useSidePanelSync';
 import { useReleaseNotes } from '../hooks/useReleaseNotes';
 import { useReleaseNotesAdvanced } from '../hooks/useReleaseNotesAdvanced';
 import { 
@@ -15,11 +16,12 @@ import {
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ReleaseNoteModal } from '../components/ReleaseNoteModal';
+import { ShareLinkModal } from '../components/ShareLinkModal';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { SelectionBar } from '../../../components/common/SelectionBar';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
 import { AdvancedFiltersPanel } from '../components/AdvancedFiltersPanel';
-import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle, Filter as FilterIcon } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle, Filter as FilterIcon, Share2 } from 'lucide-react';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import { getReleaseNotesFilterMetadata } from '../../../services/releaseNotes';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
@@ -27,12 +29,13 @@ import { usePageTitle } from '../../../hooks/usePageTitle';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getServices } from '../../../services/services';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import type { Filter } from '../types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../utils/urlSync';
 import { hasActiveFilters } from '../utils/filterState';
 import { TaskDetailsSidePanel } from '../../tasks/components/TaskDetailsSidePanel';
 import { ServiceDetailsSidePanel } from '../../services/components/ServiceDetailsSidePanel';
+import { ReleaseNoteDetailsSidePanel } from '../components/ReleaseNoteDetailsSidePanel';
 import dayjs from '../../../utils/dayjs';
 import { toast } from 'react-hot-toast';
 import { getSocket } from '../../../services/socket';
@@ -46,6 +49,7 @@ const ReleaseNotesHeader = memo(({
   onStatusFilterChange,
   onCreateClick,
   onAdvancedFiltersClick,
+  onShareClick,
   hasActiveAdvancedFilters,
   hasPermission,
 }: {
@@ -55,6 +59,7 @@ const ReleaseNotesHeader = memo(({
   onStatusFilterChange: (value: 'pending' | 'deployed' | 'deployment_started' | 'all') => void;
   onCreateClick: () => void;
   onAdvancedFiltersClick: () => void;
+  onShareClick: () => void;
   hasActiveAdvancedFilters: boolean;
   hasPermission: (permission: string) => boolean;
 }) => {
@@ -115,6 +120,22 @@ const ReleaseNotesHeader = memo(({
             Create Release Note
           </button>
         )}
+        <Link
+          to="/release-notes/share-links"
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          title="Manage share links"
+        >
+          <Share2 className="w-4 h-4" />
+          Manage Links
+        </Link>
+        <button
+          onClick={onShareClick}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          title="Create public share link"
+        >
+          <Share2 className="w-4 h-4" />
+          Share
+        </button>
       </div>
     </header>
   );
@@ -136,6 +157,7 @@ ReleaseNotesHeader.displayName = 'ReleaseNotesHeader';
 // Memoized list item component - only re-renders when its own data changes
 const ReleaseNoteItem = memo(({
   releaseNote,
+  onView,
   onEdit,
   onMarkDeployed,
   onMarkDeploymentStarted,
@@ -151,6 +173,7 @@ const ReleaseNoteItem = memo(({
   onServiceClick,
 }: {
   releaseNote: ReleaseNote;
+  onView: (releaseNote: ReleaseNote) => void;
   onEdit: (releaseNote: ReleaseNote) => void;
   onMarkDeployed: (id: number) => void;
   onMarkDeploymentStarted: (id: number) => void;
@@ -189,11 +212,11 @@ const ReleaseNoteItem = memo(({
                   if (isSelected) onDeselect(releaseNote.id);
                   else onSelect(releaseNote.id);
                 } else {
-                  onEdit(releaseNote);
+                  onView(releaseNote);
                 }
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') onEdit(releaseNote);
+                if (e.key === 'Enter') onView(releaseNote);
               }}
               role="button"
               tabIndex={0}
@@ -306,10 +329,60 @@ const ReleaseNoteItem = memo(({
               label="Content"
               placeholder='Click "Expand" to view full content'
             >
-              <div
-                className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline whitespace-pre-wrap"
-                dangerouslySetInnerHTML={{ __html: releaseNote.note }}
-              />
+              <div className="space-y-4">
+                {/* Note Content - Shown First */}
+                {releaseNote.note && (
+                  <div
+                    className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline whitespace-pre-wrap"
+                    dangerouslySetInnerHTML={{ __html: releaseNote.note }}
+                  />
+                )}
+                
+                {/* Tasks List - Shown Below Note Content */}
+                {releaseNote.tasks && releaseNote.tasks.length > 0 && (
+                  <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                      Added Tasks
+                    </h4>
+                    {releaseNote.tasks.map((releaseNoteTask) => {
+                      const task = releaseNoteTask.task;
+                      const typeIcons: Record<string, string> = {
+                        bug: '🐛',
+                        feature: '✨',
+                        todo: '📝',
+                        epic: '🎯',
+                        improvement: '⚡',
+                      };
+                      return (
+                        <div key={task.id} className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{typeIcons[task.type] || '📝'}</span>
+                            <h5 className="text-sm font-semibold text-gray-900 dark:text-white">
+                              {task.title}
+                            </h5>
+                          </div>
+                          {task.description && (
+                            <div
+                              className="prose prose-sm dark:prose-invert max-w-none text-xs text-gray-600 dark:text-gray-400 ml-6 [&_h1]:text-xs [&_h2]:text-xs [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline"
+                              dangerouslySetInnerHTML={{ __html: task.description }}
+                            />
+                          )}
+                          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 ml-6">
+                            <span>
+                              Status: <span className="capitalize">{task.status.replace('_', ' ')}</span>
+                            </span>
+                            {task.sprint && (
+                              <span>
+                                Sprint: <span className="font-medium">{task.sprint.name}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </ExpandableContent>
           </div>
           {/* Service Link */}
@@ -432,6 +505,7 @@ ReleaseNoteItem.displayName = 'ReleaseNoteItem';
 // Memoized list container - prevents re-rendering the entire list when individual items change
 const ReleaseNotesList = memo(({
   releaseNotes,
+  onView,
   onEdit,
   onMarkDeployed,
   onMarkDeploymentStarted,
@@ -449,6 +523,7 @@ const ReleaseNotesList = memo(({
   onServiceClick,
 }: {
   releaseNotes: ReleaseNote[];
+  onView: (releaseNote: ReleaseNote) => void;
   onEdit: (releaseNote: ReleaseNote) => void;
   onMarkDeployed: (id: number) => void;
   onMarkDeploymentStarted: (id: number) => void;
@@ -471,6 +546,7 @@ const ReleaseNotesList = memo(({
         <ReleaseNoteItem
           key={releaseNote.id}
           releaseNote={releaseNote}
+          onView={onView}
           onEdit={onEdit}
           onMarkDeployed={onMarkDeployed}
           onMarkDeploymentStarted={onMarkDeploymentStarted}
@@ -515,6 +591,7 @@ const ReleaseNotesList = memo(({
   // Check other props
   return (
     selectedIdsEqual &&
+    prevProps.onView === nextProps.onView &&
     prevProps.onEdit === nextProps.onEdit &&
     prevProps.onMarkDeployed === nextProps.onMarkDeployed &&
     prevProps.onMarkDeploymentStarted === nextProps.onMarkDeploymentStarted &&
@@ -556,8 +633,26 @@ export function ReleaseNotesPage() {
   const [statusFilter, setStatusFilter] = useState<'pending' | 'deployed' | 'deployment_started' | 'all'>(initialStatusFilter);
   const [releaseNoteModalOpen, setReleaseNoteModalOpen] = useState(false);
   const [selectedReleaseNoteForEdit, setSelectedReleaseNoteForEdit] = useState<ReleaseNote | null>(null);
-  const [sidePanelTaskId, setSidePanelTaskId] = useState<number | null>(null);
-  const [sidePanelServiceId, setSidePanelServiceId] = useState<number | null>(null);
+  const [shareLinkModalOpen, setShareLinkModalOpen] = useState(false);
+  // Initialize side panel from URL params
+  const urlReleaseNoteId = searchParams.get('releaseNoteId');
+  const {
+    panelId: sidePanelReleaseNoteId,
+    openPanel: openReleaseNotePanel,
+    closePanel: closeReleaseNotePanel,
+  } = useSidePanelSync('releaseNoteId', urlReleaseNoteId ? Number(urlReleaseNoteId) : null);
+  
+  const {
+    panelId: sidePanelTaskId,
+    openPanel: openTaskPanel,
+    closePanel: closeTaskPanel,
+  } = useSidePanelSync('taskId', null);
+  
+  const {
+    panelId: sidePanelServiceId,
+    openPanel: openServicePanel,
+    closePanel: closeServicePanel,
+  } = useSidePanelSync('serviceId', null);
 
   // Fetch filter metadata
   const { data: filterMetadata } = useQuery({
@@ -724,10 +819,24 @@ export function ReleaseNotesPage() {
     setReleaseNoteModalOpen(true);
   }, []);
 
+  const handleViewReleaseNote = useCallback((releaseNote: ReleaseNote) => {
+    openReleaseNotePanel(releaseNote.id);
+  }, [openReleaseNotePanel]);
+
   const handleEditReleaseNote = useCallback((releaseNote: ReleaseNote) => {
     setSelectedReleaseNoteForEdit(releaseNote);
     setReleaseNoteModalOpen(true);
   }, []);
+
+  const handleEditFromDetail = useCallback((releaseNoteId: number) => {
+    // Find the release note from the current list
+    const releaseNote = releaseNotes.find(rn => rn.id === releaseNoteId);
+    if (releaseNote) {
+      closeReleaseNotePanel();
+      setSelectedReleaseNoteForEdit(releaseNote);
+      setReleaseNoteModalOpen(true);
+    }
+  }, [releaseNotes, closeReleaseNotePanel]);
 
   const handleMarkDeployed = useCallback(async (id: number) => {
     try {
@@ -907,6 +1016,7 @@ export function ReleaseNotesPage() {
         onStatusFilterChange={handleStatusFilterChange}
         onCreateClick={handleCreateReleaseNote}
         onAdvancedFiltersClick={() => setAdvancedFiltersOpen(true)}
+        onShareClick={() => setShareLinkModalOpen(true)}
         hasActiveAdvancedFilters={hasActiveFilters(advancedFilters) || false}
         hasPermission={hasPermission}
       />
@@ -968,6 +1078,7 @@ export function ReleaseNotesPage() {
       ) : (
         <ReleaseNotesList
           releaseNotes={releaseNotes}
+          onView={handleViewReleaseNote}
           onEdit={handleEditReleaseNote}
           onMarkDeployed={handleMarkDeployed}
           onMarkDeploymentStarted={handleMarkDeploymentStarted}
@@ -981,8 +1092,8 @@ export function ReleaseNotesPage() {
           selectedIds={selectedIds}
           onSelect={handleSelect}
           onDeselect={handleDeselect}
-          onTaskClick={(id: number) => setSidePanelTaskId(id)}
-          onServiceClick={(id: number) => setSidePanelServiceId(id)}
+          onTaskClick={openTaskPanel}
+          onServiceClick={openServicePanel}
         />
       )}
 
@@ -1008,6 +1119,13 @@ export function ReleaseNotesPage() {
         }}
         releaseNote={selectedReleaseNoteForEdit}
         services={servicesData?.data || []}
+      />
+
+      {/* Share Link Modal */}
+      <ShareLinkModal
+        isOpen={shareLinkModalOpen}
+        onClose={() => setShareLinkModalOpen(false)}
+        filters={hasActiveFilters(advancedFilters) ? advancedFilters : undefined}
       />
       <ConfirmationDialog
         isOpen={deleteConfirmOpen}
@@ -1037,18 +1155,28 @@ export function ReleaseNotesPage() {
         isLoading={bulkDeleteReleaseNotes.isPending}
       />
 
+      {/* Release Note Details Side Panel */}
+      <ReleaseNoteDetailsSidePanel
+        isOpen={sidePanelReleaseNoteId !== null}
+        onClose={closeReleaseNotePanel}
+        releaseNoteId={sidePanelReleaseNoteId}
+        onTaskClick={openTaskPanel}
+        onServiceClick={openServicePanel}
+        onEdit={handleEditFromDetail}
+      />
+
       {/* Task Details Side Panel */}
       <TaskDetailsSidePanel
         isOpen={sidePanelTaskId !== null}
-        onClose={() => setSidePanelTaskId(null)}
+        onClose={closeTaskPanel}
         taskId={sidePanelTaskId}
-        onTaskClick={(id) => setSidePanelTaskId(id)}
+        onTaskClick={openTaskPanel}
       />
       <ServiceDetailsSidePanel
         isOpen={sidePanelServiceId !== null}
-        onClose={() => setSidePanelServiceId(null)}
+        onClose={closeServicePanel}
         serviceId={sidePanelServiceId}
-        onServiceClick={(id) => setSidePanelServiceId(id)}
+        onServiceClick={openServicePanel}
         onServerClick={(id) => {/* Could add server side panel if needed */}}
         onCredentialClick={(id) => {/* Could add credential side panel if needed */}}
       />

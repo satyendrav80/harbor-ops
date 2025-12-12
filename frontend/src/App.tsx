@@ -12,6 +12,8 @@ import { CredentialsPage } from './features/credentials/pages/CredentialsPage';
 import { DomainsPage } from './features/domains/pages/DomainsPage';
 import { TagsPage } from './features/tags/pages/TagsPage';
 import { ReleaseNotesPage } from './features/release-notes/pages/ReleaseNotesPage';
+import { PublicReleaseNotesPage } from './features/release-notes/pages/PublicReleaseNotesPage';
+import { ShareLinksPage } from './features/release-notes/pages/ShareLinksPage';
 import { ResourceMapPage } from './features/resource-map/pages/ResourceMapPage';
 import { TasksPage } from './features/tasks/pages/TasksPage';
 import { TaskDetailsPage } from './features/tasks/pages/TaskDetailsPage';
@@ -109,12 +111,28 @@ export default function App() {
         }
       />
       <Route
+        path="/release-notes/public/:token"
+        element={<PublicReleaseNotesPage />}
+      />
+      <Route
         path="/release-notes"
         element={
           <RequireAuth>
             <RequirePermission permission="release-notes:view">
               <AppLayout>
                 <ReleaseNotesPage />
+              </AppLayout>
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/release-notes/share-links"
+        element={
+          <RequireAuth>
+            <RequirePermission permission="release-notes:view">
+              <AppLayout>
+                <ShareLinksPage />
               </AppLayout>
             </RequirePermission>
           </RequireAuth>

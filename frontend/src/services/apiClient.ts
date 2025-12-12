@@ -6,11 +6,11 @@ function baseUrl() {
   return env.app_backend_url || '';
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(path: string, init?: RequestInit & { skipAuth?: boolean }): Promise<T> {
   const token = localStorage.getItem('token');
   const headers = new Headers(init?.headers ?? {});
   headers.set('Content-Type', 'application/json');
-  if (token) headers.set('Authorization', `Bearer ${token}`);
+  if (token && !init?.skipAuth) headers.set('Authorization', `Bearer ${token}`);
   const res = await fetch(`${baseUrl()}${path}`, { ...init, headers });
   const json = res.headers.get('content-type')?.includes('application/json');
   const data = json ? await res.json() : await res.text();
