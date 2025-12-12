@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useCreateComment, useUpdateComment, useDeleteComment, useAddReaction, useRemoveReaction } from '../hooks/useTaskMutations';
 import { useAuth } from '../../auth/context/AuthContext';
-import { Trash2, Edit2, Smile, Quote, CornerDownRight } from 'lucide-react';
+import { Trash2, Edit2, Smile, Quote, CornerDownRight, Send } from 'lucide-react';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { getSocket, joinTaskRoom, leaveTaskRoom } from '../../../services/socket';
 import { useQueryClient } from '@tanstack/react-query';
 import type { TaskComment } from '../../../services/tasks';
+import { RichTextEditor } from '../../../components/common/RichTextEditor';
 
 type CommentThreadProps = {
   taskId: number;
@@ -51,6 +52,16 @@ const findCommentById = (comments: TaskComment[], id: number): TaskComment | und
 
 function QuoteWidget({ comment, onClick }: { comment: TaskComment; onClick?: () => void }) {
   const userName = comment.createdByUser.name || comment.createdByUser.email;
+  
+  // Normalize HTML to plain text
+  const normalizeContent = (htmlContent: string): string => {
+    const div = document.createElement('div');
+    div.innerHTML = htmlContent.replace(/^\[\[quote:\d+\]\]\s*/, ''); // Strip nested quotes
+    return div.innerText || div.textContent || '';
+  };
+  
+  const normalizedText = normalizeContent(comment.content);
+  
   return (
     <div
       onClick={onClick}
@@ -66,7 +77,7 @@ function QuoteWidget({ comment, onClick }: { comment: TaskComment; onClick?: () 
           </span>
         </div>
         <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 italic">
-          {comment.content.replace(/^\[\[quote:\d+\]\]\s*/, '')} {/* Strip nested quotes for display */}
+          {normalizedText}
         </div>
       </div>
     </div>
@@ -102,39 +113,20 @@ function CommentContent({ content, allComments, onTaskClick }: { content: string
     }
   };
 
-  // Remaining linkify logic
-  const parts = displayContent.split(/(#\d+)/g);
-
   return (
-    <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap space-y-2">
+    <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
       {quotedComment && (
         <QuoteWidget comment={quotedComment} onClick={handleQuoteClick} />
       )}
-      {/* If looking for a quote that's missing (deleted/not loaded), maybe show small text? */}
       {quotedCommentId && !quotedComment && (
         <div className="text-xs text-gray-400 italic mb-2">
           Quoted message unavailable
         </div>
       )}
-
-      <div>
-        {parts.map((part, i) => {
-          // Linkify task IDs logic
-          if (part.match(/^#\d+$/)) {
-            const taskId = part.substring(1);
-            return (
-              <button
-                key={i}
-                onClick={() => onTaskClick?.(parseInt(taskId))}
-                className="text-primary hover:underline font-medium"
-              >
-                {part}
-              </button>
-            );
-          }
-          return <span key={i}>{part}</span>;
-        })}
-      </div>
+      <div
+        className="prose prose-sm dark:prose-invert max-w-none break-words"
+        dangerouslySetInnerHTML={{ __html: displayContent }}
+      />
     </div>
   );
 }
@@ -162,27 +154,20 @@ function CommentForm({
 }) {
   const [content, setContent] = useState('');
   const createComment = useCreateComment();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorKey = useMemo(() => `comment-editor-${taskId}-${parentId ?? 'root'}`, [taskId, parentId]);
 
-  // Auto-focus logic
-  useEffect(() => {
-    if ((quotedComment || autoFocus) && textareaRef.current) {
-      // Simple hack to ensure focus works even if already focused
-      textareaRef.current.focus();
-    }
-  }, [quotedComment, autoFocus, focusTrigger]);
-
-  // Auto-resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
+  // Determine if content is empty (strip HTML)
+  const isContentEmpty = useMemo(() => {
+    const div = document.createElement('div');
+    div.innerHTML = content || '';
+    const text = (div.textContent || '').trim();
+    const hasImage = div.querySelector('img');
+    return text.length === 0 && !hasImage;
   }, [content]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!content.trim()) return;
+    if (isContentEmpty) return;
 
     let finalContent = content;
 
@@ -200,24 +185,11 @@ function CommentForm({
       setContent('');
       onClearQuote?.();
       onSuccess?.();
-      // Reset height after submit
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto'; // Reset to default
-      }
     } catch (error) {
       // Error handled by mutation hook
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    } else if (e.key === 'Escape' && onCancel) {
-      e.preventDefault();
-      onCancel();
-    }
-  };
 
   return (
     <div className="space-y-3">
@@ -230,49 +202,66 @@ function CommentForm({
                 {quotedComment.author}
               </span>
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 italic">
-              {quotedComment.content}
-            </div>
+            <button
+              onClick={() => {
+                const element = document.getElementById(`comment-${quotedComment.id}`);
+                if (element) {
+                  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  // Add a temporary highlight class
+                  element.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+                  setTimeout(() => {
+                    element.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+                  }, 2000);
+                }
+              }}
+              className="text-left w-full"
+            >
+              <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 italic hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+                {(() => {
+                  // Normalize HTML to plain text
+                  const div = document.createElement('div');
+                  div.innerHTML = quotedComment.content || '';
+                  let normalizedText = div.innerText || div.textContent || '';
+                  // Remove extra whitespace and normalize line breaks
+                  normalizedText = normalizedText.replace(/\s+/g, ' ').trim();
+                  return normalizedText;
+                })()}
+              </div>
+            </button>
           </div>
           <button
             onClick={onClearQuote}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 flex-shrink-0"
           >
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex gap-2 items-end">
-        <div className="flex-1">
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder || (quotedComment ? "Type your message..." : "Write a comment...")}
-            className="w-full px-4 py-3 text-sm border border-gray-200 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-0 focus:ring-2 focus:ring-primary/50 resize-none overflow-hidden min-h-[44px]"
-            rows={1}
-          />
-        </div>
-        <div className="flex items-center gap-2 pb-1">
-          {onCancel && (
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <RichTextEditor
+          key={editorKey}
+          value={content}
+          onChange={setContent}
+          placeholder={placeholder || (quotedComment ? 'Type your message...' : 'Write a comment...')}
+          minHeight="24px"
+          maxHeight="240px"
+          autoFocus={true}
+          showSendButton={true}
+          sendButtonDisabled={isContentEmpty || createComment.isPending}
+          onSend={handleSubmit}
+        />
+        {onCancel && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onCancel}
-              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5"
+              className="px-3 py-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-white/5 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10"
             >
               Cancel
             </button>
-          )}
-          <button
-            type="submit"
-            disabled={!content.trim() || createComment.isPending}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg disabled:opacity-50 transition-colors h-[40px]"
-          >
-            {createComment.isPending ? 'Posting...' : parentId ? 'Reply' : 'Post'}
-          </button>
-        </div>
+          </div>
+        )}
       </form>
     </div>
   );
@@ -326,8 +315,16 @@ function CommentCard({
     setEditContent(comment.content);
   };
 
+  const isEditEmpty = useMemo(() => {
+    const div = document.createElement('div');
+    div.innerHTML = editContent || '';
+    const text = (div.textContent || '').trim();
+    const hasImage = div.querySelector('img');
+    return text.length === 0 && !hasImage;
+  }, [editContent]);
+
   const handleUpdate = async () => {
-    if (!editContent.trim()) return;
+    if (isEditEmpty) return;
     await updateComment.mutateAsync({
       taskId,
       commentId: comment.id,
@@ -336,12 +333,7 @@ function CommentCard({
     setIsEditing(false);
   };
 
-  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      handleCancelEdit();
-    }
-  };
+  const editEditorKey = useMemo(() => `comment-edit-${comment.id}`, [comment.id]);
 
   const handleDelete = async () => {
     await deleteComment.mutateAsync({ taskId, commentId: comment.id });
@@ -397,18 +389,76 @@ function CommentCard({
         `}>
           {isEditing ? (
             <div className="space-y-2 p-2">
-              <textarea
-                ref={editTextareaRef}
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                onKeyDown={handleEditKeyDown}
-                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 resize-y"
-                rows={3}
+              {/* Show quote in edit mode if present */}
+              {(() => {
+                const quoteMatch = editContent.match(/^\[\[quote:(\d+)\]\]\s*(.*)/s);
+                if (quoteMatch) {
+                  const quotedCommentId = parseInt(quoteMatch[1]);
+                  const quotedComment = findCommentById(allComments, quotedCommentId);
+                  if (quotedComment) {
+                    const userName = quotedComment.createdByUser.name || quotedComment.createdByUser.email;
+                    // Normalize HTML to plain text
+                    const div = document.createElement('div');
+                    div.innerHTML = quotedComment.content.replace(/^\[\[quote:\d+\]\]\s*/, '');
+                    const normalizedText = div.innerText || div.textContent || '';
+                    
+                    return (
+                      <div className="flex items-start gap-3 bg-gray-50 dark:bg-white/5 border-l-4 border-primary rounded-r-lg p-3 relative mb-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold text-xs text-gray-900 dark:text-white">
+                              {userName}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {new Date(quotedComment.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 italic">
+                            {normalizedText}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Remove quote tag from editContent
+                            const newContent = editContent.replace(/^\[\[quote:\d+\]\]\s*/, '');
+                            setEditContent(newContent);
+                          }}
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 flex-shrink-0"
+                          title="Remove quote"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  }
+                }
+                return null;
+              })()}
+              <RichTextEditor
+                key={editEditorKey}
+                value={(() => {
+                  // Extract content without quote tag for editing
+                  const quoteMatch = editContent.match(/^\[\[quote:(\d+)\]\]\s*(.*)/s);
+                  return quoteMatch ? quoteMatch[2] : editContent;
+                })()}
+                onChange={(newContent) => {
+                  // Preserve quote tag if it exists
+                  const quoteMatch = editContent.match(/^\[\[quote:(\d+)\]\]\s*(.*)/s);
+                  if (quoteMatch) {
+                    setEditContent(`[[quote:${quoteMatch[1]}]]\n${newContent}`);
+                  } else {
+                    setEditContent(newContent);
+                  }
+                }}
+                minHeight="24px"
+                maxHeight="240px"
+                autoFocus={true}
               />
               <div className="flex gap-2">
                 <button
                   onClick={handleUpdate}
-                  disabled={updateComment.isPending}
+                  disabled={updateComment.isPending || isEditEmpty}
                   className="px-3 py-1 text-xs font-medium text-white bg-primary hover:bg-primary/90 rounded disabled:opacity-50"
                 >
                   Save
@@ -430,7 +480,7 @@ function CommentCard({
               {/* Actions that appear on hover */}
               <div className="absolute top-0 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 dark:bg-[#1C252E]/80 rounded-lg p-1 backdrop-blur-sm shadow-sm border border-gray-100 dark:border-gray-800">
                 <button
-                  onClick={() => onQuote(comment.id, comment.content, userName, comment.parentId)}
+                  onClick={() => onQuote(comment.id, comment.content, userName, comment.parentId ?? undefined)}
                   className="p-1.5 text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary transition-colors rounded hover:bg-gray-100 dark:hover:bg-white/10"
                   title="Quote"
                 >

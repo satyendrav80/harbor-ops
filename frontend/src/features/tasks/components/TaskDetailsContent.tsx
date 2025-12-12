@@ -12,6 +12,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { Task } from '../../../services/tasks';
 import { useQuery } from '@tanstack/react-query';
 import { getUsers } from '../../../services/users';
+import { RichTextEditor } from '../../../components/common/RichTextEditor';
+import { SearchableSelect } from '../../../components/common/SearchableSelect';
 
 const statusColors: Record<TaskStatus, string> = {
   pending: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
@@ -219,7 +221,11 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
       requiresProceed ||
       requiresNotFixed;
     const wantsReviewComment = selectedStatus === 'in_review';
-    const trimmedReason = statusReason.trim();
+    // Convert HTML to plain text for reason field
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = statusReason;
+    const plainTextReason = tempDiv.textContent || tempDiv.innerText || '';
+    const trimmedReason = plainTextReason.trim();
 
     if (requiresAttention && !statusAttentionId) return;
     if ((requiresReason || needsTestingSkipReason) && !trimmedReason) return;
@@ -244,10 +250,14 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
   };
 
   const handleReopen = async () => {
-    if (!reopenReason.trim()) return;
+    // Convert HTML to plain text for reason field
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = reopenReason;
+    const plainTextReason = tempDiv.textContent || tempDiv.innerText || '';
+    if (!plainTextReason.trim()) return;
     await reopenTask.mutateAsync({
       id: taskId,
-      reason: reopenReason,
+      reason: plainTextReason.trim(),
     });
     setShowReopenDialog(false);
     setReopenReason('');
@@ -529,12 +539,11 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-[#1C252E] rounded-lg p-6 max-w-md w-full">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Reopen Task</h3>
-            <textarea
+            <RichTextEditor
               value={reopenReason}
-              onChange={(e) => setReopenReason(e.target.value)}
+              onChange={setReopenReason}
               placeholder="Reason for reopening..."
-              className="w-full px-4 py-3 text-sm border border-gray-200 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-0 focus:ring-2 focus:ring-primary/50 resize-y"
-              rows={4}
+              maxHeight="200px"
             />
             <div className="flex gap-3 mt-4">
               <button
@@ -545,7 +554,7 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
               </button>
               <button
                 onClick={handleReopen}
-                disabled={!reopenReason.trim() || reopenTask.isPending}
+                disabled={reopenTask.isPending}
                 className="flex-1 px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg disabled:opacity-50"
               >
                 {reopenTask.isPending ? 'Reopening...' : 'Reopen'}
@@ -603,36 +612,32 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
                     {dialogRequiresAttention && (
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-900 dark:text-white">Assign to review / unblock</label>
-                        <select
+                        <SearchableSelect
+                          options={usersData?.data?.map((u: any) => ({
+                            value: u.id,
+                            label: u.name || u.email,
+                          })) || []}
                           value={statusAttentionId || ''}
-                          onChange={(e) => setStatusAttentionId(e.target.value || null)}
-                          className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50"
-                        >
-                          <option value="">Select user</option>
-                          {usersData?.data?.map((u: any) => (
-                            <option key={u.id} value={u.id}>
-                              {u.name || u.email}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(value) => setStatusAttentionId(value || null)}
+                          placeholder="Select user"
+                          className="w-full"
+                        />
                       </div>
                     )}
 
                     {dialogNeedsTester && (
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-900 dark:text-white">Assign Tester</label>
-                        <select
+                        <SearchableSelect
+                          options={usersData?.data?.map((u: any) => ({
+                            value: u.id,
+                            label: u.name || u.email,
+                          })) || []}
                           value={statusTesterId || ''}
-                          onChange={(e) => setStatusTesterId(e.target.value || null)}
-                          className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50"
-                        >
-                          <option value="">Select tester</option>
-                          {usersData?.data?.map((u: any) => (
-                            <option key={u.id} value={u.id}>
-                              {u.name || u.email}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(value) => setStatusTesterId(value || null)}
+                          placeholder="Select tester"
+                          className="w-full"
+                        />
                       </div>
                     )}
 
@@ -645,12 +650,11 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
                       selectedStatus === 'not_fixed') && (
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-900 dark:text-white">Reason</label>
-                        <textarea
+                        <RichTextEditor
                           value={statusReason}
-                          onChange={(e) => setStatusReason(e.target.value)}
+                          onChange={setStatusReason}
                           placeholder="Add context for this status change..."
-                          className="w-full px-4 py-3 text-sm border border-gray-200 dark:border-gray-700/50 rounded-lg bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-0 focus:ring-2 focus:ring-primary/50 resize-y"
-                          rows={4}
+                          maxHeight="200px"
                         />
                       </div>
                     )}

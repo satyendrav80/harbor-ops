@@ -32,4 +32,14 @@ body {
   display: list-item !important;
 }
 
+/* Ensure ProseMirror uses full width and doesn't grow horizontally */
+.ProseMirror {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
+  box-sizing: border-box !important;
+}
+
 
