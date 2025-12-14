@@ -17,6 +17,7 @@ import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
 import { SearchableSelect } from '../../../components/common/SearchableSelect';
 import { toast } from 'react-hot-toast';
 import { CopyButton } from '../../../components/common/CopyButton';
+import { isEmptyHtml } from '../../../utils/richText';
 
 const statusColors: Record<TaskStatus, string> = {
   pending: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
@@ -549,6 +550,9 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
               onChange={setReopenReason}
               placeholder="Reason for reopening..."
               maxHeight="200px"
+              submitShortcut="mod-enter"
+              onSend={handleReopen}
+              sendButtonDisabled={isEmptyHtml(reopenReason) || reopenTask.isPending}
             />
             <div className="flex gap-3 mt-4">
               <button
@@ -660,6 +664,9 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
                           onChange={setStatusReason}
                           placeholder="Add context for this status change..."
                           maxHeight="200px"
+                          submitShortcut="mod-enter"
+                          onSend={handleStatusConfirm}
+                          sendButtonDisabled={statusConfirmDisabled}
                         />
                       </div>
                     )}

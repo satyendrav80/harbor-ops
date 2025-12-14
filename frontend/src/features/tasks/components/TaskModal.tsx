@@ -225,6 +225,8 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
             onChange={(value) => form.setValue('description', value)}
             placeholder="Describe the task..."
             maxHeight="300px"
+            submitShortcut="mod-enter"
+            onSend={() => form.handleSubmit(onSubmit)()}
           />
         </div>
 

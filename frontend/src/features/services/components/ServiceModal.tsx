@@ -646,6 +646,8 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
               placeholder="Use the editor above to write documentation, rules, or guidelines directly"
               error={form.formState.errors.documentation?.message}
               maxHeight="400px"
+              submitShortcut="mod-enter"
+              onSend={() => form.handleSubmit(onSubmit)()}
             />
           </div>
         </div>

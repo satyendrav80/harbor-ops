@@ -623,6 +623,8 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
               placeholder="Use the editor above to write documentation, rules, or guidelines directly"
               error={form.formState.errors.documentation?.message}
               maxHeight="400px"
+              submitShortcut="mod-enter"
+              onSend={() => form.handleSubmit(onSubmit)()}
             />
           </div>
         </div>

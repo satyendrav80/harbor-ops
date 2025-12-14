@@ -284,6 +284,8 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
               disabled={isLoading}
               maxHeight="100%"
               className="flex-1 flex flex-col min-h-0"
+              submitShortcut="mod-enter"
+              onSend={() => form.handleSubmit(onSubmit)()}
             />
           </div>
         </div>
