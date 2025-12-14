@@ -8,8 +8,9 @@ import { Plus, Filter as FilterIcon } from 'lucide-react';
 import { SidePanel } from '../../../../components/common/SidePanel';
 import { ConditionGroup } from './ConditionGroup';
 import { FilterPresets } from './FilterPresets';
+import { GroupByBuilder, SortByBuilder } from '../../../../components/common/advancedQuery';
 import type { FilterRow, ConditionGroupState } from './types';
-import type { FilterFieldMetadata, Filter, ConditionType } from '../../types/filters';
+import type { FilterFieldMetadata, Filter, ConditionType, OrderByItem, GroupByItem } from '../../types/filters';
 import { createFilterGroup, createFilterCondition, hasActiveFilters } from '../../utils/filterState';
 
 type AdvancedFiltersPanelProps = {
@@ -18,7 +19,9 @@ type AdvancedFiltersPanelProps = {
   onClose: () => void;
   fields: FilterFieldMetadata[];
   filters?: Filter;
-  onApply: (filters: Filter | undefined) => void;
+  orderBy?: OrderByItem | OrderByItem[];
+  groupBy?: GroupByItem[];
+  onApply: (filters: Filter | undefined, orderBy?: OrderByItem[], groupBy?: GroupByItem[]) => void;
   onClear: () => void;
 };
 
@@ -28,12 +31,18 @@ export function AdvancedFiltersPanel({
   onClose,
   fields,
   filters,
+  orderBy: initialOrderBy,
+  groupBy: initialGroupBy,
   onApply,
   onClear,
 }: AdvancedFiltersPanelProps) {
   const [rootGroups, setRootGroups] = useState<ConditionGroupState[]>([
     { id: 'group-0', condition: 'and', rows: [], groups: [] },
   ]);
+  const [orderBy, setOrderBy] = useState<OrderByItem[]>(
+    Array.isArray(initialOrderBy) ? initialOrderBy : initialOrderBy ? [initialOrderBy] : []
+  );
+  const [groupBy, setGroupBy] = useState<GroupByItem[]>(initialGroupBy || []);
 
   // Initialize from filters
   useEffect(() => {
@@ -46,6 +55,19 @@ export function AdvancedFiltersPanel({
       setRootGroups([{ id: 'group-0', condition: 'and', rows: [], groups: [] }]);
     }
   }, [filters, fields]);
+
+  // Initialize from orderBy and groupBy
+  useEffect(() => {
+    if (initialOrderBy) {
+      setOrderBy(Array.isArray(initialOrderBy) ? initialOrderBy : [initialOrderBy]);
+    } else {
+      setOrderBy([]);
+    }
+  }, [initialOrderBy]);
+
+  useEffect(() => {
+    setGroupBy(initialGroupBy || []);
+  }, [initialGroupBy]);
 
   const handleAddRow = (groupId: string) => {
     setRootGroups(
@@ -180,19 +202,23 @@ export function AdvancedFiltersPanel({
       .map((group) => buildFilterFromGroup(group, fields))
       .filter((f): f is Filter => f !== null);
 
-    if (allFilters.length === 0) {
-      onApply(undefined);
-    } else if (allFilters.length === 1) {
-      onApply(allFilters[0]);
-    } else {
-      // Combine multiple root groups with AND
-      onApply({ condition: 'and', childs: allFilters });
-    }
+    const finalFilters = allFilters.length === 0 
+      ? undefined 
+      : allFilters.length === 1 
+        ? allFilters[0] 
+        : { condition: 'and' as const, childs: allFilters };
+    
+    const finalOrderBy = orderBy.length > 0 ? orderBy : undefined;
+    const finalGroupBy = groupBy.length > 0 ? groupBy : undefined;
+    
+    onApply(finalFilters, finalOrderBy, finalGroupBy);
     onClose();
   };
 
   const handleClear = () => {
     setRootGroups([{ id: 'group-0', condition: 'and', rows: [], groups: [] }]);
+    setOrderBy([]);
+    setGroupBy([]);
     onClear();
     // Don't close the panel - let user apply new filters
   };
@@ -219,7 +245,9 @@ export function AdvancedFiltersPanel({
               if (allFilters.length === 1) return allFilters[0];
               return { condition: 'and', childs: allFilters };
             })()}
-            onLoadPreset={(loadedFilters) => {
+            currentOrderBy={orderBy.length > 0 ? orderBy : undefined}
+            currentGroupBy={groupBy.length > 0 ? groupBy : undefined}
+            onLoadPreset={(loadedFilters, loadedOrderBy, loadedGroupBy) => {
               if (loadedFilters && hasActiveFilters(loadedFilters)) {
                 const groups = extractGroups(loadedFilters, fields);
                 if (groups.length > 0) {
@@ -228,11 +256,21 @@ export function AdvancedFiltersPanel({
               } else {
                 setRootGroups([{ id: 'group-0', condition: 'and', rows: [], groups: [] }]);
               }
+              if (loadedOrderBy) {
+                setOrderBy(Array.isArray(loadedOrderBy) ? loadedOrderBy : [loadedOrderBy]);
+              } else {
+                setOrderBy([]);
+              }
+              if (loadedGroupBy) {
+                setGroupBy(loadedGroupBy);
+              } else {
+                setGroupBy([]);
+              }
             }}
           />
         </div>
 
-        {/* Root Condition Groups */}
+        {/* Root Condition Groups (Filters) - Now on top */}
         <div className="space-y-4">
           {rootGroups.every((g) => g.rows.length === 0 && g.groups.length === 0) ? (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -258,19 +296,36 @@ export function AdvancedFiltersPanel({
               />
             ))
           )}
+
+          {/* Add Filter Button (for first group if empty) */}
+          {rootGroups[0]?.rows.length === 0 && rootGroups[0]?.groups.length === 0 && (
+            <button
+              onClick={() => handleAddRow(rootGroups[0].id)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add Filter
+            </button>
+          )}
         </div>
 
+        {/* Group By Builder */}
+        <div className="pb-4 border-b border-gray-200 dark:border-gray-700/50">
+          <GroupByBuilder
+            fields={fields}
+            value={groupBy}
+            onChange={setGroupBy}
+          />
+        </div>
 
-        {/* Add Filter Button (for first group if empty) */}
-        {rootGroups[0]?.rows.length === 0 && rootGroups[0]?.groups.length === 0 && (
-          <button
-            onClick={() => handleAddRow(rootGroups[0].id)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Filter
-          </button>
-        )}
+        {/* Sort By Builder */}
+        <div className="pb-4 border-b border-gray-200 dark:border-gray-700/50">
+          <SortByBuilder
+            fields={fields}
+            value={orderBy}
+            onChange={setOrderBy}
+          />
+        </div>
 
         {/* Actions */}
         <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700/50">
@@ -282,10 +337,10 @@ export function AdvancedFiltersPanel({
           </button>
           <button
             onClick={handleApply}
-            disabled={!hasFilters}
+            disabled={!hasFilters && orderBy.length === 0 && groupBy.length === 0}
             className="flex-1 px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
           >
-            Apply Filters
+            Apply
           </button>
         </div>
       </div>

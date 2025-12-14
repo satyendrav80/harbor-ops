@@ -32,7 +32,7 @@ import { useDebounce } from '../../../hooks/useDebounce';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getServices } from '../../../services/services';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import type { Filter } from '../types/filters';
+import type { Filter, OrderByItem, GroupByItem } from '../types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../utils/urlSync';
 import { hasActiveFilters } from '../utils/filterState';
 import { TaskDetailsSidePanel } from '../../tasks/components/TaskDetailsSidePanel';
@@ -629,7 +629,10 @@ export function ReleaseNotesPage() {
   // Initialize from URL params
   const urlFilters = useMemo(() => deserializeFiltersFromUrl(searchParams), [searchParams]);
   const [advancedFilters, setAdvancedFilters] = useState<Filter | undefined>(urlFilters.filters);
-  const [orderBy, setOrderBy] = useState(urlFilters.orderBy);
+  const [orderBy, setOrderBy] = useState<OrderByItem[] | undefined>(
+    Array.isArray(urlFilters.orderBy) ? urlFilters.orderBy : urlFilters.orderBy ? [urlFilters.orderBy] : undefined
+  );
+  const [groupBy, setGroupBy] = useState<GroupByItem[] | undefined>(urlFilters.groupBy);
   
   // Initialize status filter from URL params (for backward compatibility)
   const initialStatusFilter = (searchParams.get('status') as 'pending' | 'deployed' | 'deployment_started' | 'all') || 'all';
@@ -682,7 +685,14 @@ export function ReleaseNotesPage() {
       setAdvancedFilters(urlFilters.filters);
     }
     if (urlFilters.orderBy) {
-      setOrderBy(urlFilters.orderBy);
+      setOrderBy(Array.isArray(urlFilters.orderBy) ? urlFilters.orderBy : [urlFilters.orderBy]);
+    } else {
+      setOrderBy(undefined);
+    }
+    if (urlFilters.groupBy) {
+      setGroupBy(urlFilters.groupBy);
+    } else {
+      setGroupBy(undefined);
     }
   }, [searchParams]);
 
@@ -700,9 +710,36 @@ export function ReleaseNotesPage() {
     queryFn: () => getServices(1, 1000),
   });
 
-  // Use advanced filtering if advanced filters are active, otherwise use legacy
-  const useAdvancedFiltering = hasActiveFilters(advancedFilters) || orderBy !== undefined;
+  // Use advanced filtering if advanced filters/orderBy/groupBy are active, otherwise use legacy
+  const useAdvancedFiltering = hasActiveFilters(advancedFilters) || (orderBy && orderBy.length > 0) || (groupBy && groupBy.length > 0);
   
+  // Build orderBy for API - if groupBy exists, prepend group keys to ensure stable ordering
+  const apiOrderBy = useMemo(() => {
+    const orderByArray: OrderByItem[] = [];
+    
+    // Prepend groupBy keys to orderBy for stable grouping
+    if (groupBy && groupBy.length > 0) {
+      groupBy.forEach(gb => {
+        orderByArray.push({
+          key: gb.key,
+          direction: gb.direction || 'asc',
+        });
+      });
+    }
+    
+    // Add user-specified orderBy
+    if (orderBy && orderBy.length > 0) {
+      orderBy.forEach(ob => {
+        // Skip if already in groupBy
+        if (!groupBy || !groupBy.some(gb => gb.key === ob.key)) {
+          orderByArray.push(ob);
+        }
+      });
+    }
+    
+    return orderByArray.length > 0 ? orderByArray : undefined;
+  }, [orderBy, groupBy]);
+
   // Advanced filtering hook
   const {
     data: advancedReleaseNotesData,
@@ -717,7 +754,7 @@ export function ReleaseNotesPage() {
     {
       filters: advancedFilters,
       search: debouncedSearch || undefined,
-      orderBy,
+      orderBy: apiOrderBy,
     },
     20
   );
@@ -789,6 +826,7 @@ export function ReleaseNotesPage() {
     // Clear advanced filters when using quick status filter
     setAdvancedFilters(undefined);
     setOrderBy(undefined);
+    setGroupBy(undefined);
     // Update URL params
     if (value === 'all') {
       setSearchParams({}, { replace: true });
@@ -797,22 +835,25 @@ export function ReleaseNotesPage() {
     }
   }, [setSearchParams]);
 
-  const handleAdvancedFiltersApply = useCallback((filters: Filter | undefined) => {
+  const handleAdvancedFiltersApply = useCallback((filters: Filter | undefined, newOrderBy?: OrderByItem[], newGroupBy?: GroupByItem[]) => {
     setAdvancedFilters(filters);
+    setOrderBy(newOrderBy);
+    setGroupBy(newGroupBy);
     // Clear status filter when using advanced filters
     setStatusFilter('all');
     // Update URL params
-    const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, orderBy);
+    const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, newOrderBy, newGroupBy);
     setSearchParams(params, { replace: true });
     // Force refetch even if filters are the same (data might have changed on backend)
     if (useAdvancedFiltering) {
       refetchAdvancedReleaseNotes();
     }
-  }, [debouncedSearch, orderBy, setSearchParams, useAdvancedFiltering, refetchAdvancedReleaseNotes]);
+  }, [debouncedSearch, setSearchParams, useAdvancedFiltering, refetchAdvancedReleaseNotes]);
 
   const handleAdvancedFiltersClear = useCallback(() => {
     setAdvancedFilters(undefined);
     setOrderBy(undefined);
+    setGroupBy(undefined);
     setStatusFilter('all');
     setSearchParams({}, { replace: true });
   }, [setSearchParams]);
@@ -1108,6 +1149,8 @@ export function ReleaseNotesPage() {
           onClose={() => setAdvancedFiltersOpen(false)}
           fields={filterMetadata.fields || []}
           filters={advancedFilters}
+          orderBy={orderBy}
+          groupBy={groupBy}
           onApply={handleAdvancedFiltersApply}
           onClear={handleAdvancedFiltersClear}
         />

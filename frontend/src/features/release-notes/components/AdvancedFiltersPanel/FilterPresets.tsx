@@ -8,15 +8,17 @@ import { Save, X, Trash2, Loader2, Edit2 } from 'lucide-react';
 import { ConfirmationDialog } from '../../../../components/common/ConfirmationDialog';
 import { getFilterPresets, saveFilterPreset, updateFilterPreset, deleteFilterPreset, type FilterPreset } from '../../utils/filterPresets';
 import { areFiltersEqual } from '../../utils/filterComparison';
-import type { Filter } from '../../types/filters';
+import type { Filter, OrderByItem, GroupByItem } from '../../types/filters';
 
 type FilterPresetsProps = {
   pageId: string;
   currentFilters?: Filter;
-  onLoadPreset: (filters: Filter | undefined) => void;
+  currentOrderBy?: OrderByItem[];
+  currentGroupBy?: GroupByItem[];
+  onLoadPreset: (filters: Filter | undefined, orderBy?: OrderByItem[], groupBy?: GroupByItem[]) => void;
 };
 
-export function FilterPresets({ pageId, currentFilters, onLoadPreset }: FilterPresetsProps) {
+export function FilterPresets({ pageId, currentFilters, currentOrderBy, currentGroupBy, onLoadPreset }: FilterPresetsProps) {
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -83,9 +85,21 @@ export function FilterPresets({ pageId, currentFilters, onLoadPreset }: FilterPr
   }, [loadedPresetId, presets]);
 
   const hasModifications = useMemo(() => {
-    if (!loadedPreset || !currentFilters) return false;
-    return !areFiltersEqual(currentFilters, loadedPreset.filters);
-  }, [loadedPreset, currentFilters]);
+    if (!loadedPreset) return false;
+    
+    // Check filters
+    const filtersChanged = currentFilters 
+      ? !areFiltersEqual(currentFilters, loadedPreset.filters)
+      : loadedPreset.filters !== undefined;
+    
+    // Check orderBy
+    const orderByChanged = JSON.stringify(currentOrderBy || []) !== JSON.stringify(loadedPreset.orderBy || []);
+    
+    // Check groupBy
+    const groupByChanged = JSON.stringify(currentGroupBy || []) !== JSON.stringify(loadedPreset.groupBy || []);
+    
+    return filtersChanged || orderByChanged || groupByChanged;
+  }, [loadedPreset, currentFilters, currentOrderBy, currentGroupBy]);
 
   const handleSave = async () => {
     if (!presetName.trim()) return;
@@ -94,6 +108,8 @@ export function FilterPresets({ pageId, currentFilters, onLoadPreset }: FilterPr
       const newPreset = await saveFilterPreset(pageId, {
         name: presetName.trim(),
         filters: currentFilters,
+        orderBy: currentOrderBy,
+        groupBy: currentGroupBy,
       });
       setPresets([...presets, newPreset]);
       setPresetName('');
@@ -106,15 +122,17 @@ export function FilterPresets({ pageId, currentFilters, onLoadPreset }: FilterPr
     }
   };
 
-  // Reset loaded preset when filters are cleared externally
+  // Reset loaded preset when filters/orderBy/groupBy are cleared externally
   useEffect(() => {
-    if (!currentFilters || (currentFilters && 'childs' in currentFilters && currentFilters.childs.length === 0)) {
+    if ((!currentFilters || (currentFilters && 'childs' in currentFilters && currentFilters.childs.length === 0)) 
+        && (!currentOrderBy || currentOrderBy.length === 0)
+        && (!currentGroupBy || currentGroupBy.length === 0)) {
       setLoadedPresetId(null);
     }
-  }, [currentFilters]);
+  }, [currentFilters, currentOrderBy, currentGroupBy]);
 
   const handleLoad = (preset: FilterPreset) => {
-    onLoadPreset(preset.filters);
+    onLoadPreset(preset.filters, preset.orderBy, preset.groupBy);
     setLoadedPresetId(preset.id);
   };
 
@@ -133,6 +151,8 @@ export function FilterPresets({ pageId, currentFilters, onLoadPreset }: FilterPr
         const newPreset = await saveFilterPreset(pageId, {
           name: `${loadedPreset?.name} (Copy)`,
           filters: currentFilters,
+          orderBy: currentOrderBy,
+          groupBy: currentGroupBy,
         });
         setPresets([...presets, newPreset]);
         setLoadedPresetId(newPreset.id);
@@ -140,6 +160,8 @@ export function FilterPresets({ pageId, currentFilters, onLoadPreset }: FilterPr
         // Update existing preset
         const updated = await updateFilterPreset(pageId, loadedPresetId, {
           filters: currentFilters,
+          orderBy: currentOrderBy,
+          groupBy: currentGroupBy,
         });
         if (updated) {
           setPresets(presets.map(p => p.id === loadedPresetId ? updated : p));

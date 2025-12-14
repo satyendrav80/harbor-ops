@@ -45,6 +45,7 @@ export type FilterFieldMetadata = {
   relationType?: 'one' | 'many' | null;
   searchable: boolean;
   sortable: boolean;
+  groupable: boolean; // Whether this field can be used for grouping results
   enumValues?: string[];
   relationModel?: string | null; // Model name for relation-based dropdowns (e.g., 'Service' for serviceId)
   relationField?: string | null; // Field name in relation to display (e.g., 'name' for service.name)
@@ -66,11 +67,17 @@ export type FilterMetadata = {
   supportedOperators: Record<FieldType, FilterOperator[]>;
 };
 
+export type GroupByItem = {
+  key: string;
+  direction?: 'asc' | 'desc';
+};
+
 export type AdvancedFilterRequest = {
   filters?: Filter;
   search?: string;
   page?: number;
   limit?: number;
   orderBy?: OrderByItem | OrderByItem[];
+  groupBy?: GroupByItem[];
 };
 

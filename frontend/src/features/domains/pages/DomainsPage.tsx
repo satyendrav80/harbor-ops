@@ -20,7 +20,7 @@ import { ItemTags } from '../../../components/common/ItemTags';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { useSearchParams } from 'react-router-dom';
 import { getDomainsFilterMetadata } from '../../../services/domains';
-import type { Filter } from '../../release-notes/types/filters';
+import type { Filter, OrderByItem, GroupByItem } from '../../release-notes/types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../../release-notes/utils/urlSync';
 import { hasActiveFilters } from '../../release-notes/utils/filterState';
 import { getSocket } from '../../../services/socket';
@@ -40,7 +40,10 @@ export function DomainsPage() {
   // Initialize from URL params
   const urlFilters = useMemo(() => deserializeFiltersFromUrl(searchParams), [searchParams]);
   const [advancedFilters, setAdvancedFilters] = useState<Filter | undefined>(urlFilters.filters);
-  const [orderBy, setOrderBy] = useState(urlFilters.orderBy);
+  const [orderBy, setOrderBy] = useState<OrderByItem[] | undefined>(
+    Array.isArray(urlFilters.orderBy) ? urlFilters.orderBy : urlFilters.orderBy ? [urlFilters.orderBy] : undefined
+  );
+  const [groupBy, setGroupBy] = useState<GroupByItem[] | undefined>(urlFilters.groupBy);
   
   const [domainModalOpen, setDomainModalOpen] = useState(false);
   const [selectedDomainForEdit, setSelectedDomainForEdit] = useState<Domain | null>(null);
@@ -76,7 +79,14 @@ export function DomainsPage() {
       setAdvancedFilters(urlFilters.filters);
     }
     if (urlFilters.orderBy) {
-      setOrderBy(urlFilters.orderBy);
+      setOrderBy(Array.isArray(urlFilters.orderBy) ? urlFilters.orderBy : [urlFilters.orderBy]);
+    } else {
+      setOrderBy(undefined);
+    }
+    if (urlFilters.groupBy) {
+      setGroupBy(urlFilters.groupBy);
+    } else {
+      setGroupBy(undefined);
     }
   }, [searchParams]);
 
@@ -97,9 +107,36 @@ export function DomainsPage() {
   // Debounce search query
   const debouncedSearch = useDebounce(searchQuery, 500);
 
-  // Use advanced filtering if advanced filters are active, otherwise use legacy
-  const useAdvancedFiltering = hasActiveFilters(advancedFilters) || orderBy !== undefined;
+  // Use advanced filtering if advanced filters/orderBy/groupBy are active, otherwise use legacy
+  const useAdvancedFiltering = hasActiveFilters(advancedFilters) || (orderBy && orderBy.length > 0) || (groupBy && groupBy.length > 0);
   
+  // Build orderBy for API - if groupBy exists, prepend group keys to ensure stable ordering
+  const apiOrderBy = useMemo(() => {
+    const orderByArray: OrderByItem[] = [];
+    
+    // Prepend groupBy keys to orderBy for stable grouping
+    if (groupBy && groupBy.length > 0) {
+      groupBy.forEach(gb => {
+        orderByArray.push({
+          key: gb.key,
+          direction: gb.direction || 'asc',
+        });
+      });
+    }
+    
+    // Add user-specified orderBy
+    if (orderBy && orderBy.length > 0) {
+      orderBy.forEach(ob => {
+        // Skip if already in groupBy
+        if (!groupBy || !groupBy.some(gb => gb.key === ob.key)) {
+          orderByArray.push(ob);
+        }
+      });
+    }
+    
+    return orderByArray.length > 0 ? orderByArray : undefined;
+  }, [orderBy, groupBy]);
+
   // Advanced filtering hook
   const {
     data: advancedDomainsData,
@@ -114,7 +151,7 @@ export function DomainsPage() {
     {
       filters: advancedFilters,
       search: debouncedSearch || undefined,
-      orderBy,
+      orderBy: apiOrderBy,
     },
     20
   );
@@ -165,20 +202,23 @@ export function DomainsPage() {
   });
 
   // Advanced filter handlers
-  const handleAdvancedFiltersApply = useCallback((filters: Filter | undefined) => {
+  const handleAdvancedFiltersApply = useCallback((filters: Filter | undefined, newOrderBy?: OrderByItem[], newGroupBy?: GroupByItem[]) => {
     setAdvancedFilters(filters);
+    setOrderBy(newOrderBy);
+    setGroupBy(newGroupBy);
     // Update URL params
-    const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, orderBy);
+    const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, newOrderBy, newGroupBy);
     setSearchParams(params, { replace: true });
     // Force refetch even if filters are the same (data might have changed on backend)
     if (useAdvancedFiltering) {
       refetchAdvancedDomains();
     }
-  }, [debouncedSearch, orderBy, setSearchParams, useAdvancedFiltering, refetchAdvancedDomains]);
+  }, [debouncedSearch, setSearchParams, useAdvancedFiltering, refetchAdvancedDomains]);
 
   const handleAdvancedFiltersClear = useCallback(() => {
     setAdvancedFilters(undefined);
     setOrderBy(undefined);
+    setGroupBy(undefined);
     setSearchParams({}, { replace: true });
   }, [setSearchParams]);
 
@@ -388,6 +428,8 @@ export function DomainsPage() {
           onClose={() => setAdvancedFiltersOpen(false)}
           fields={filterMetadata.fields || []}
           filters={advancedFilters}
+          orderBy={orderBy}
+          groupBy={groupBy}
           onApply={handleAdvancedFiltersApply}
           onClear={handleAdvancedFiltersClear}
         />

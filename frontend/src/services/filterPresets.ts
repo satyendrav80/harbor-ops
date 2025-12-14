@@ -1,5 +1,5 @@
 import { apiFetch } from './apiClient';
-import type { Filter } from '../features/release-notes/types/filters';
+import type { Filter, OrderByItem, GroupByItem } from '../features/release-notes/types/filters';
 
 export type FilterPreset = {
   id: number;
@@ -7,6 +7,8 @@ export type FilterPreset = {
   pageId: string;
   name: string;
   filters: Filter | null | undefined;
+  orderBy: OrderByItem[] | null | undefined;
+  groupBy: GroupByItem[] | null | undefined;
   isShared: boolean;
   createdAt: string;
   updatedAt: string;
@@ -42,6 +44,8 @@ export async function createFilterPreset(data: {
   pageId: string;
   name: string;
   filters?: Filter;
+  orderBy?: OrderByItem[];
+  groupBy?: GroupByItem[];
   isShared?: boolean;
 }): Promise<FilterPreset> {
   return apiFetch<FilterPreset>('/filter-presets', {
@@ -58,6 +62,8 @@ export async function updateFilterPreset(
   data: {
     name?: string;
     filters?: Filter;
+    orderBy?: OrderByItem[];
+    groupBy?: GroupByItem[];
     isShared?: boolean;
   }
 ): Promise<FilterPreset> {

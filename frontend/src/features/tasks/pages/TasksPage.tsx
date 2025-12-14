@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useSidePanelSync } from '../../../hooks/useSidePanelSync';
@@ -9,7 +9,7 @@ import { TaskCard } from '../components/TaskCard';
 import { TaskDetailsSidePanel } from '../components/TaskDetailsSidePanel';
 import { Loading } from '../../../components/common/Loading';
 import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
-import { Search, Plus, Filter as FilterIcon, LayoutGrid, List, ShieldCheck } from 'lucide-react';
+import { Search, Plus, Filter as FilterIcon, LayoutGrid, List, ShieldCheck, ChevronDown, ChevronRight } from 'lucide-react';
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import { useDebounce } from '../../../hooks/useDebounce';
 import type { Task, TaskStatus, TaskPriority, TaskType } from '../../../services/tasks';
@@ -17,9 +17,10 @@ import { useUpdateTask } from '../hooks/useTaskMutations';
 import { listSprints } from '../../../services/sprints';
 import { getTasksFilterMetadata } from '../../../services/tasks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Filter } from '../../release-notes/types/filters';
+import type { Filter, OrderByItem, GroupByItem } from '../../release-notes/types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../utils/urlSync';
 import { hasActiveFilters } from '../../release-notes/utils/filterState';
+import { groupTasks, type GroupedTask } from '../utils/groupTasks';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { SelectionBar } from '../../../components/common/SelectionBar';
 import { getSocket } from '../../../services/socket';
@@ -36,7 +37,10 @@ export function TasksPage() {
   // Initialize from URL params
   const urlFilters = useMemo(() => deserializeFiltersFromUrl(searchParams), [searchParams]);
   const [advancedFilters, setAdvancedFilters] = useState<Filter | undefined>(urlFilters.filters);
-  const [orderBy, setOrderBy] = useState(urlFilters.orderBy);
+  const [orderBy, setOrderBy] = useState<OrderByItem[] | undefined>(
+    Array.isArray(urlFilters.orderBy) ? urlFilters.orderBy : urlFilters.orderBy ? [urlFilters.orderBy] : undefined
+  );
+  const [groupBy, setGroupBy] = useState<GroupByItem[] | undefined>(urlFilters.groupBy);
 
   const [searchQuery, setSearchQuery] = useState(urlFilters.search || '');
   // Initialize viewFilter from URL params, default to 'my-tasks'
@@ -74,7 +78,14 @@ export function TasksPage() {
       setAdvancedFilters(urlFilters.filters);
     }
     if (urlFilters.orderBy) {
-      setOrderBy(urlFilters.orderBy);
+      setOrderBy(Array.isArray(urlFilters.orderBy) ? urlFilters.orderBy : [urlFilters.orderBy]);
+    } else {
+      setOrderBy(undefined);
+    }
+    if (urlFilters.groupBy) {
+      setGroupBy(urlFilters.groupBy);
+    } else {
+      setGroupBy(undefined);
     }
     if (urlFilters.search !== undefined) {
       setSearchQuery(urlFilters.search || '');
@@ -91,8 +102,8 @@ export function TasksPage() {
     }
   }, [searchParams]);
 
-  // Use advanced filtering if advanced filters are active, otherwise use default "My Tasks" filter
-  const useAdvancedFiltering = hasActiveFilters(advancedFilters) || orderBy !== undefined;
+  // Use advanced filtering if advanced filters/orderBy/groupBy are active, otherwise use default "My Tasks" filter
+  const useAdvancedFiltering = hasActiveFilters(advancedFilters) || (orderBy && orderBy.length > 0) || (groupBy && groupBy.length > 0);
 
   // Build default "My Tasks" filter with role-aware status visibility:
   // - Assignee sees all except completed (includes not_fixed/reopened)
@@ -185,6 +196,33 @@ export function TasksPage() {
     return myTasksFilter;
   }, [useAdvancedFiltering, advancedFilters, myTasksFilter]);
 
+  // Build orderBy for API - if groupBy exists, prepend group keys to ensure stable ordering
+  const apiOrderBy = useMemo(() => {
+    const orderByArray: OrderByItem[] = [];
+    
+    // Prepend groupBy keys to orderBy for stable grouping
+    if (groupBy && groupBy.length > 0) {
+      groupBy.forEach(gb => {
+        orderByArray.push({
+          key: gb.key,
+          direction: gb.direction || 'asc',
+        });
+      });
+    }
+    
+    // Add user-specified orderBy
+    if (orderBy && orderBy.length > 0) {
+      orderBy.forEach(ob => {
+        // Skip if already in groupBy
+        if (!groupBy || !groupBy.some(gb => gb.key === ob.key)) {
+          orderByArray.push(ob);
+        }
+      });
+    }
+    
+    return orderByArray.length > 0 ? orderByArray : undefined;
+  }, [orderBy, groupBy]);
+
   // Advanced filtering hook
   const {
     data: advancedTasksData,
@@ -198,8 +236,8 @@ export function TasksPage() {
   } = useTasksAdvanced(
     {
       filters: finalFilters,
-    search: debouncedSearch || undefined,
-      orderBy,
+      search: debouncedSearch || undefined,
+      orderBy: apiOrderBy,
     },
     20
   );
@@ -216,6 +254,45 @@ export function TasksPage() {
     }
     return [];
   }, [tasksDataToUse]);
+
+  // Group tasks if groupBy is specified
+  const groupedTasks = useMemo(() => {
+    if (groupBy && groupBy.length > 0) {
+      return groupTasks(tasks, groupBy);
+    }
+    return null;
+  }, [tasks, groupBy]);
+
+  // Track expanded groups - expand all by default
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Auto-expand all groups when groupedTasks changes
+  useEffect(() => {
+    if (groupedTasks && groupedTasks.length > 0) {
+      const allGroupKeys = new Set<string>();
+      function collectKeys(groups: GroupedTask[], parentKey: string = '') {
+        groups.forEach(group => {
+          const fullKey = parentKey ? `${parentKey}::${group.groupKey}` : group.groupKey;
+          allGroupKeys.add(fullKey);
+          if (group.subgroups && group.subgroups.length > 0) {
+            collectKeys(group.subgroups, fullKey);
+          }
+        });
+      }
+      collectKeys(groupedTasks);
+      setExpandedGroups(allGroupKeys);
+    }
+  }, [groupedTasks]);
+
+  const toggleGroup = (groupKey: string) => {
+    const newExpanded = new Set(expandedGroups);
+    if (newExpanded.has(groupKey)) {
+      newExpanded.delete(groupKey);
+    } else {
+      newExpanded.add(groupKey);
+    }
+    setExpandedGroups(newExpanded);
+  };
 
   // Infinite scroll observer (always on, advanced hook handles pagination)
   const tasksObserverTarget = useInfiniteScroll({
@@ -295,6 +372,7 @@ export function TasksPage() {
     // Clear advanced filters when using default view filter
     setAdvancedFilters(undefined);
     setOrderBy(undefined);
+    setGroupBy(undefined);
     // Update URL params with view filter
     const params = new URLSearchParams(searchParams);
     params.set('view', value);
@@ -302,6 +380,7 @@ export function TasksPage() {
     // Remove advanced filter params
     params.delete('filters');
     params.delete('orderBy');
+    params.delete('groupBy');
     if (searchQuery) {
       params.set('search', searchQuery);
     } else {
@@ -310,22 +389,25 @@ export function TasksPage() {
     setSearchParams(params, { replace: true });
   }, [setSearchParams, searchQuery, viewMode, searchParams]);
 
-  const handleAdvancedFiltersApply = useCallback((filters: Filter | undefined) => {
+  const handleAdvancedFiltersApply = useCallback((filters: Filter | undefined, newOrderBy?: OrderByItem[], newGroupBy?: GroupByItem[]) => {
     setAdvancedFilters(filters);
+    setOrderBy(newOrderBy);
+    setGroupBy(newGroupBy);
     // Reset to "all" view when using advanced filters
     setViewFilter('all');
     // Update URL params
-    const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, orderBy);
+    const params = serializeFiltersToUrl(filters, debouncedSearch || undefined, newOrderBy, newGroupBy);
     params.set('view', 'all');
     params.set('viewMode', viewMode);
     setSearchParams(params, { replace: true });
     // Force refetch even if filters are the same
     refetchAdvancedTasks();
-  }, [debouncedSearch, orderBy, viewMode, setSearchParams, refetchAdvancedTasks]);
+  }, [debouncedSearch, viewMode, setSearchParams, refetchAdvancedTasks]);
 
   const handleAdvancedFiltersClear = useCallback(() => {
     setAdvancedFilters(undefined);
     setOrderBy(undefined);
+    setGroupBy(undefined);
     setViewFilter('my-tasks');
     // Update URL params with default view filter
     const params = new URLSearchParams(searchParams);
@@ -333,6 +415,7 @@ export function TasksPage() {
     params.set('viewMode', viewMode);
     params.delete('filters');
     params.delete('orderBy');
+    params.delete('groupBy');
     if (searchQuery) {
       params.set('search', searchQuery);
     } else {
@@ -383,6 +466,199 @@ export function TasksPage() {
 
   // --- RENDERING HELPERS ---
 
+  // Render a single group (recursive for nested groups)
+  const renderGroup = (group: GroupedTask, level: number = 0, parentKey: string = ''): React.ReactNode => {
+    const fullKey = parentKey ? `${parentKey}::${group.groupKey}` : group.groupKey;
+    const isExpanded = expandedGroups.has(fullKey);
+    const hasSubgroups = group.subgroups && group.subgroups.length > 0;
+
+    if (viewMode === 'table') {
+      return (
+        <React.Fragment key={fullKey}>
+          <tr className="bg-gray-100 dark:bg-gray-800/50 border-t border-gray-300 dark:border-gray-700">
+            <td colSpan={11} className="px-4 py-2">
+              <button
+                onClick={() => toggleGroup(fullKey)}
+                className="flex items-center gap-2 w-full text-left font-medium text-gray-900 dark:text-white hover:text-primary transition-colors"
+              >
+                {hasSubgroups ? (
+                  isExpanded ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )
+                ) : (
+                  <span className="w-4" />
+                )}
+                <span style={{ paddingLeft: `${level * 1.5}rem` }}>
+                  {group.groupLabel}
+                </span>
+                <span className="ml-auto text-sm text-gray-500 dark:text-gray-400">
+                  ({hasSubgroups ? group.subgroups!.length : group.items.length} {hasSubgroups ? 'groups' : 'tasks'})
+                </span>
+              </button>
+            </td>
+          </tr>
+          {isExpanded && (
+            <>
+              {hasSubgroups
+                ? group.subgroups!.map(subgroup => renderGroup(subgroup, level + 1, fullKey))
+                : group.items.map(task => (
+                    <tr
+                      key={task.id}
+                      className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${selectedTaskIds.has(task.id) ? 'bg-blue-50 dark:bg-primary/5' : ''}`}
+                    >
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedTaskIds.has(task.id)}
+                          onChange={() => toggleTaskSelection(task.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50 bg-white dark:bg-gray-800"
+                        />
+                      </td>
+                      <td className="px-4 py-3 cursor-pointer" onClick={() => openTaskPanel(task.id)}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">
+                            {task.type === 'bug' && '🐛'}
+                            {task.type === 'feature' && '✨'}
+                            {task.type === 'todo' && '📝'}
+                            {task.type === 'epic' && '🎯'}
+                            {task.type === 'improvement' && '⚡'}
+                          </span>
+                          <span className="font-medium text-gray-900 dark:text-white truncate max-w-md">
+                            {task.title}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize 
+                          ${task.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400' :
+                            task.status === 'in_progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400' :
+                              task.status === 'blocked' ? 'bg-red-100 text-red-800 dark:bg-red-500/10 dark:text-red-400' :
+                                'bg-gray-100 text-gray-800 dark:bg-gray-500/10 dark:text-gray-400'
+                          }`}
+                        >
+                          {task.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`capitalize ${task.priority === 'critical' ? 'text-red-500' :
+                          task.priority === 'high' ? 'text-orange-500' :
+                            task.priority === 'medium' ? 'text-blue-500' :
+                              'text-gray-500 dark:text-gray-400'
+                        }`}>
+                          {task.priority}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                        {task.assignedToUser?.name || task.assignedToUser?.email || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                        {task.tester?.name || task.tester?.email || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                        {task.attentionToUser?.name || task.attentionToUser?.email || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                        {task.createdByUser?.name || task.createdByUser?.email || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">
+                        {new Date(task.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">
+                        {task.assignedAt ? new Date(task.assignedAt).toLocaleDateString() : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+                        {task.parentTask ? (
+                          <span
+                            className="flex items-center gap-1 hover:text-primary cursor-pointer max-w-[150px] truncate"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openTaskPanel(task.parentTask!.id);
+                            }}
+                          >
+                            <span className="text-xs">↳</span> {task.parentTask.title}
+                          </span>
+                        ) : '-'}
+                      </td>
+                    </tr>
+                  ))}
+            </>
+          )}
+        </React.Fragment>
+      );
+    } else {
+      // Grid view
+      return (
+        <div key={fullKey} className="space-y-2">
+          <button
+            onClick={() => toggleGroup(fullKey)}
+            className="flex items-center gap-2 w-full px-4 py-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-left"
+          >
+            {hasSubgroups ? (
+              isExpanded ? (
+                <ChevronDown className="w-4 h-4" />
+              ) : (
+                <ChevronRight className="w-4 h-4" />
+              )
+            ) : (
+              <span className="w-4" />
+            )}
+            <span className="font-medium text-gray-900 dark:text-white" style={{ paddingLeft: `${level * 1.5}rem` }}>
+              {group.groupLabel}
+            </span>
+            <span className="ml-auto text-sm text-gray-500 dark:text-gray-400">
+              ({hasSubgroups ? group.subgroups!.length : group.items.length} {hasSubgroups ? 'groups' : 'tasks'})
+            </span>
+          </button>
+          {isExpanded && (
+            <div style={{ paddingLeft: `${(level + 1) * 1.5}rem` }}>
+              {hasSubgroups ? (
+                <div className="space-y-2">
+                  {group.subgroups!.map(subgroup => renderGroup(subgroup, level + 1, fullKey))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {group.items.map((task) => (
+                    <div key={task.id} className="relative group">
+                      <div className={`absolute top-2 left-2 z-10 transition-opacity ${selectedTaskIds.has(task.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedTaskIds.has(task.id)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            toggleTaskSelection(task.id);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-5 h-5 rounded border-gray-300 dark:border-gray-500 text-primary focus:ring-primary/50 cursor-pointer shadow-sm bg-white dark:bg-gray-800"
+                        />
+                      </div>
+                      <div className={`${selectedTaskIds.has(task.id) ? 'ring-2 ring-primary rounded-lg' : ''}`}>
+                        <TaskCard
+                          task={task}
+                          onClick={(e) => {
+                            if (e.metaKey || e.ctrlKey) {
+                              e.stopPropagation();
+                              toggleTaskSelection(task.id);
+                            } else {
+                              openTaskPanel(task.id);
+                            }
+                          }}
+                          onParentTaskClick={openTaskPanel}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+  };
+
   const renderContent = () => {
     if (tasksLoadingToUse && tasks.length === 0) {
       return (
@@ -420,6 +696,51 @@ export function TasksPage() {
       );
     }
 
+    // If grouped, render grouped view
+    if (groupedTasks && groupedTasks.length > 0) {
+      if (viewMode === 'table') {
+        return (
+          <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden shadow-sm">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-800">
+                <tr>
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedTaskIds.size === tasks.length && tasks.length > 0}
+                      onChange={toggleAllSelection}
+                      className="rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50 bg-white dark:bg-gray-800"
+                    />
+                  </th>
+                  <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Task</th>
+                  <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Status</th>
+                  <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Priority</th>
+                  <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Assignee</th>
+                  <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Tester</th>
+                  <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Attention</th>
+                  <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Created By</th>
+                  <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Created At</th>
+                  <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Assigned At</th>
+                  <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Parent Task</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                {groupedTasks.map(group => renderGroup(group))}
+              </tbody>
+            </table>
+          </div>
+        );
+      } else {
+        // Grid view with grouping
+        return (
+          <div className="space-y-4">
+            {groupedTasks.map(group => renderGroup(group))}
+          </div>
+        );
+      }
+    }
+
+    // Non-grouped view (original rendering)
     if (viewMode === 'table') {
       return (
         <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden shadow-sm">
@@ -718,6 +1039,8 @@ export function TasksPage() {
           onClose={() => setAdvancedFiltersOpen(false)}
           fields={filterMetadata.fields}
           filters={advancedFilters}
+          orderBy={orderBy}
+          groupBy={groupBy}
           onApply={handleAdvancedFiltersApply}
           onClear={handleAdvancedFiltersClear}
         />

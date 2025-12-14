@@ -9,6 +9,7 @@ import {
   formatFieldLabel,
   isFieldSearchable,
   isFieldSortable,
+  isFieldGroupable,
 } from '../../../utils/filterMetadataHelpers';
 
 /**
@@ -26,6 +27,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('id', 'INT'),
       sortable: isFieldSortable('INT'),
+      groupable: isFieldGroupable('id', 'INT'),
       ui: getDefaultUIConfig('INT', 'id'),
     },
     // Title field (searchable text)
@@ -40,6 +42,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('title', 'STRING'),
       sortable: isFieldSortable('STRING'),
+      groupable: isFieldGroupable('title', 'STRING'),
       ui: {
         ...getDefaultUIConfig('STRING', 'title'),
         placeholder: 'Search in titles...',
@@ -57,6 +60,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('description', 'STRING'),
       sortable: isFieldSortable('STRING'),
+      groupable: isFieldGroupable('description', 'STRING'),
       ui: {
         ...getDefaultUIConfig('STRING', 'description'),
         placeholder: 'Search in descriptions...',
@@ -74,6 +78,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('status', 'STRING'),
       sortable: isFieldSortable('STRING'),
+      groupable: isFieldGroupable('status', 'STRING'),
       enumValues: ['pending', 'in_progress', 'in_review', 'testing', 'completed', 'paused', 'blocked', 'cancelled', 'reopened'],
       ui: getDefaultUIConfig('STRING', 'status', true, ['pending', 'in_progress', 'in_review', 'testing', 'completed', 'paused', 'blocked', 'cancelled', 'reopened']),
     },
@@ -89,6 +94,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('type', 'STRING'),
       sortable: isFieldSortable('STRING'),
+      groupable: isFieldGroupable('type', 'STRING'),
       enumValues: ['bug', 'feature', 'todo', 'epic', 'improvement'],
       ui: getDefaultUIConfig('STRING', 'type', true, ['bug', 'feature', 'todo', 'epic', 'improvement']),
     },
@@ -104,6 +110,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('priority', 'STRING'),
       sortable: isFieldSortable('STRING'),
+      groupable: isFieldGroupable('priority', 'STRING'),
       enumValues: ['low', 'medium', 'high', 'critical'],
       ui: getDefaultUIConfig('STRING', 'priority', true, ['low', 'medium', 'high', 'critical']),
     },
@@ -119,6 +126,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('sprintId', 'INT'),
       sortable: isFieldSortable('INT'),
+      groupable: isFieldGroupable('sprintId', 'INT'),
       relationModel: 'Sprint',
       relationField: 'name',
       ui: getDefaultUIConfig('INT', 'sprintId'),
@@ -133,6 +141,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('name', 'STRING'),
       sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('sprint.name', 'STRING', 'one'),
       relationModel: 'Sprint',
       relationField: 'name',
       ui: getDefaultUIConfig('STRING', 'sprint name'),
@@ -149,6 +158,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('serviceId', 'INT'),
       sortable: isFieldSortable('INT'),
+      groupable: isFieldGroupable('serviceId', 'INT'),
       relationModel: 'Service',
       relationField: 'name',
       ui: getDefaultUIConfig('INT', 'serviceId'),
@@ -163,6 +173,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('name', 'STRING'),
       sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('service.name', 'STRING', 'one'),
       relationModel: 'Service',
       relationField: 'name',
       ui: getDefaultUIConfig('STRING', 'service name'),
@@ -179,6 +190,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('assignedTo', 'STRING'),
       sortable: isFieldSortable('STRING'),
+      groupable: isFieldGroupable('assignedTo', 'STRING'),
       relationModel: 'User',
       relationField: 'email',
       ui: getDefaultUIConfig('STRING', 'assignedTo'),
@@ -195,6 +207,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('email', 'STRING'),
       sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('assignedToUser.email', 'STRING', 'one'),
       ui: getDefaultUIConfig('STRING', 'email'),
     },
     // Assigned To User Name (relation field)
@@ -209,6 +222,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('name', 'STRING'),
       sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('assignedToUser.name', 'STRING', 'one'),
       ui: getDefaultUIConfig('STRING', 'name'),
     },
     // Attention To User ID (for review/block handoffs)
@@ -223,6 +237,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('attentionToId', 'STRING'),
       sortable: isFieldSortable('STRING'),
+      groupable: isFieldGroupable('attentionToId', 'STRING'),
       relationModel: 'User',
       relationField: 'email',
       ui: getDefaultUIConfig('STRING', 'attentionToId'),
@@ -238,6 +253,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('email', 'STRING'),
       sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('attentionToUser.email', 'STRING', 'one'),
       ui: getDefaultUIConfig('STRING', 'email'),
     },
     {
@@ -251,6 +267,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('name', 'STRING'),
       sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('attentionToUser.name', 'STRING', 'one'),
       ui: getDefaultUIConfig('STRING', 'name'),
     },
     // Tester User ID
@@ -265,6 +282,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('testerId', 'STRING'),
       sortable: isFieldSortable('STRING'),
+      groupable: isFieldGroupable('testerId', 'STRING'),
       relationModel: 'User',
       relationField: 'email',
       ui: getDefaultUIConfig('STRING', 'testerId'),
@@ -281,6 +299,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('email', 'STRING'),
       sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('tester.email', 'STRING', 'one'),
       ui: getDefaultUIConfig('STRING', 'email'),
     },
     // Created By User ID
@@ -295,6 +314,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('createdBy', 'STRING'),
       sortable: isFieldSortable('STRING'),
+      groupable: isFieldGroupable('createdBy', 'STRING'),
       relationModel: 'User',
       relationField: 'email',
       ui: getDefaultUIConfig('STRING', 'createdBy'),
@@ -311,6 +331,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('email', 'STRING'),
       sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('createdByUser.email', 'STRING', 'one'),
       ui: getDefaultUIConfig('STRING', 'email'),
     },
     // Created By User Name (relation field)
@@ -325,6 +346,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('name', 'STRING'),
       sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('createdByUser.name', 'STRING', 'one'),
       ui: getDefaultUIConfig('STRING', 'name'),
     },
     // Parent Task ID
@@ -339,6 +361,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('parentTaskId', 'INT'),
       sortable: isFieldSortable('INT'),
+      groupable: isFieldGroupable('parentTaskId', 'INT'),
       relationModel: 'Task',
       relationField: 'title',
       ui: getDefaultUIConfig('INT', 'parentTaskId'),
@@ -355,6 +378,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('title', 'STRING'),
       sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('parentTask.title', 'STRING', 'one'),
       ui: getDefaultUIConfig('STRING', 'title'),
     },
     // Reopen Count
@@ -367,6 +391,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('reopenCount', 'INT'),
       sortable: isFieldSortable('INT'),
+      groupable: isFieldGroupable('reopenCount', 'INT'),
       ui: getDefaultUIConfig('INT', 'reopenCount'),
     },
     // Estimated Hours
@@ -379,6 +404,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('estimatedHours', 'FLOAT'),
       sortable: isFieldSortable('FLOAT'),
+      groupable: isFieldGroupable('estimatedHours', 'FLOAT'),
       ui: getDefaultUIConfig('FLOAT', 'estimatedHours'),
     },
     // Actual Hours
@@ -391,6 +417,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('actualHours', 'FLOAT'),
       sortable: isFieldSortable('FLOAT'),
+      groupable: isFieldGroupable('actualHours', 'FLOAT'),
       ui: getDefaultUIConfig('FLOAT', 'actualHours'),
     },
     // Due Date
@@ -403,6 +430,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('dueDate', 'DATETIME'),
       sortable: isFieldSortable('DATETIME'),
+      groupable: isFieldGroupable('dueDate', 'DATETIME'),
       ui: getDefaultUIConfig('DATETIME', 'dueDate'),
     },
     // Assigned At
@@ -415,6 +443,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('assignedAt', 'DATETIME'),
       sortable: isFieldSortable('DATETIME'),
+      groupable: isFieldGroupable('assignedAt', 'DATETIME'),
       ui: getDefaultUIConfig('DATETIME', 'assignedAt'),
     },
     // Completed At
@@ -427,6 +456,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('completedAt', 'DATETIME'),
       sortable: isFieldSortable('DATETIME'),
+      groupable: isFieldGroupable('completedAt', 'DATETIME'),
       ui: getDefaultUIConfig('DATETIME', 'completedAt'),
     },
     // Created Date
@@ -439,6 +469,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('createdAt', 'DATETIME'),
       sortable: isFieldSortable('DATETIME'),
+      groupable: isFieldGroupable('createdAt', 'DATETIME'),
       ui: getDefaultUIConfig('DATETIME', 'createdAt'),
     },
     // Updated Date
@@ -451,6 +482,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('updatedAt', 'DATETIME'),
       sortable: isFieldSortable('DATETIME'),
+      groupable: isFieldGroupable('updatedAt', 'DATETIME'),
       ui: getDefaultUIConfig('DATETIME', 'updatedAt'),
     },
   ];

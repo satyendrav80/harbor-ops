@@ -18,7 +18,7 @@ const prisma = new PrismaClient();
  * @returns Created filter preset
  */
 export async function create(context: RequestContext) {
-  const { pageId, name, filters, isShared } = extractParams(context);
+  const { pageId, name, filters, orderBy, groupBy, isShared } = extractParams(context);
   const userId = context.headers?.['x-user-id'] as string;
 
   if (!userId) {
@@ -32,6 +32,8 @@ export async function create(context: RequestContext) {
       pageId,
       name,
       filters: filters ? (filters as any) : null, // Store as JSON, null if undefined
+      orderBy: orderBy ? (orderBy as any) : null, // Store as JSON, null if undefined
+      groupBy: groupBy ? (groupBy as any) : null, // Store as JSON, null if undefined
       isShared,
     },
   });

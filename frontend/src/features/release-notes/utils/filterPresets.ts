@@ -4,7 +4,7 @@
  * Each page has its own separate presets
  */
 
-import type { Filter } from '../types/filters';
+import type { Filter, OrderByItem, GroupByItem } from '../types/filters';
 import * as filterPresetsApi from '../../../services/filterPresets';
 import type { FilterPreset as ApiFilterPreset } from '../../../services/filterPresets';
 
@@ -17,6 +17,8 @@ export type FilterPreset = {
   id: string;
   name: string;
   filters: Filter | undefined;
+  orderBy: OrderByItem[] | undefined;
+  groupBy: GroupByItem[] | undefined;
   createdAt: string;
   updatedAt: string;
 };
@@ -26,6 +28,8 @@ function convertApiPresetToLocal(apiPreset: ApiFilterPreset): FilterPreset {
     id: String(apiPreset.id),
     name: apiPreset.name,
     filters: (apiPreset.filters === null || apiPreset.filters === undefined) ? undefined : (apiPreset.filters as Filter),
+    orderBy: (apiPreset.orderBy === null || apiPreset.orderBy === undefined) ? undefined : (apiPreset.orderBy as OrderByItem[]),
+    groupBy: (apiPreset.groupBy === null || apiPreset.groupBy === undefined) ? undefined : (apiPreset.groupBy as GroupByItem[]),
     createdAt: apiPreset.createdAt,
     updatedAt: apiPreset.updatedAt,
   };
@@ -98,6 +102,8 @@ export async function saveFilterPreset(pageId: string, preset: Omit<FilterPreset
       pageId,
       name: preset.name,
       filters: preset.filters,
+      orderBy: preset.orderBy,
+      groupBy: preset.groupBy,
       isShared: false,
     });
     return convertApiPresetToLocal(apiPreset);
@@ -124,6 +130,12 @@ export async function updateFilterPreset(pageId: string, id: string, updates: Pa
     }
     if (updates.filters !== undefined) {
       updateData.filters = updates.filters;
+    }
+    if (updates.orderBy !== undefined) {
+      updateData.orderBy = updates.orderBy;
+    }
+    if (updates.groupBy !== undefined) {
+      updateData.groupBy = updates.groupBy;
     }
 
     const apiPreset = await filterPresetsApi.updateFilterPreset(presetId, updateData);

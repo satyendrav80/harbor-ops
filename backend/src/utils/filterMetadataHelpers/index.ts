@@ -7,5 +7,5 @@
 
 export { getOperatorsForType, getAllSupportedOperators } from './operators';
 export { getDefaultUIConfig, formatFieldLabel } from './uiConfig';
-export { isFieldSearchable, isFieldSortable } from './fieldHelpers';
+export { isFieldSearchable, isFieldSortable, isFieldGroupable } from './fieldHelpers';
 

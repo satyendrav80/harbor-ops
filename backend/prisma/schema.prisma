@@ -559,6 +559,8 @@ model FilterPreset {
   pageId    String   @map("page_id") // 'release-notes', 'services', 'servers', 'credentials', 'domains'
   name      String   @map("name")
   filters   Json?    @map("filters") // Store the filter object as JSON (nullable)
+  orderBy   Json?    @map("order_by") // Store orderBy array as JSON (nullable)
+  groupBy   Json?    @map("group_by") // Store groupBy array as JSON (nullable)
   isShared  Boolean  @default(false) @map("is_shared") // Optional: allow sharing with other users
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

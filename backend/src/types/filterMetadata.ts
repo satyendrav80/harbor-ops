@@ -102,6 +102,7 @@ export type FilterFieldMetadata = {
   relationType?: 'one' | 'many' | null;
   searchable: boolean;
   sortable: boolean;
+  groupable: boolean; // Whether this field can be used for grouping results
   enumValues?: string[];
   ui: FilterFieldUI;
   // Special configurations

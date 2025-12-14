@@ -2,7 +2,7 @@
  * URL synchronization utilities for filters
  */
 
-import type { Filter, OrderByItem } from '../types/filters';
+import type { Filter, OrderByItem, GroupByItem } from '../types/filters';
 import { hasActiveFilters } from './filterState';
 
 /**
@@ -11,7 +11,8 @@ import { hasActiveFilters } from './filterState';
 export function serializeFiltersToUrl(
   filters?: Filter,
   search?: string,
-  orderBy?: OrderByItem | OrderByItem[]
+  orderBy?: OrderByItem | OrderByItem[],
+  groupBy?: GroupByItem[]
 ): URLSearchParams {
   const params = new URLSearchParams();
   
@@ -31,6 +32,10 @@ export function serializeFiltersToUrl(
     }
   }
   
+  if (groupBy && groupBy.length > 0) {
+    params.set('groupBy', JSON.stringify(groupBy));
+  }
+  
   return params;
 }
 
@@ -41,10 +46,12 @@ export function deserializeFiltersFromUrl(searchParams: URLSearchParams): {
   filters?: Filter;
   search?: string;
   orderBy?: OrderByItem | OrderByItem[];
+  groupBy?: GroupByItem[];
 } {
   const filtersParam = searchParams.get('filters');
   const search = searchParams.get('search') || undefined;
   const orderByParam = searchParams.get('orderBy');
+  const groupByParam = searchParams.get('groupBy');
   
   let filters: Filter | undefined;
   if (filtersParam) {
@@ -64,6 +71,15 @@ export function deserializeFiltersFromUrl(searchParams: URLSearchParams): {
     }
   }
   
-  return { filters, search, orderBy };
+  let groupBy: GroupByItem[] | undefined;
+  if (groupByParam) {
+    try {
+      groupBy = JSON.parse(groupByParam);
+    } catch (e) {
+      console.error('Failed to parse groupBy from URL:', e);
+    }
+  }
+  
+  return { filters, search, orderBy, groupBy };
 }
 

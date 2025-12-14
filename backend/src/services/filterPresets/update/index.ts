@@ -18,7 +18,7 @@ const prisma = new PrismaClient();
  * @returns Updated filter preset
  */
 export async function update(context: RequestContext) {
-  const { id, name, filters, isShared } = extractParams(context);
+  const { id, name, filters, orderBy, groupBy, isShared } = extractParams(context);
   const userId = context.headers?.['x-user-id'] as string;
 
   if (!userId) {
@@ -44,6 +44,12 @@ export async function update(context: RequestContext) {
   }
   if (filters !== undefined) {
     updateData.filters = filters ? (filters as any) : null; // Store as JSON, null if undefined
+  }
+  if (orderBy !== undefined) {
+    updateData.orderBy = orderBy ? (orderBy as any) : null; // Store as JSON, null if undefined
+  }
+  if (groupBy !== undefined) {
+    updateData.groupBy = groupBy ? (groupBy as any) : null; // Store as JSON, null if undefined
   }
   if (isShared !== undefined) {
     updateData.isShared = isShared;
