@@ -1,5 +1,6 @@
 import { Task, TaskStatus, TaskPriority, TaskType } from '../../../services/tasks';
 import { Clock, User, MessageSquare, Link2, CheckSquare, Calendar, ShieldCheck, BellRing } from 'lucide-react';
+import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
 
 type TaskCardProps = {
   task: Task;
@@ -78,10 +79,9 @@ export function TaskCard({ task, onClick, onParentTaskClick }: TaskCardProps) {
 
       {/* Description */}
       {task.description && (
-        <div
-          className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-4 prose prose-sm dark:prose-invert max-w-none font-normal"
-          dangerouslySetInnerHTML={{ __html: task.description }}
-        />
+        <div className="mb-4 line-clamp-2">
+          <RichTextRenderer html={task.description} variant="compact" />
+        </div>
       )}
 
       {/* Tags */}

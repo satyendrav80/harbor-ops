@@ -16,6 +16,7 @@ import { ServerGroups } from '../components/ServerGroups';
 import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
 import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Eye, EyeOff, Cloud, Filter as FilterIcon } from 'lucide-react';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
+import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGroups } from '../../../services/groups';
 import type { Server } from '../../../services/servers';
@@ -612,10 +613,7 @@ export function ServersPage() {
                           labelAs="p"
                           labelClassName="text-xs text-gray-500 dark:text-gray-400"
                         >
-                          <div
-                            className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline"
-                            dangerouslySetInnerHTML={{ __html: server.documentation }}
-                          />
+                          <RichTextRenderer html={server.documentation} />
                         </ExpandableContent>
                       )}
                     </div>

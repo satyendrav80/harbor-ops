@@ -20,6 +20,8 @@ import { ShareLinkModal } from '../components/ShareLinkModal';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 import { SelectionBar } from '../../../components/common/SelectionBar';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
+import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
+import { isEmptyHtml } from '../../../utils/richText';
 import { AdvancedFiltersPanel } from '../components/AdvancedFiltersPanel';
 import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle, Filter as FilterIcon, Share2 } from 'lucide-react';
 import type { ReleaseNote } from '../../../services/releaseNotes';
@@ -192,6 +194,11 @@ const ReleaseNoteItem = memo(({
   
   // Strip HTML tags for preview
   const getPlainText = (html: string) => {
+    // First check if the HTML is effectively empty
+    if (!html || isEmptyHtml(html)) {
+      return '';
+    }
+    
     if (typeof document === 'undefined') return html; // SSR safety
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
@@ -332,10 +339,7 @@ const ReleaseNoteItem = memo(({
               <div className="space-y-4">
                 {/* Note Content - Shown First */}
                 {releaseNote.note && (
-                  <div
-                    className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline whitespace-pre-wrap"
-                    dangerouslySetInnerHTML={{ __html: releaseNote.note }}
-                  />
+                  <RichTextRenderer html={releaseNote.note} />
                 )}
                 
                 {/* Tasks List - Shown Below Note Content */}
@@ -362,10 +366,9 @@ const ReleaseNoteItem = memo(({
                             </h5>
                           </div>
                           {task.description && (
-                            <div
-                              className="prose prose-sm dark:prose-invert max-w-none text-xs text-gray-600 dark:text-gray-400 ml-6 [&_h1]:text-xs [&_h2]:text-xs [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline"
-                              dangerouslySetInnerHTML={{ __html: task.description }}
-                            />
+                            <div className="ml-6">
+                              <RichTextRenderer html={task.description} variant="muted" />
+                            </div>
                           )}
                           <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 ml-6">
                             <span>

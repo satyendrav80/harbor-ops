@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { getPublicReleaseNotes } from '../../../services/releaseNotes';
 import { Loading } from '../../../components/common/Loading';
 import { EmptyState } from '../../../components/common/EmptyState';
+import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
+import { isEmptyHtml } from '../../../utils/richText';
 import { FileText, AlertCircle } from 'lucide-react';
 import dayjs from '../../../utils/dayjs';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
@@ -95,7 +97,7 @@ export function PublicReleaseNotesPage() {
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white break-words flex-1 min-w-0">
-                          {releaseNote.note ? (() => {
+                          {releaseNote.note && !isEmptyHtml(releaseNote.note) ? (() => {
                             const tmp = document.createElement('div');
                             tmp.innerHTML = releaseNote.note;
                             const plainText = tmp.textContent || tmp.innerText || '';
@@ -113,10 +115,7 @@ export function PublicReleaseNotesPage() {
                       >
                         <div className="space-y-4">
                           {releaseNote.note && (
-                            <div
-                              className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline whitespace-pre-wrap"
-                              dangerouslySetInnerHTML={{ __html: releaseNote.note }}
-                            />
+                            <RichTextRenderer html={releaseNote.note} />
                           )}
                           
                           {releaseNote.tasks && releaseNote.tasks.length > 0 && (
@@ -142,10 +141,9 @@ export function PublicReleaseNotesPage() {
                                       </h5>
                                     </div>
                                     {task.description && (
-                                      <div
-                                        className="prose prose-sm dark:prose-invert max-w-none text-xs text-gray-600 dark:text-gray-400 ml-6 [&_h1]:text-xs [&_h2]:text-xs [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline"
-                                        dangerouslySetInnerHTML={{ __html: task.description }}
-                                      />
+                                      <div className="ml-6">
+                                        <RichTextRenderer html={task.description} variant="muted" />
+                                      </div>
                                     )}
                                     <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 ml-6">
                                       <span>

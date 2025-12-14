@@ -22,6 +22,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getServers } from '../../../services/servers';
 import { getGroups, getGroupsByItem } from '../../../services/groups';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
+import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
 import { getServicesFilterMetadata } from '../../../services/services';
 import { useDebounce } from '../../../hooks/useDebounce';
 import type { Filter } from '../../release-notes/types/filters';
@@ -601,10 +602,7 @@ export function ServicesPage() {
                           labelAs="p"
                           labelClassName="text-xs text-gray-500 dark:text-gray-400"
                         >
-                          <div
-                            className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline"
-                            dangerouslySetInnerHTML={{ __html: service.documentation }}
-                          />
+                          <RichTextRenderer html={service.documentation} />
                         </ExpandableContent>
                       )}
                     </div>

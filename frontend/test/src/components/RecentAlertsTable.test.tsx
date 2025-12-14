@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -54,7 +55,8 @@ describe('RecentAlertsTable', () => {
 
   it('renders loading state', () => {
     render(<RecentAlertsTable alerts={[]} loading={true} />, { wrapper: createWrapper() });
-    expect(screen.getByText('Recent Alerts')).toBeInTheDocument();
+    // When loading, title is replaced by skeleton loaders
+    expect(screen.queryByText('Recent Alerts')).not.toBeInTheDocument();
     const skeletons = document.querySelectorAll('.animate-pulse');
     expect(skeletons.length).toBeGreaterThan(0);
   });

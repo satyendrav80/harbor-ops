@@ -14,6 +14,7 @@ import { X } from 'lucide-react';
 import dayjs from '../../../utils/dayjs';
 import { useQuery } from '@tanstack/react-query';
 import { listReleaseNotesAdvanced } from '../../../services/releaseNotes';
+import { isEmptyHtml } from '../../../utils/richText';
 
 type ReleaseNoteModalProps = {
   isOpen: boolean;
@@ -24,7 +25,12 @@ type ReleaseNoteModalProps = {
 
 const releaseNoteSchema = z.object({
   serviceId: z.number().min(1, 'Service is required'),
-  note: z.string().min(1, 'Release note is required').max(5000, 'Release note must be 5000 characters or less'),
+  note: z.string()
+    .min(1, 'Release note is required')
+    .max(5000, 'Release note must be 5000 characters or less')
+    .refine((val) => !isEmptyHtml(val), {
+      message: 'Release note cannot be empty',
+    }),
   publishDate: z.string().min(1, 'Publish date is required'),
 });
 

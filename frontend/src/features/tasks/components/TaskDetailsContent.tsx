@@ -13,6 +13,7 @@ import type { Task } from '../../../services/tasks';
 import { useQuery } from '@tanstack/react-query';
 import { getUsers } from '../../../services/users';
 import { RichTextEditor } from '../../../components/common/RichTextEditor';
+import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
 import { SearchableSelect } from '../../../components/common/SearchableSelect';
 import { toast } from 'react-hot-toast';
 import { CopyButton } from '../../../components/common/CopyButton';
@@ -324,10 +325,7 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
           {task.description && (
             <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Description</h2>
-              <div
-                className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300"
-                dangerouslySetInnerHTML={{ __html: task.description }}
-              />
+              <RichTextRenderer html={task.description} />
             </div>
           )}
 

@@ -3,6 +3,7 @@ import { X, Search } from 'lucide-react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { listTasks, type TasksResponse } from '../../../services/tasks';
 import { Loading } from '../../../components/common/Loading';
+import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
 import type { TaskStatus, Task } from '../../../services/tasks';
 
 interface TaskSelectionModalProps {
@@ -263,10 +264,9 @@ export function TaskSelectionModal({
                             )}
                           </div>
                           {task.description && (
-                            <div
-                              className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 prose prose-xs dark:prose-invert max-w-none"
-                              dangerouslySetInnerHTML={{ __html: task.description }}
-                            />
+                            <div className="line-clamp-2">
+                              <RichTextRenderer html={task.description} variant="compact" />
+                            </div>
                           )}
                         </div>
                       </li>
@@ -314,10 +314,9 @@ export function TaskSelectionModal({
                             )}
                           </div>
                           {task.description && (
-                            <div
-                              className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 prose prose-xs dark:prose-invert max-w-none"
-                              dangerouslySetInnerHTML={{ __html: task.description }}
-                            />
+                            <div className="line-clamp-2">
+                              <RichTextRenderer html={task.description} variant="compact" />
+                            </div>
                           )}
                         </div>
                       </li>
@@ -362,10 +361,9 @@ export function TaskSelectionModal({
                         )}
                       </div>
                       {task.description && (
-                        <div
-                          className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 prose prose-xs dark:prose-invert max-w-none"
-                          dangerouslySetInnerHTML={{ __html: task.description }}
-                        />
+                        <div className="line-clamp-2">
+                          <RichTextRenderer html={task.description} variant="compact" />
+                        </div>
                       )}
                     </div>
                   </li>

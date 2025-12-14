@@ -5,6 +5,7 @@ import { ServerModal } from './ServerModal';
 import { ServerIcon, Edit, Eye, EyeOff, Key, Globe, Tag as TagIcon, FolderOpen, ExternalLink, Cloud } from 'lucide-react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { Loading } from '../../../components/common/Loading';
+import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Server } from '../../../services/servers';
 
@@ -321,10 +322,7 @@ export function ServerDetailsContent({
             {server.documentation && (
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Inline Documentation</p>
-                <div
-                  className="prose prose-sm dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-xs [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ml-4 [&_ol]:ml-4 [&_a]:text-primary [&_a]:hover:underline"
-                  dangerouslySetInnerHTML={{ __html: server.documentation }}
-                />
+                <RichTextRenderer html={server.documentation} />
               </div>
             )}
           </div>

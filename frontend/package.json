@@ -32,7 +32,8 @@
     "reactflow": "11.11.4",
     "socket.io-client": "4.8.1",
     "tailwind-merge": "3.3.1",
-    "zod": "3.25.76"
+    "zod": "3.25.76",
+    "dompurify": "3.3.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.13",
@@ -40,6 +41,7 @@
     "@testing-library/react": "16.3.0",
     "@types/react": "19.1.15",
     "@types/react-dom": "19.1.9",
+    "@types/dompurify": "3.2.0",
     "@vitejs/plugin-react": "5.0.4",
     "autoprefixer": "10.4.21",
     "jsdom": "27.0.0",

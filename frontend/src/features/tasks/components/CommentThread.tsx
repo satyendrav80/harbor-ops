@@ -7,6 +7,7 @@ import { getSocket, joinTaskRoom, leaveTaskRoom } from '../../../services/socket
 import { useQueryClient } from '@tanstack/react-query';
 import type { TaskComment } from '../../../services/tasks';
 import { RichTextEditor } from '../../../components/common/RichTextEditor';
+import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
 
 type CommentThreadProps = {
   taskId: number;
@@ -123,10 +124,7 @@ function CommentContent({ content, allComments, onTaskClick }: { content: string
           Quoted message unavailable
         </div>
       )}
-      <div
-        className="prose prose-sm dark:prose-invert max-w-none break-words"
-        dangerouslySetInnerHTML={{ __html: displayContent }}
-      />
+      <RichTextRenderer html={displayContent} stripQuotePrefix={true} />
     </div>
   );
 }

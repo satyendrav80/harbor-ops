@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -34,7 +35,8 @@ describe('StatCard', () => {
 
   it('renders loading state', () => {
     render(<StatCard title="Test Card" value={123} loading={true} />, { wrapper: createWrapper() });
-    expect(screen.getByText('Test Card')).toBeInTheDocument();
+    // When loading, title is replaced by skeleton loaders
+    expect(screen.queryByText('Test Card')).not.toBeInTheDocument();
     // Loading skeletons should be present
     const skeletons = document.querySelectorAll('.animate-pulse');
     expect(skeletons.length).toBeGreaterThan(0);
