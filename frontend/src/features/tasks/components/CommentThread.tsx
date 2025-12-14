@@ -250,6 +250,7 @@ function CommentForm({
           showSendButton={true}
           sendButtonDisabled={isContentEmpty || createComment.isPending}
           onSend={handleSubmit}
+          submitShortcut="mod-enter"
         />
         {onCancel && (
           <div className="flex items-center gap-2">
@@ -454,6 +455,7 @@ function CommentCard({
                 minHeight="24px"
                 maxHeight="240px"
                 autoFocus={true}
+                submitShortcut="mod-enter"
               />
               <div className="flex gap-2">
                 <button

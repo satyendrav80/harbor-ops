@@ -28,6 +28,7 @@ type RichTextEditorProps = {
   showSendButton?: boolean;
   onSend?: () => void;
   sendButtonDisabled?: boolean;
+  submitShortcut?: 'mod-enter' | null; // 'mod-enter' enables Cmd/Ctrl+Enter to submit
 };
 
 // Helper function to convert RGB to hex
@@ -68,6 +69,7 @@ export function RichTextEditor({
   showSendButton = false,
   onSend,
   sendButtonDisabled = false,
+  submitShortcut = null,
 }: RichTextEditorProps) {
   const { isDark } = useTheme();
   const [linkModalOpen, setLinkModalOpen] = useState(false);
@@ -113,34 +115,27 @@ export function RichTextEditor({
         style: `white-space: pre-wrap; overflow-y: auto; overflow-x: hidden; width: 100%; max-width: 100%; word-wrap: break-word; word-break: break-word; box-sizing: border-box; ${minHeight ? `min-height: ${minHeight};` : compactMode ? 'min-height: 40px;' : 'min-height: 200px;'} height: auto; ${showSendButton ? 'padding-right: 2.25rem; padding-bottom: 2.25rem;' : ''}`,
       },
       handleKeyDown: (view, event) => {
-        // Handle Enter key (without Shift) - trigger form submission
-        if (event.key === 'Enter' && !event.shiftKey) {
-          const editorElement = view.dom.closest('form');
-          if (editorElement) {
-            event.preventDefault();
-            // Find the submit button in the form
-            const submitButton = editorElement.querySelector('button[type="submit"]') as HTMLButtonElement;
-            if (submitButton && !submitButton.disabled) {
-              submitButton.click();
-            } else {
-              // If no submit button found, try to submit the form directly
-              const form = editorElement as HTMLFormElement;
-              if (form.requestSubmit) {
-                form.requestSubmit();
-              } else {
-                form.submit();
-              }
-            }
-            return true;
-          }
+        // Don't interfere with IME composition
+        if ((event as any).isComposing) {
+          return false;
         }
-        // Handle Shift+Enter - insert new line
+
+        const isMod = event.metaKey || event.ctrlKey;
+
+        // Handle Cmd/Ctrl+Enter - submit (only when submitShortcut is enabled)
+        if (submitShortcut === 'mod-enter' && event.key === 'Enter' && isMod && !event.shiftKey && !event.altKey) {
+          event.preventDefault();
+          if (onSend && !sendButtonDisabled) {
+            onSend();
+          }
+          return true;
+        }
+
+        // Handle Shift+Enter - insert soft line break (multi-line within same bullet item)
         if (event.key === 'Enter' && event.shiftKey) {
           event.preventDefault();
-          // Use view dispatch to insert a hard break
           const { state, dispatch } = view;
-          const { schema } = state;
-          const hardBreak = schema.nodes.hardBreak;
+          const hardBreak = state.schema.nodes.hardBreak;
           if (hardBreak) {
             const tr = state.tr.replaceSelectionWith(hardBreak.create());
             dispatch(tr);
@@ -151,6 +146,9 @@ export function RichTextEditor({
           }
           return true;
         }
+
+        // Let normal Enter work as default (creates new paragraph/bullet item)
+        // TipTap/ProseMirror will handle it correctly for lists
         return false;
       },
     },
