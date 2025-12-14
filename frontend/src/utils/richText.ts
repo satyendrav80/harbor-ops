@@ -47,14 +47,23 @@ export function sanitizeRichTextHtml(html: string): string {
     (match: string, _before: string, _after: string) => {
       // Check if rel already exists
       if (/rel\s*=/i.test(match)) {
-        // Add noopener noreferrer to existing rel if not present
+        // Add noopener and noreferrer to existing rel if not present
         return match.replace(
           /rel\s*=\s*["']([^"']*)["']/i,
           (relMatch: string, relValue: string) => {
-            if (!/noopener/i.test(relValue)) {
-              return `rel="${relValue} noopener noreferrer"`;
+            const hasNoopener = /noopener/i.test(relValue);
+            const hasNoreferrer = /noreferrer/i.test(relValue);
+            
+            // Build new rel value with only missing attributes
+            let newRelValue = relValue.trim();
+            if (!hasNoopener) {
+              newRelValue = newRelValue ? `${newRelValue} noopener` : 'noopener';
             }
-            return relMatch;
+            if (!hasNoreferrer) {
+              newRelValue = newRelValue ? `${newRelValue} noreferrer` : 'noreferrer';
+            }
+            
+            return `rel="${newRelValue}"`;
           }
         );
       } else {
