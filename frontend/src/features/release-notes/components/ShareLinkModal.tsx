@@ -3,6 +3,7 @@ import { Modal } from '../../../components/common/Modal';
 import { createReleaseNoteShareLink, type ReleaseNoteShareLink } from '../../../services/releaseNotes';
 import { toast } from 'react-hot-toast';
 import dayjs from '../../../utils/dayjs';
+import { formatLocal } from '../../../utils/dateTime';
 import { hasActiveFilters } from '../utils/filterState';
 import { CopyButton } from '../../../components/common/CopyButton';
 
@@ -133,7 +134,7 @@ export function ShareLinkModal({ isOpen, onClose, filters, onShareLinkCreated }:
               <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
                 {createdLink.expiresAt && (
                   <p>
-                    Expires: {dayjs.utc(createdLink.expiresAt).format('D MMM YYYY, HH:mm')}
+                    Expires: {formatLocal(createdLink.expiresAt)}
                   </p>
                 )}
                 {!createdLink.expiresAt && (

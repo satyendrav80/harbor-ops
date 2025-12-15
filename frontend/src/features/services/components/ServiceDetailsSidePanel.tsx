@@ -25,6 +25,7 @@ export function ServiceDetailsSidePanel({
       isOpen={isOpen}
       onClose={onClose}
       title={`Service #${serviceId}`}
+      stackKey={serviceId ? `service-${serviceId}` : undefined}
       width="3xl"
     >
       <ServiceDetailsContent 

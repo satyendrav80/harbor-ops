@@ -21,10 +21,12 @@ import { SprintsPage } from './features/sprints/pages/SprintsPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth } from './components/common/RequireAuth';
 import { RequirePermission } from './components/common/RequirePermission';
+import { OverlayStackProvider } from './components/common/overlay/OverlayStackProvider';
 
 export default function App() {
   return (
-    <Routes>
+    <OverlayStackProvider>
+      <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/forgot" element={<ForgotPasswordPage />} />
@@ -212,7 +214,8 @@ export default function App() {
       />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+      </Routes>
+    </OverlayStackProvider>
   );
 }
 

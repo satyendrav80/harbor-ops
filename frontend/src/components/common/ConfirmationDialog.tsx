@@ -1,5 +1,6 @@
-import { useEffect, ReactNode } from 'react';
+import { useEffect, ReactNode, useRef, useState } from 'react';
 import { X, AlertTriangle, Trash2 } from 'lucide-react';
+import { useOverlayStack } from './overlay/OverlayStackProvider';
 
 type ConfirmationDialogProps = {
   isOpen: boolean;
@@ -28,26 +29,40 @@ export function ConfirmationDialog({
   variant = 'danger',
   isLoading = false,
 }: ConfirmationDialogProps) {
-  // Handle ESC key - use capture phase to handle ESC before parent modals/panels
+  const { register } = useOverlayStack();
+  const unregisterRef = useRef<(() => void) | null>(null);
+  const [zBackdrop, setZBackdrop] = useState<number | null>(null);
+  const [zContent, setZContent] = useState<number | null>(null);
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
-    if (!isOpen) return;
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !isLoading) {
-        event.preventDefault();
-        event.stopPropagation(); // Stop propagation to prevent closing parent modals/panels
-        event.stopImmediatePropagation(); // Also stop immediate propagation
-        onClose();
-      }
+  // Handle ESC via overlay stack registration
+  useEffect(() => {
+    if (!isOpen) {
+      unregisterRef.current?.();
+      unregisterRef.current = null;
+      setZBackdrop(null);
+      setZContent(null);
+      return;
     }
-
-    // Use capture phase (true) to handle ESC before other components (like SidePanel)
-    // This ensures confirmation dialogs close first, then parent panels on second ESC
-    document.addEventListener('keydown', handleKeyDown, true);
+    const reg = register('overlay', {
+      closeOnEscape: !isLoading,
+      onClose: () => {
+        if (!isLoading) onCloseRef.current();
+      },
+    });
+    unregisterRef.current = reg.unregister;
+    setZBackdrop(reg.zIndexBackdrop ?? null);
+    setZContent(reg.zIndexContent);
     return () => {
-      document.removeEventListener('keydown', handleKeyDown, true);
+      reg.unregister();
+      unregisterRef.current = null;
+      setZBackdrop(null);
+      setZContent(null);
     };
-  }, [isOpen, isLoading, onClose]);
+  }, [isOpen, isLoading, onClose, register]);
 
   if (!isOpen) return null;
 
@@ -83,7 +98,8 @@ export function ConfirmationDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 dark:bg-black/70"
+      className="fixed inset-0 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70"
+      style={{ zIndex: zBackdrop ?? 60 }}
       onClick={(e) => {
         if (e.target === e.currentTarget && !isLoading) {
           onClose();
@@ -92,6 +108,7 @@ export function ConfirmationDialog({
     >
       <div
         className={`relative bg-white dark:bg-[#1C252E] rounded-lg shadow-xl max-w-md w-full border ${styles.border} animate-in fade-in-0 zoom-in-95 duration-200`}
+        style={{ zIndex: zContent ?? 61 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

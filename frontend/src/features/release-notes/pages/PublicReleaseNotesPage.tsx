@@ -6,6 +6,7 @@ import { EmptyState } from '../../../components/common/EmptyState';
 import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
 import { isEmptyHtml } from '../../../utils/richText';
 import { FileText, AlertCircle } from 'lucide-react';
+import { formatLocal } from '../../../utils/dateTime';
 import dayjs from '../../../utils/dayjs';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
 
@@ -55,7 +56,7 @@ export function PublicReleaseNotesPage() {
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">
               {shareLink.expiresAt
-                ? `Expires: ${dayjs.utc(shareLink.expiresAt).format('D MMM YYYY, HH:mm')}`
+                ? `Expires: ${formatLocal(shareLink.expiresAt)}`
                 : 'Never expires'}
               {' • '}
               {shareLink.viewCount} view{shareLink.viewCount !== 1 ? 's' : ''}
@@ -177,12 +178,12 @@ export function PublicReleaseNotesPage() {
                     <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-gray-500 dark:text-gray-400">
                       {releaseNote.publishDate && (
                         <span className="font-medium">
-                          Publish Date: {dayjs.utc(releaseNote.publishDate).format('D MMM YYYY, HH:mm')}
+                          Publish Date: {formatLocal(releaseNote.publishDate)}
                         </span>
                       )}
                       {releaseNote.deployedAt && (
                         <span className="font-medium text-green-700 dark:text-green-300">
-                          Deployed: {dayjs.utc(releaseNote.deployedAt).format('D MMM YYYY, HH:mm')}
+                          Deployed: {formatLocal(releaseNote.deployedAt)}
                         </span>
                       )}
                     </div>

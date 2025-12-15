@@ -3,6 +3,7 @@ import { type ReleaseNoteShareLink } from '../../../services/releaseNotes';
 import { CopyButton } from '../../../components/common/CopyButton';
 import { Trash2, ExternalLink, Calendar, Eye, Clock } from 'lucide-react';
 import dayjs from '../../../utils/dayjs';
+import { formatLocal, formatLocalDate } from '../../../utils/dateTime';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
 
 type ShareLinkCardProps = {
@@ -16,7 +17,7 @@ export function ShareLinkCard({ shareLink, onDelete, isDeleting }: ShareLinkCard
   const shareUrl = `${window.location.origin}/release-notes/public/${shareLink.shareToken}`;
   
   const isExpired = shareLink.expiresAt 
-    ? dayjs.utc(shareLink.expiresAt).isBefore(dayjs())
+    ? dayjs(shareLink.expiresAt).isBefore(dayjs())
     : false;
 
   const formatFilters = (filters: any): string => {
@@ -102,7 +103,7 @@ export function ShareLinkCard({ shareLink, onDelete, isDeleting }: ShareLinkCard
                   <div className="flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5" />
                     <span>
-                      Created {dayjs.utc(shareLink.createdAt).format('MMM D, YYYY')}
+                      Created {formatLocalDate(shareLink.createdAt)}
                     </span>
                   </div>
                   
@@ -112,7 +113,7 @@ export function ShareLinkCard({ shareLink, onDelete, isDeleting }: ShareLinkCard
                     }`}>
                       <Clock className="w-3.5 h-3.5" />
                       <span>
-                        {isExpired ? 'Expired' : 'Expires'} {dayjs.utc(shareLink.expiresAt).format('MMM D, YYYY')}
+                        {isExpired ? 'Expired' : 'Expires'} {formatLocalDate(shareLink.expiresAt)}
                       </span>
                     </div>
                   ) : (
@@ -130,7 +131,7 @@ export function ShareLinkCard({ shareLink, onDelete, isDeleting }: ShareLinkCard
                   {shareLink.lastViewedAt && (
                     <div className="flex items-center gap-1.5">
                       <span>
-                        Last viewed {(dayjs.utc(shareLink.lastViewedAt) as any).fromNow()}
+                        Last viewed {(dayjs(shareLink.lastViewedAt) as any).fromNow()}
                       </span>
                     </div>
                   )}

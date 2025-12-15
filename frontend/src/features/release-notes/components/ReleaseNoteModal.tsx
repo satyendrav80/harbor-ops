@@ -12,6 +12,7 @@ import type { ReleaseNote } from '../../../services/releaseNotes';
 import type { Service } from '../../../services/services';
 import { X } from 'lucide-react';
 import dayjs from '../../../utils/dayjs';
+import { toDateTimeLocalValue, fromDateTimeLocalValueToIso } from '../../../utils/dateTime';
 import { useQuery } from '@tanstack/react-query';
 import { listReleaseNotesAdvanced } from '../../../services/releaseNotes';
 import { isEmptyHtml } from '../../../utils/richText';
@@ -51,7 +52,7 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
       serviceId: releaseNote?.serviceId || 0,
       note: releaseNote?.note || '',
       publishDate: releaseNote?.publishDate
-        ? dayjs.utc(releaseNote.publishDate).format('YYYY-MM-DDTHH:mm')
+        ? toDateTimeLocalValue(releaseNote.publishDate)
         : dayjs().format('YYYY-MM-DDTHH:mm'),
     },
   });
@@ -65,7 +66,7 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         serviceId: releaseNote.serviceId,
         note: releaseNote.note,
         publishDate: releaseNote.publishDate
-          ? dayjs.utc(releaseNote.publishDate).format('YYYY-MM-DDTHH:mm')
+          ? toDateTimeLocalValue(releaseNote.publishDate)
           : dayjs().format('YYYY-MM-DDTHH:mm'),
       });
       // Set selected tasks from release note
@@ -84,9 +85,12 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
   const onSubmit = async (values: ReleaseNoteFormValues) => {
     setError(null);
     try {
-      const publishDateIso = dayjs(values.publishDate).isValid()
-        ? dayjs(values.publishDate).utc(true).toISOString()
-        : values.publishDate;
+      // Convert datetime-local input value to ISO string (UTC) for backend
+      const publishDateIso = fromDateTimeLocalValueToIso(values.publishDate);
+      if (!publishDateIso) {
+        setError('Invalid publish date');
+        return;
+      }
 
       if (isEditing && releaseNote) {
         await updateReleaseNote.mutateAsync({

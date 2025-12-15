@@ -1,5 +1,5 @@
 import { useState, ReactNode } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ExpandCollapseButton } from './ExpandCollapseButton';
 
 type ExpandableContentProps = {
   /**
@@ -85,26 +85,15 @@ export function ExpandableContent({
     <div className={className}>
       <div className="flex items-center gap-2 mb-2">
         <LabelComponent className={labelClassName}>{label}</LabelComponent>
-        <button
+        <ExpandCollapseButton
+          isExpanded={isExpanded}
           onClick={(e) => {
-            e.stopPropagation();
             handleToggle();
           }}
-          className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          aria-label={isExpanded ? 'Collapse content' : 'Expand content'}
-        >
-          {isExpanded ? (
-            <>
-              <ChevronUp className="w-4 h-4" />
-              Collapse
-            </>
-          ) : (
-            <>
-              <ChevronDown className="w-4 h-4" />
-              Expand
-            </>
-          )}
-        </button>
+          expandLabel="Expand"
+          collapseLabel="Collapse"
+          size="xs"
+        />
       </div>
       {isExpanded ? (
         <div>{children}</div>

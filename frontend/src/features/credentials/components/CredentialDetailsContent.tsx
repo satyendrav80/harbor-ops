@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useCredential } from '../hooks/useCredentials';
 import { revealCredentialData } from '../../../services/credentials';
 import { CredentialModal } from './CredentialModal';
-import { Key, Edit, Eye, EyeOff, Server, Cloud, Tag as TagIcon } from 'lucide-react';
+import { Key, Edit, Server, Cloud, Tag as TagIcon } from 'lucide-react';
 import { useAuth } from '../../auth/context/AuthContext';
 import { Loading } from '../../../components/common/Loading';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Credential } from '../../../services/credentials';
+import { RevealButton } from '../../../components/common/RevealButton';
 
 type CredentialDetailsContentProps = {
   credentialId: number;
@@ -67,6 +68,15 @@ export function CredentialDetailsContent({
     );
   }
 
+  // Safely parse credential data to get keys
+  let parsedData: Record<string, any> = {};
+  try {
+    parsedData = typeof credential.data === 'string' ? JSON.parse(credential.data) : (credential.data || {});
+  } catch (e) {
+    console.error(`Failed to parse credential data for credential ${credential.id}:`, e);
+    parsedData = {};
+  }
+
   return (
     <div>
       {/* Header */}
@@ -100,48 +110,52 @@ export function CredentialDetailsContent({
       <div className="space-y-6">
         {/* Credential Data */}
         <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Credential Data</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Credential Data</h2>
+            {hasPermission('credentials:reveal') && (
+              <RevealButton
+                isRevealed={revealedData !== null}
+                isLoading={revealingData}
+                onToggle={handleRevealData}
+                title="Reveal data (requires credentials:reveal permission)"
+              />
+            )}
+          </div>
           <div className="space-y-3">
             {revealedData !== null ? (
               <div className="space-y-2">
-                {Object.entries(revealedData).map(([key, value]) => (
-                  <div key={key}>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{key}</p>
-                    <code className="text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded block">
-                      {String(value)}
-                    </code>
-                  </div>
-                ))}
-                {hasPermission('credentials:reveal') && (
-                  <button
-                    onClick={handleRevealData}
-                    className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1 mt-2"
-                    aria-label="Hide data"
-                    title="Hide data"
-                  >
-                    <EyeOff className="w-4 h-4" />
-                  </button>
-                )}
+                {Object.entries(revealedData).map(([key, value]) => {
+                  const valueStr = String(value);
+                  const isMultiline = valueStr.includes('\n');
+                  return (
+                    <div key={key} className={isMultiline ? "flex flex-col gap-1" : "flex items-center gap-2"}>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[120px] font-medium">{key}:</span>
+                      {isMultiline ? (
+                        <pre className="flex-1 text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded break-all whitespace-pre-wrap overflow-x-auto">
+                          {valueStr}
+                        </pre>
+                      ) : (
+                        <code className="flex-1 text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded break-all">
+                          {valueStr}
+                        </code>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <code className="text-sm font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-                  ••••••••
-                </code>
-                {hasPermission('credentials:reveal') && (
-                  <button
-                    onClick={handleRevealData}
-                    disabled={revealingData}
-                    className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1 disabled:opacity-50"
-                    aria-label="Reveal data"
-                    title="Reveal data (requires credentials:reveal permission)"
-                  >
-                    {revealingData ? (
-                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
+              <div className="space-y-2">
+                {Object.keys(parsedData).length > 0 ? (
+                  Object.keys(parsedData).map((key) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[120px] font-medium">{key}:</span>
+                      <code className="flex-1 text-sm font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                        ••••••••
+                      </code>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No credential data available</p>
                 )}
               </div>
             )}

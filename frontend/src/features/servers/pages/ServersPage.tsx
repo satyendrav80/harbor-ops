@@ -14,8 +14,9 @@ import { ServiceDetailsSidePanel } from '../../services/components/ServiceDetail
 import { CredentialDetailsSidePanel } from '../../credentials/components/CredentialDetailsSidePanel';
 import { ServerGroups } from '../components/ServerGroups';
 import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
-import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Eye, EyeOff, Cloud, Filter as FilterIcon } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Server as ServerIcon, X, Cloud, Filter as FilterIcon } from 'lucide-react';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
+import { RevealButton } from '../../../components/common/RevealButton';
 import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGroups } from '../../../services/groups';
@@ -477,14 +478,13 @@ export function ServersPage() {
                               {revealedPasswords[server.id] || '(no password)'}
                             </code>
                             {hasPermission('credentials:reveal') && (
-                              <button
-                                onClick={() => handleRevealPassword(server.id)}
-                                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
-                                aria-label="Hide password"
+                              <RevealButton
+                                isRevealed={true}
+                                onToggle={() => handleRevealPassword(server.id)}
+                                iconOnly={true}
+                                size="xs"
                                 title="Hide password"
-                              >
-                                <EyeOff className="w-4 h-4" />
-                              </button>
+                              />
                             )}
                           </div>
                         ) : (
@@ -493,19 +493,14 @@ export function ServersPage() {
                               ••••••••
                             </code>
                             {hasPermission('credentials:reveal') && (
-                              <button
-                                onClick={() => handleRevealPassword(server.id)}
-                                disabled={revealingPasswords[server.id]}
-                                className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1 disabled:opacity-50"
-                                aria-label="Reveal password"
+                              <RevealButton
+                                isRevealed={false}
+                                isLoading={revealingPasswords[server.id]}
+                                onToggle={() => handleRevealPassword(server.id)}
+                                iconOnly={true}
+                                size="xs"
                                 title="Reveal password (requires credentials:reveal permission)"
-                              >
-                                {revealingPasswords[server.id] ? (
-                                  <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <Eye className="w-4 h-4" />
-                                )}
-                              </button>
+                              />
                             )}
                           </div>
                         )}

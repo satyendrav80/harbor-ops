@@ -25,6 +25,7 @@ export function CredentialDetailsSidePanel({
       isOpen={isOpen}
       onClose={onClose}
       title={`Credential #${credentialId}`}
+      stackKey={credentialId ? `credential-${credentialId}` : undefined}
       width="3xl"
     >
       <CredentialDetailsContent 

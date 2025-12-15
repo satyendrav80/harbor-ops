@@ -25,6 +25,7 @@ export function ServerDetailsSidePanel({
       isOpen={isOpen}
       onClose={onClose}
       title={`Server #${serverId}`}
+      stackKey={serverId ? `server-${serverId}` : undefined}
       width="3xl"
     >
       <ServerDetailsContent 

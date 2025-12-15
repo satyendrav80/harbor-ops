@@ -708,6 +708,7 @@ router.post('/:id/mark-deployed', requirePermission('release-notes:deploy'), asy
         type: 'release_note_deployed',
         title: 'Release note deployed',
         message: `Release note for ${serviceName} was deployed`,
+        releaseNoteId: id,
       }).catch(() => null);
     }
 
@@ -735,6 +736,7 @@ router.post('/:id/mark-deployed', requirePermission('release-notes:deploy'), asy
           type: 'task_deployed',
           title: 'Tasks deployed',
           message: `Deployed: ${titles.join(', ')}`,
+          releaseNoteId: id,
         }).catch(() => null)
       )
     );
@@ -747,6 +749,7 @@ router.post('/:id/mark-deployed', requirePermission('release-notes:deploy'), asy
           type: 'task_deployed',
           title: 'Tasks deployed',
           message: `Deployed: ${titles.join(', ')}`,
+          releaseNoteId: id,
         }).catch(() => null)
       )
     );

@@ -13,7 +13,9 @@ import { CredentialDetailsSidePanel } from '../components/CredentialDetailsSideP
 import { ServerDetailsSidePanel } from '../../servers/components/ServerDetailsSidePanel';
 import { ServiceDetailsSidePanel } from '../../services/components/ServiceDetailsSidePanel';
 import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
-import { Search, Plus, Edit, Trash2, Key, X, Eye, EyeOff, Server, Cloud, Filter as FilterIcon } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Key, X, Server, Cloud, Filter as FilterIcon } from 'lucide-react';
+import { ExpandCollapseButton } from '../../../components/common/ExpandCollapseButton';
+import { RevealButton } from '../../../components/common/RevealButton';
 import type { Credential } from '../../../services/credentials';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { usePageTitle } from '../../../hooks/usePageTitle';
@@ -62,6 +64,7 @@ export function CredentialsPage() {
   const [selectedCredentialForEdit, setSelectedCredentialForEdit] = useState<Credential | null>(null);
   const [revealedData, setRevealedData] = useState<Record<number, any>>({});
   const [revealingData, setRevealingData] = useState<Record<number, boolean>>({});
+  const [expandedCredentialIds, setExpandedCredentialIds] = useState<Set<number>>(new Set());
   const [sidePanelCredentialId, setSidePanelCredentialId] = useState<number | null>(null);
   const [sidePanelServerId, setSidePanelServerId] = useState<number | null>(null);
   const [sidePanelServiceId, setSidePanelServiceId] = useState<number | null>(null);
@@ -304,7 +307,11 @@ export function CredentialsPage() {
     }
   };
 
-  const handleRevealData = async (credentialId: number) => {
+  const handleRevealData = async (credentialId: number, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    
     // If already revealed, hide it
     if (revealedData[credentialId] !== undefined) {
       setRevealedData((prev) => {
@@ -329,6 +336,19 @@ export function CredentialsPage() {
         return newState;
       });
     }
+  };
+
+  const handleToggleExpand = (credentialId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedCredentialIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(credentialId)) {
+        newSet.delete(credentialId);
+      } else {
+        newSet.add(credentialId);
+      }
+      return newSet;
+    });
   };
 
   // Open side panel if credentialId is in URL
@@ -444,7 +464,18 @@ export function CredentialsPage() {
           {credentials.map((credential) => {
             const isRevealed = revealedData[credential.id] !== undefined;
             const revealed = isRevealed ? revealedData[credential.id] : null;
-            const parsedData = typeof credential.data === 'string' ? JSON.parse(credential.data) : credential.data;
+            const isExpanded = expandedCredentialIds.has(credential.id);
+            
+            // Safely parse credential data with try/catch
+            let parsedData: Record<string, any> = {};
+            try {
+              parsedData = typeof credential.data === 'string' ? JSON.parse(credential.data) : (credential.data || {});
+            } catch (e) {
+              console.error(`Failed to parse credential data for credential ${credential.id}:`, e);
+              parsedData = {};
+            }
+            
+            const keyCount = Object.keys(parsedData).length;
 
             return (
               <div
@@ -461,74 +492,69 @@ export function CredentialsPage() {
                       <span className="inline-flex items-center rounded-md bg-gray-50 dark:bg-gray-700 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 ring-1 ring-inset ring-gray-500/10">
                         {credential.type}
                       </span>
-                    </div>
-                    
-                    <div className="mt-4 space-y-2">
-                      {isRevealed && revealed ? (
-                        <div className="space-y-2">
-                          {Object.entries(revealed).map(([key, value]) => {
-                            const valueStr = String(value);
-                            const isMultiline = valueStr.includes('\n');
-                            return (
-                              <div key={key} className={isMultiline ? "flex flex-col gap-1" : "flex items-center gap-2"}>
-                                <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[100px]">{key}:</span>
-                                {isMultiline ? (
-                                  <pre className="flex-1 text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded break-all whitespace-pre-wrap overflow-x-auto">
-                                    {valueStr}
-                                  </pre>
-                                ) : (
-                                  <code className="flex-1 text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded break-all">
-                                    {valueStr}
-                                  </code>
-                                )}
-                              </div>
-                            );
-                          })}
-                          {hasPermission('credentials:reveal') && (
-                            <button
-                              onClick={() => handleRevealData(credential.id)}
-                              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1 text-sm"
-                              aria-label="Hide data"
-                            >
-                              <EyeOff className="w-4 h-4 inline mr-1" />
-                              Hide
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {Object.keys(parsedData || {}).map((key) => (
-                            <div key={key} className="flex items-center gap-2">
-                              <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[100px]">{key}:</span>
-                              <code className="flex-1 text-sm font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-                                ••••••••
-                              </code>
-                            </div>
-                          ))}
-                          {hasPermission('credentials:reveal') && (
-                            <button
-                              onClick={() => handleRevealData(credential.id)}
-                              disabled={revealingData[credential.id]}
-                              className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1 text-sm disabled:opacity-50"
-                              aria-label="Reveal data"
-                              title="Reveal credential data (requires credentials:reveal permission)"
-                            >
-                              {revealingData[credential.id] ? (
-                                <>
-                                  <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin inline-block mr-1" />
-                                  Revealing...
-                                </>
-                              ) : (
-                                <>
-                                  <Eye className="w-4 h-4 inline mr-1" />
-                                  Reveal
-                                </>
-                              )}
-                            </button>
-                          )}
-                        </div>
+                      {keyCount > 0 && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          ({keyCount} {keyCount === 1 ? 'key' : 'keys'})
+                        </span>
                       )}
                     </div>
+                    
+                    {/* Action buttons row */}
+                    <div className="mt-4 flex items-center gap-2">
+                      {keyCount > 0 && (
+                        <ExpandCollapseButton
+                          isExpanded={isExpanded}
+                          onClick={(e) => handleToggleExpand(credential.id, e)}
+                        />
+                      )}
+                      {hasPermission('credentials:reveal') && (
+                        <RevealButton
+                          isRevealed={isRevealed}
+                          isLoading={revealingData[credential.id]}
+                          onToggle={(e) => handleRevealData(credential.id, e)}
+                          title="Reveal credential data (requires credentials:reveal permission)"
+                        />
+                      )}
+                    </div>
+
+                    {/* Expanded credential data (only shown when expanded) */}
+                    {isExpanded && keyCount > 0 && (
+                      <div className="mt-4 max-h-40 overflow-auto border border-gray-200 dark:border-gray-700/50 rounded-lg p-3 bg-gray-50 dark:bg-gray-800/30">
+                        {isRevealed && revealed ? (
+                          <div className="space-y-2">
+                            {Object.entries(revealed).map(([key, value]) => {
+                              const valueStr = String(value);
+                              const isMultiline = valueStr.includes('\n');
+                              return (
+                                <div key={key} className={isMultiline ? "flex flex-col gap-1" : "flex items-center gap-2"}>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[100px] font-medium">{key}:</span>
+                                  {isMultiline ? (
+                                    <pre className="flex-1 text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded break-all whitespace-pre-wrap overflow-x-auto">
+                                      {valueStr}
+                                    </pre>
+                                  ) : (
+                                    <code className="flex-1 text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded break-all">
+                                      {valueStr}
+                                    </code>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {Object.keys(parsedData).map((key) => (
+                              <div key={key} className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[100px] font-medium">{key}:</span>
+                                <code className="flex-1 text-sm font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                                  ••••••••
+                                </code>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Mapped Servers */}
                     {credential.servers && credential.servers.length > 0 && (

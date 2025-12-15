@@ -38,7 +38,7 @@ import { hasActiveFilters } from '../utils/filterState';
 import { TaskDetailsSidePanel } from '../../tasks/components/TaskDetailsSidePanel';
 import { ServiceDetailsSidePanel } from '../../services/components/ServiceDetailsSidePanel';
 import { ReleaseNoteDetailsSidePanel } from '../components/ReleaseNoteDetailsSidePanel';
-import dayjs from '../../../utils/dayjs';
+import { formatLocal, formatLocalDetailed } from '../../../utils/dateTime';
 import { toast } from 'react-hot-toast';
 import { getSocket } from '../../../services/socket';
 
@@ -443,23 +443,23 @@ const ReleaseNoteItem = memo(({
           <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-gray-500 dark:text-gray-400">
             {releaseNote.publishDate && (
               <span className="font-medium">
-                Publish Date: {dayjs.utc(releaseNote.publishDate).format('D MMM YYYY, HH:mm')}
+                Publish Date: {formatLocal(releaseNote.publishDate)}
               </span>
             )}
             {releaseNote.deployedAt && (
               <span className="font-medium text-green-700 dark:text-green-300">
-                Deployed: {dayjs.utc(releaseNote.deployedAt).format('D MMM YYYY, HH:mm')}
+                Deployed: {formatLocal(releaseNote.deployedAt)}
               </span>
             )}
             {releaseNote.createdAt && (
               <span>
-                Created {dayjs.utc(releaseNote.createdAt).format('D/MM/YYYY, HH:mm:ss')}
+                Created {formatLocalDetailed(releaseNote.createdAt)}
                 {releaseNote.createdByUser && ` by ${releaseNote.createdByUser.name || releaseNote.createdByUser.email}`}
               </span>
             )}
             {releaseNote.updatedAt && (
               <span>
-                Updated {dayjs.utc(releaseNote.updatedAt).format('D/MM/YYYY, HH:mm:ss')}
+                Updated {formatLocalDetailed(releaseNote.updatedAt)}
                 {releaseNote.updatedByUser && ` by ${releaseNote.updatedByUser.name || releaseNote.updatedByUser.email}`}
               </span>
             )}

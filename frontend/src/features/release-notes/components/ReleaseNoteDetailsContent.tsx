@@ -5,7 +5,7 @@ import { ExpandableContent } from '../../../components/common/ExpandableContent'
 import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
 import { Edit, Cloud, CheckCircle, PlayCircle, Trash2, FileText } from 'lucide-react';
 import { useAuth } from '../../auth/context/AuthContext';
-import dayjs from '../../../utils/dayjs';
+import { formatLocal, formatLocalDetailed } from '../../../utils/dateTime';
 import { useMarkReleaseNoteDeployed, useMarkReleaseNoteDeploymentStarted, useDeleteReleaseNote } from '../hooks/useReleaseNoteMutations';
 import { useState, useEffect } from 'react';
 import { ConfirmationDialog } from '../../../components/common/ConfirmationDialog';
@@ -285,26 +285,26 @@ export function ReleaseNoteDetailsContent({
         {releaseNote.publishDate && (
           <div className="text-xs text-gray-500 dark:text-gray-400">
             <span className="font-medium">Publish Date:</span>{' '}
-            {dayjs.utc(releaseNote.publishDate).format('D MMM YYYY, HH:mm')}
+            {formatLocal(releaseNote.publishDate)}
           </div>
         )}
         {releaseNote.deployedAt && (
           <div className="text-xs text-gray-500 dark:text-gray-400">
             <span className="font-medium text-green-700 dark:text-green-300">Deployed:</span>{' '}
-            {dayjs.utc(releaseNote.deployedAt).format('D MMM YYYY, HH:mm')}
+            {formatLocal(releaseNote.deployedAt)}
           </div>
         )}
         {releaseNote.createdAt && (
           <div className="text-xs text-gray-500 dark:text-gray-400">
             <span className="font-medium">Created:</span>{' '}
-            {dayjs.utc(releaseNote.createdAt).format('D/MM/YYYY, HH:mm:ss')}
+            {formatLocalDetailed(releaseNote.createdAt)}
             {releaseNote.createdByUser && ` by ${releaseNote.createdByUser.name || releaseNote.createdByUser.email}`}
           </div>
         )}
         {releaseNote.updatedAt && (
           <div className="text-xs text-gray-500 dark:text-gray-400">
             <span className="font-medium">Updated:</span>{' '}
-            {dayjs.utc(releaseNote.updatedAt).format('D/MM/YYYY, HH:mm:ss')}
+            {formatLocalDetailed(releaseNote.updatedAt)}
             {releaseNote.updatedByUser && ` by ${releaseNote.updatedByUser.name || releaseNote.updatedByUser.email}`}
           </div>
         )}

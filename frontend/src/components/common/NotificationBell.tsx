@@ -99,10 +99,16 @@ export function NotificationBell({ onTaskClick, onReleaseNoteClick }: Notificati
           tag: `notif-${notification.id}-${Date.now()}`,
         });
         n.onclick = () => {
+          window.focus();
           if (notification.taskId) {
-            window.focus();
             if (onTaskClick) {
               onTaskClick(notification.taskId);
+            }
+          } else if (notification.releaseNoteId) {
+            if (onReleaseNoteClick) {
+              onReleaseNoteClick(notification.releaseNoteId);
+            } else {
+              navigate(`/release-notes?releaseNoteId=${notification.releaseNoteId}`);
             }
           }
         };
@@ -129,7 +135,7 @@ export function NotificationBell({ onTaskClick, onReleaseNoteClick }: Notificati
     return () => {
       socket.off('notification:new', handleNewNotification);
     };
-  }, [queryClient, loadNotifications, allowSound, soundChoice, hasUserInteracted, onTaskClick]);
+  }, [queryClient, loadNotifications, allowSound, soundChoice, hasUserInteracted, onTaskClick, onReleaseNoteClick, navigate]);
 
   // Listen to storage changes for sound toggle (so profile changes reflect here)
   useEffect(() => {

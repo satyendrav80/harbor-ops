@@ -19,6 +19,7 @@ export function DomainDetailsSidePanel({
       isOpen={isOpen}
       onClose={onClose}
       title={`Domain #${domainId}`}
+      stackKey={domainId ? `domain-${domainId}` : undefined}
       width="3xl"
     >
       <DomainDetailsContent domainId={domainId} />

@@ -16,6 +16,7 @@ export function TaskDetailsSidePanel({ isOpen, onClose, taskId, onTaskClick }: T
       isOpen={isOpen}
       onClose={onClose}
       title={`Task #${taskId}`}
+      stackKey={taskId ? `task-${taskId}` : undefined}
       width="3xl"
     >
       <TaskDetailsContent taskId={taskId} onTaskClick={onTaskClick} onClose={onClose} />

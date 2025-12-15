@@ -1,5 +1,6 @@
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { useOverlayStack } from './overlay/OverlayStackProvider';
 
 type ModalProps = {
   isOpen: boolean;
@@ -14,40 +15,37 @@ type ModalProps = {
  */
 export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
-
-  // Handle ESC key press - close dropdowns first, then modal
+  const { register } = useOverlayStack();
+  const unregisterRef = useRef<(() => void) | null>(null);
+  const [zBackdrop, setZBackdrop] = useState<number | null>(null);
+  const [zContent, setZContent] = useState<number | null>(null);
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
-    if (!isOpen) return;
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        // Check if any dropdown is open within the modal
-        // SearchableMultiSelect and other dropdowns typically have a data attribute or class when open
-        const modalElement = modalRef.current;
-        if (!modalElement) return;
-
-        // Check for open dropdowns by looking for elements with dropdown indicators
-        // SearchableMultiSelect sets data-dropdown-open="true" when open
-        const openDropdowns = modalElement.querySelectorAll('[data-dropdown-open="true"]');
-        
-        if (openDropdowns.length > 0) {
-          // Dropdown is open - let SearchableMultiSelect handle ESC (it will stop propagation)
-          // The dropdown's ESC handler will close it and stop propagation, preventing modal close
-          return;
-        }
-
-        // No dropdown open, close the modal
-        event.preventDefault();
-        event.stopPropagation();
-        onClose();
-      }
+  useEffect(() => {
+    if (!isOpen) {
+      unregisterRef.current?.();
+      unregisterRef.current = null;
+      setZBackdrop(null);
+      setZContent(null);
+      return;
     }
-
-    document.addEventListener('keydown', handleKeyDown);
+    const reg = register('overlay', {
+      onClose: () => onCloseRef.current(),
+      closeOnEscape: true,
+    });
+    unregisterRef.current = reg.unregister;
+    setZBackdrop(reg.zIndexBackdrop ?? null);
+    setZContent(reg.zIndexContent);
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      reg.unregister();
+      unregisterRef.current = null;
+      setZBackdrop(null);
+      setZContent(null);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, register]);
 
   if (!isOpen) return null;
 
@@ -65,10 +63,11 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
   // On desktop (>= lg), sidebar is always visible at 256px width
   if (size === 'full') {
     return (
-      <div className="fixed inset-0 z-[60] bg-black/50" onClick={onClose}>
+      <div className="fixed inset-0 bg-black/50" style={{ zIndex: zBackdrop ?? 60 }} onClick={onClose}>
         <div
           ref={modalRef}
           className="bg-white dark:bg-[#1C252E] shadow-lg h-full flex flex-col lg:ml-64" // Sidebar width (w-64 = 256px) only on desktop
+          style={{ zIndex: zContent ?? 61 }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -91,10 +90,15 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4 bg-black/50"
+      style={{ zIndex: zBackdrop ?? 60 }}
+      onClick={onClose}
+    >
       <div
         ref={modalRef}
         className={`bg-white dark:bg-[#1C252E] rounded-xl shadow-lg w-full ${sizeClasses[size]} max-h-[90vh] overflow-hidden flex flex-col`}
+        style={{ zIndex: zContent ?? 61 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

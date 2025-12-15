@@ -88,7 +88,8 @@ describe('RichTextRenderer', () => {
       const link = container.querySelector('a');
       expect(link).toBeTruthy();
       const href = link?.getAttribute('href');
-      expect(href).not.toContain('javascript:');
+      // href may be null/removed entirely or rewritten, but it must never contain "javascript:"
+      expect(href ?? '').not.toContain('javascript:');
     });
 
     it('should allow safe http/https links', () => {

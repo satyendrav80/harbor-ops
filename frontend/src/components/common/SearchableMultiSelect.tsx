@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, Check } from 'lucide-react';
+import { useOverlayStack } from './overlay/OverlayStackProvider';
 
 type Option = {
   id: number;
@@ -32,20 +34,34 @@ export function SearchableMultiSelect({
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const { register } = useOverlayStack();
+  const unregisterRef = useRef<(() => void) | null>(null);
+  const [popoverZ, setPopoverZ] = useState<number | null>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const [placement, setPlacement] = useState<'top' | 'bottom'>('bottom');
 
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-        setSearchQuery('');
+      const target = event.target as Node;
+      if (
+        containerRef.current?.contains(target) ||
+        dropdownRef.current?.contains(target)
+      ) {
+        return;
       }
+      setIsOpen(false);
+      setSearchQuery('');
     }
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
 
   // Filter options based on search query
   const filteredOptions = options.filter((option) =>
@@ -60,6 +76,95 @@ export function SearchableMultiSelect({
       setHighlightedIndex(-1);
     }
   }, [searchQuery, isOpen]);
+
+  // Register with overlay stack for z-index and ESC control
+  useEffect(() => {
+    if (!isOpen) {
+      unregisterRef.current?.();
+      unregisterRef.current = null;
+      setPopoverZ(null);
+      return;
+    }
+    const reg = register('popover', {
+      closeOnEscape: true,
+      onClose: () => {
+        setIsOpen(false);
+        setSearchQuery('');
+        setHighlightedIndex(-1);
+      },
+    });
+    unregisterRef.current = reg.unregister;
+    setPopoverZ(reg.zIndexContent);
+    return () => {
+      reg.unregister();
+      unregisterRef.current = null;
+      setPopoverZ(null);
+    };
+  }, [isOpen, register]);
+
+  // Position dropdown via portal
+  useEffect(() => {
+    if (!isOpen || !containerRef.current) return;
+    const updatePosition = () => {
+      const anchorEl = triggerRef.current ?? containerRef.current!;
+      const rect = anchorEl.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const VIEWPORT_PAD = 8;
+      const GAP = 4;
+      const MIN_HEIGHT = 160;
+      const MAX_HEIGHT = 320;
+
+      const spaceBelow = viewportHeight - rect.bottom - VIEWPORT_PAD;
+      const spaceAbove = rect.top - VIEWPORT_PAD;
+
+      // Prefer opening downward, but flip to top when there really isn't enough room
+      const DESIRED_HEIGHT = 320;
+      const openUp = spaceBelow < DESIRED_HEIGHT && spaceAbove > spaceBelow;
+      setPlacement(openUp ? 'top' : 'bottom');
+
+      const rawAvailable = openUp ? spaceAbove : spaceBelow;
+      const available = Math.max(
+        0,
+        Math.min(rawAvailable, viewportHeight - VIEWPORT_PAD * 2)
+      );
+
+      const maxHeight =
+        available <= MIN_HEIGHT ? available : Math.min(available, MAX_HEIGHT);
+
+      if (openUp) {
+        // Anchor the dropdown's bottom directly to the top of the trigger
+        const bottom = viewportHeight - rect.top + GAP;
+
+        setDropdownStyle({
+          position: 'fixed',
+          bottom,
+          left: rect.left,
+          width: rect.width,
+          maxHeight,
+        });
+      } else {
+        // Normal downwards dropdown anchored by top
+        const top = rect.bottom + GAP;
+
+        setDropdownStyle({
+          position: 'fixed',
+          top,
+          left: rect.left,
+          width: rect.width,
+          maxHeight,
+        });
+      }
+    };
+    updatePosition();
+    const onResize = () => updatePosition();
+    const onScroll = () => updatePosition();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [isOpen]);
 
   const handleToggle = (optionId: number) => {
     if (disabled) return;
@@ -159,6 +264,7 @@ export function SearchableMultiSelect({
         </label>
       )}
       <div
+        ref={triggerRef}
         className={`relative flex w-full min-h-[2.5rem] rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] px-3 py-2 cursor-pointer ${
           disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-300 dark:hover:border-gray-600'
         } ${isOpen ? 'ring-2 ring-primary/50 border-primary' : ''}`}
@@ -209,72 +315,111 @@ export function SearchableMultiSelect({
       </div>
 
       {/* Dropdown */}
-      {isOpen && !disabled && (
-        <div className="absolute z-[60] w-full mt-1 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-lg max-h-[calc(100vh-12rem)] overflow-hidden">
-          {/* Search input */}
-          <div className="sticky top-0 p-2 bg-white dark:bg-[#1C252E] border-b border-gray-200 dark:border-gray-700/50 z-10">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search..."
-                className="w-full pl-10 pr-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
-                autoFocus
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  // Prevent default behavior for arrow keys in search input
-                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    // Focus will move to options via the document-level handler
-                  }
-                }}
-              />
-            </div>
-          </div>
+      {isOpen && !disabled &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              ...dropdownStyle,
+              zIndex: popoverZ ?? 200,
+            }}
+            className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-lg overflow-hidden"
+          >
+            <div className="flex flex-col max-h-[inherit]">
+              {/* When opening downward, keep search at the top */}
+              {placement === 'bottom' && (
+                <div className="p-2 bg-white dark:bg-[#1C252E] border-b border-gray-200 dark:border-gray-700/50">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search..."
+                      className="w-full pl-10 pr-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        // Prevent default behavior for arrow keys in search input
+                        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          // Focus will move to options via the document-level handler
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
-          {/* Options list */}
-          <div className="overflow-y-auto max-h-[calc(100vh-16rem)]">
-            {filteredOptions.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
-                No options found
+              {/* Options list */}
+              <div className="overflow-y-auto flex-1" style={{ maxHeight: dropdownStyle.maxHeight }}>
+                {filteredOptions.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+                    No options found
+                  </div>
+                ) : (
+                  filteredOptions.map((option, index) => {
+                    const isSelected = selectedIds.includes(option.id);
+                    const isHighlighted = highlightedIndex === index;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        data-option-index={index}
+                        onClick={() => handleToggle(option.id)}
+                        onMouseEnter={() => setHighlightedIndex(index)}
+                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                          isHighlighted
+                            ? 'bg-primary/10 text-primary'
+                            : isSelected
+                            ? 'bg-primary/5 text-primary hover:bg-primary/10'
+                            : 'text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-white/5'
+                        }`}
+                      >
+                        <div
+                          className={`flex-shrink-0 w-4 h-4 border rounded flex items-center justify-center ${
+                            isSelected
+                              ? 'bg-primary border-primary'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                        <span className="flex-1">{option.name}</span>
+                      </button>
+                    );
+                  })
+                )}
               </div>
-            ) : (
-              filteredOptions.map((option, index) => {
-                const isSelected = selectedIds.includes(option.id);
-                const isHighlighted = highlightedIndex === index;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    data-option-index={index}
-                    onClick={() => handleToggle(option.id)}
-                    onMouseEnter={() => setHighlightedIndex(index)}
-                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
-                      isHighlighted
-                        ? 'bg-primary/10 text-primary'
-                        : isSelected
-                        ? 'bg-primary/5 text-primary hover:bg-primary/10'
-                        : 'text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    <div className={`flex-shrink-0 w-4 h-4 border rounded flex items-center justify-center ${
-                      isSelected
-                        ? 'bg-primary border-primary'
-                        : 'border-gray-300 dark:border-gray-600'
-                    }`}>
-                      {isSelected && <Check className="w-3 h-3 text-white" />}
-                    </div>
-                    <span className="flex-1">{option.name}</span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
+
+              {/* When opening upward, put search at the bottom so it's close to the trigger */}
+              {placement === 'top' && (
+                <div className="p-2 bg-white dark:bg-[#1C252E] border-t border-gray-200 dark:border-gray-700/50">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search..."
+                      className="w-full pl-10 pr-3 py-2 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                          e.preventDefault();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

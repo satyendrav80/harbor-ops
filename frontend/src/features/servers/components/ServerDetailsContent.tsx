@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useServer } from '../hooks/useServers';
 import { revealServerPassword } from '../../../services/servers';
 import { ServerModal } from './ServerModal';
-import { ServerIcon, Edit, Eye, EyeOff, Key, Globe, Tag as TagIcon, FolderOpen, ExternalLink, Cloud } from 'lucide-react';
+import { ServerIcon, Edit, Key, Globe, Tag as TagIcon, FolderOpen, ExternalLink, Cloud } from 'lucide-react';
+import { RevealButton } from '../../../components/common/RevealButton';
 import { useAuth } from '../../auth/context/AuthContext';
 import { Loading } from '../../../components/common/Loading';
 import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
@@ -167,14 +168,13 @@ export function ServerDetailsContent({
                       {revealedPassword || '(no password)'}
                     </code>
                     {hasPermission('credentials:reveal') && (
-                      <button
-                        onClick={handleRevealPassword}
-                        className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
-                        aria-label="Hide password"
+                      <RevealButton
+                        isRevealed={true}
+                        onToggle={handleRevealPassword}
+                        iconOnly={true}
+                        size="xs"
                         title="Hide password"
-                      >
-                        <EyeOff className="w-4 h-4" />
-                      </button>
+                      />
                     )}
                   </div>
                 ) : (
@@ -183,19 +183,14 @@ export function ServerDetailsContent({
                       ••••••••
                     </code>
                     {hasPermission('credentials:reveal') && (
-                      <button
-                        onClick={handleRevealPassword}
-                        disabled={revealingPassword}
-                        className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1 disabled:opacity-50"
-                        aria-label="Reveal password"
+                      <RevealButton
+                        isRevealed={false}
+                        isLoading={revealingPassword}
+                        onToggle={handleRevealPassword}
+                        iconOnly={true}
+                        size="xs"
                         title="Reveal password (requires credentials:reveal permission)"
-                      >
-                        {revealingPassword ? (
-                          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <Eye className="w-4 h-4" />
-                        )}
-                      </button>
+                      />
                     )}
                   </div>
                 )}

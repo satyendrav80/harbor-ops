@@ -3,8 +3,9 @@
  * Similar to Jira's advanced filter panel
  */
 
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { useOverlayStack } from './overlay/OverlayStackProvider';
 
 type SidePanelProps = {
   isOpen: boolean;
@@ -12,6 +13,10 @@ type SidePanelProps = {
   title: string;
   children: ReactNode;
   width?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
+  /**
+   * Changing stackKey forces re-registration so the panel rises to top.
+   */
+  stackKey?: string | number | null;
 };
 
 const widthClasses = {
@@ -26,53 +31,47 @@ const widthClasses = {
 /**
  * Side Panel component for advanced filters
  */
-export function SidePanel({ isOpen, onClose, title, children, width = 'md' }: SidePanelProps) {
+export function SidePanel({
+  isOpen,
+  onClose,
+  title,
+  children,
+  width = 'md',
+  stackKey,
+}: SidePanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-
-  // Handle ESC key press
-  // Only closes if no confirmation dialogs or other modals are open
+  const { register } = useOverlayStack();
+  const unregisterRef = useRef<(() => void) | null>(null);
+  const [zBackdrop, setZBackdrop] = useState<number | null>(null);
+  const [zContent, setZContent] = useState<number | null>(null);
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
-    if (!isOpen) return;
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        const panelElement = panelRef.current;
-        if (!panelElement) return;
-
-        // Check for open dropdowns
-        const openDropdowns = panelElement.querySelectorAll('[data-dropdown-open="true"]');
-        if (openDropdowns.length > 0) {
-          return;
-        }
-
-        // Check for open confirmation dialogs or modals with higher z-index
-        // This is a generic check that works for any modal/dialog component
-        // We check for elements with z-index >= 60 (ConfirmationDialog uses z-[60])
-        // This ensures modals/dialogs close first, then the side panel on second ESC
-        const openModals = document.querySelectorAll(
-          '[class*="z-[60]"], [class*="z-[70]"], [class*="z-[80]"], [class*="z-[90]"], [class*="z-[100]"]'
-        );
-        // Filter to only check elements that are actually visible (not hidden)
-        const visibleModals = Array.from(openModals).filter(
-          (el) => el instanceof HTMLElement && window.getComputedStyle(el).display !== 'none'
-        );
-        if (visibleModals.length > 0) {
-          // Let the modal/dialog handle ESC first
-          return;
-        }
-
-        event.preventDefault();
-        event.stopPropagation();
-        onClose();
-      }
+  // Register with overlay stack for z-index + ESC handling
+  useEffect(() => {
+    if (!isOpen) {
+      unregisterRef.current?.();
+      unregisterRef.current = null;
+      setZBackdrop(null);
+      setZContent(null);
+      return;
     }
-
-    // Use bubble phase (not capture) so confirmation dialogs handle ESC first
-    document.addEventListener('keydown', handleKeyDown);
+    const reg = register('overlay', {
+      onClose: () => onCloseRef.current(),
+      closeOnEscape: true,
+    });
+    unregisterRef.current = reg.unregister;
+    setZBackdrop(reg.zIndexBackdrop ?? null);
+    setZContent(reg.zIndexContent);
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      reg.unregister();
+      unregisterRef.current = null;
+      setZBackdrop(null);
+      setZContent(null);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, register, stackKey]);
 
   if (!isOpen) return null;
 
@@ -80,21 +79,23 @@ export function SidePanel({ isOpen, onClose, title, children, width = 'md' }: Si
     <>
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 z-40 bg-black/50 transition-opacity"
-        onClick={onClose}
+        className="fixed inset-0 bg-black/50 transition-opacity"
+        style={{ zIndex: zBackdrop ?? 190 }}
+        onClick={() => onCloseRef.current()}
       />
       
       {/* Panel */}
       <div
         ref={panelRef}
-        className={`fixed right-0 top-0 h-full z-50 bg-white dark:bg-[#1C252E] shadow-xl flex flex-col ${widthClasses[width]} transition-transform`}
+        className={`fixed right-0 top-0 h-full bg-white dark:bg-[#1C252E] shadow-xl flex flex-col ${widthClasses[width]} transition-transform`}
+        style={{ zIndex: zContent ?? 200 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h2>
           <button
-            onClick={onClose}
+            onClick={() => onCloseRef.current()}
             className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded"
             aria-label="Close"
           >

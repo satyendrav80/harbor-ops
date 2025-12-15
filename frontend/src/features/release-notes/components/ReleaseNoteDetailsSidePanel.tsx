@@ -25,6 +25,7 @@ export function ReleaseNoteDetailsSidePanel({
       isOpen={isOpen}
       onClose={onClose}
       title={`Release Note #${releaseNoteId}`}
+      stackKey={releaseNoteId ? `release-note-${releaseNoteId}` : undefined}
       width="3xl"
     >
       <ReleaseNoteDetailsContent 
