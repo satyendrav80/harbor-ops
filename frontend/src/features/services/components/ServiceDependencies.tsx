@@ -42,6 +42,7 @@ export function ServiceDependencies({
   });
 
   // Fetch all services for dependency selection
+  // Enable when: form is open OR when in controlled mode with dependencies (to ensure names are available)
   const { data: servicesData } = useQuery({
     queryKey: ['services', 'all', 'dependencies'],
     queryFn: async () => {
@@ -49,29 +50,58 @@ export function ServiceDependencies({
       return response.data; // Return just the array of services
     },
     staleTime: 5 * 60 * 1000,
-    enabled: showAddForm, // Fetch when form is open
+    enabled: showAddForm || (controlled && localDependencies.length > 0), // Fetch when form is open OR when controlled mode has dependencies
   });
+
+  // Build a lookup map for dependency service info
+  // Priority: 1) initialDependencies (already has names from backend), 2) servicesData
+  const dependencyServiceMap = new Map<number, { id: number; name: string; port: number; external?: boolean }>();
+  
+  // First, populate from initialDependencies (these already have dependencyService populated from backend)
+  if (initialDependencies) {
+    initialDependencies.forEach((dep) => {
+      if (dep.dependencyServiceId && dep.dependencyService) {
+        dependencyServiceMap.set(dep.dependencyServiceId, dep.dependencyService);
+      }
+    });
+  }
+  
+  // Then, supplement with servicesData (for newly added dependencies or if initialDependencies is missing data)
+  if (servicesData) {
+    servicesData.forEach((s) => {
+      if (!dependencyServiceMap.has(s.id)) {
+        dependencyServiceMap.set(s.id, {
+          id: s.id,
+          name: s.name,
+          port: s.port,
+          external: s.external,
+        });
+      }
+    });
+  }
 
   // Use local dependencies in controlled mode, otherwise use service dependencies
   const dependencies = controlled 
-    ? localDependencies.map((dep, index) => ({
-        id: -(index + 1), // Temporary negative IDs for local dependencies
-        serviceId: serviceId || 0,
-        dependencyServiceId: dep.dependencyServiceId,
-        description: dep.description || null,
-        dependencyService: servicesData?.find(s => s.id === dep.dependencyServiceId) ? {
-          id: dep.dependencyServiceId,
-          name: servicesData.find(s => s.id === dep.dependencyServiceId)!.name,
-          port: servicesData.find(s => s.id === dep.dependencyServiceId)!.port,
-          external: servicesData.find(s => s.id === dep.dependencyServiceId)!.external,
-        } : null,
-        createdAt: new Date().toISOString(),
-      }))
+    ? localDependencies.map((dep, index) => {
+        // Look up dependencyService from our map
+        const dependencyService = dep.dependencyServiceId 
+          ? dependencyServiceMap.get(dep.dependencyServiceId) || null
+          : null;
+        
+        return {
+          id: -(index + 1), // Temporary negative IDs for local dependencies
+          serviceId: serviceId || 0,
+          dependencyServiceId: dep.dependencyServiceId,
+          description: dep.description || null,
+          dependencyService,
+          createdAt: new Date().toISOString(),
+        };
+      })
     : (service?.dependencies || initialDependencies || []);
 
   const addDependency = useMutation({
     mutationFn: (data: {
-      dependencyServiceId?: number;
+      dependencyServiceId: number;
       description?: string;
     }) => {
       if (!serviceId) {
@@ -175,7 +205,7 @@ export function ServiceDependencies({
               className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700/50"
             >
               <div className="flex items-center gap-2">
-                {dep.dependencyService && (
+                {dep.dependencyService ? (
                   <>
                     <Link2 className="w-4 h-4 text-blue-500" />
                     {onServiceClick ? (
@@ -197,7 +227,15 @@ export function ServiceDependencies({
                     </span>
                     )}
                   </>
-                )}
+                ) : dep.dependencyServiceId ? (
+                  // Fallback: show service ID if name is not available yet
+                  <>
+                    <Link2 className="w-4 h-4 text-blue-500" />
+                    <span className="text-sm text-gray-500 dark:text-gray-400 italic">
+                      Service #{dep.dependencyServiceId} (loading...)
+                    </span>
+                  </>
+                ) : null}
                 {dep.description && (
                   <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{dep.description}</span>
                 )}
@@ -233,7 +271,7 @@ export function ServiceDependencies({
             className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700/50"
           >
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              {dep.dependencyService && (
+              {dep.dependencyService ? (
                 <>
                   <Link2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
                   {onServiceClick ? (
@@ -255,7 +293,15 @@ export function ServiceDependencies({
                   </span>
                   )}
                 </>
-              )}
+              ) : dep.dependencyServiceId ? (
+                // Fallback: show service ID if name is not available yet
+                <>
+                  <Link2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                  <span className="text-sm text-gray-500 dark:text-gray-400 italic truncate">
+                    Service #{dep.dependencyServiceId} (loading...)
+                  </span>
+                </>
+              ) : null}
               {dep.description && (
                 <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 truncate">{dep.description}</span>
               )}
