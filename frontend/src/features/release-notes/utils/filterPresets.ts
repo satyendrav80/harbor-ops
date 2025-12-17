@@ -116,7 +116,15 @@ export async function saveFilterPreset(pageId: string, preset: Omit<FilterPreset
 /**
  * Update an existing filter preset for a specific page
  */
-export async function updateFilterPreset(pageId: string, id: string, updates: Partial<Omit<FilterPreset, 'id' | 'createdAt'>>): Promise<FilterPreset | null> {
+export async function updateFilterPreset(
+  pageId: string,
+  id: string,
+  updates: Partial<Omit<FilterPreset, 'id' | 'createdAt' | 'filters' | 'orderBy' | 'groupBy'>> & {
+    filters?: Filter | null;
+    orderBy?: OrderByItem[] | null;
+    groupBy?: GroupByItem[] | null;
+  }
+): Promise<FilterPreset | null> {
   try {
     const presetId = parseInt(id);
     if (isNaN(presetId)) {
@@ -128,6 +136,7 @@ export async function updateFilterPreset(pageId: string, id: string, updates: Pa
     if (updates.name !== undefined) {
       updateData.name = updates.name;
     }
+    // Allow null to be explicitly sent to clear fields
     if (updates.filters !== undefined) {
       updateData.filters = updates.filters;
     }

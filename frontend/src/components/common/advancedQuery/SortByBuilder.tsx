@@ -3,7 +3,6 @@
  * Reusable component for building multi-level sorting configurations
  */
 
-import { useState } from 'react';
 import { Plus, X, ArrowUpDown } from 'lucide-react';
 import type { FilterFieldMetadata, OrderByItem } from '../../../features/release-notes/types/filters';
 
@@ -14,9 +13,8 @@ type SortByBuilderProps = {
 };
 
 export function SortByBuilder({ fields, value, onChange }: SortByBuilderProps) {
-  const [sortItems, setSortItems] = useState<OrderByItem[]>(
-    Array.isArray(value) ? value : value ? [value] : []
-  );
+  // Use value prop directly - fully controlled component
+  const sortItems = Array.isArray(value) ? value : [];
 
   // Get only sortable fields
   const sortableFields = fields.filter(f => f.sortable);
@@ -26,32 +24,28 @@ export function SortByBuilder({ fields, value, onChange }: SortByBuilderProps) {
       key: sortableFields[0]?.key || '',
       direction: 'asc', // Default to asc
     };
-    const updated = [...sortItems, newItem];
-    setSortItems(updated);
-    onChange(updated);
+    onChange([...sortItems, newItem]);
   };
 
   const handleRemove = (index: number) => {
-    const updated = sortItems.filter((_, i) => i !== index);
-    setSortItems(updated);
-    onChange(updated);
+    onChange(sortItems.filter((_, i) => i !== index));
   };
 
   const handleFieldChange = (index: number, key: string) => {
     const selectedField = sortableFields.find(f => f.key === key);
-    const updated = sortItems.map((item, i) =>
-      i === index ? { ...item, key, type: selectedField?.type } : item
+    onChange(
+      sortItems.map((item, i) =>
+        i === index ? { ...item, key, type: selectedField?.type } : item
+      )
     );
-    setSortItems(updated);
-    onChange(updated);
   };
 
   const handleDirectionChange = (index: number, direction: 'asc' | 'desc') => {
-    const updated = sortItems.map((item, i) =>
-      i === index ? { ...item, direction } : item
+    onChange(
+      sortItems.map((item, i) =>
+        i === index ? { ...item, direction } : item
+      )
     );
-    setSortItems(updated);
-    onChange(updated);
   };
 
   if (sortableFields.length === 0) {

@@ -122,14 +122,8 @@ export function FilterPresets({ pageId, currentFilters, currentOrderBy, currentG
     }
   };
 
-  // Reset loaded preset when filters/orderBy/groupBy are cleared externally
-  useEffect(() => {
-    if ((!currentFilters || (currentFilters && 'childs' in currentFilters && currentFilters.childs.length === 0)) 
-        && (!currentOrderBy || currentOrderBy.length === 0)
-        && (!currentGroupBy || currentGroupBy.length === 0)) {
-      setLoadedPresetId(null);
-    }
-  }, [currentFilters, currentOrderBy, currentGroupBy]);
+  // Note: Removed auto-reset of loadedPresetId when filters are cleared
+  // This allows users to update a preset to empty state if needed
 
   const handleLoad = (preset: FilterPreset) => {
     onLoadPreset(preset.filters, preset.orderBy, preset.groupBy);
@@ -137,12 +131,12 @@ export function FilterPresets({ pageId, currentFilters, currentOrderBy, currentG
   };
 
   const handleUpdate = () => {
-    if (!loadedPresetId || !currentFilters) return;
+    if (!loadedPresetId) return;
     setShowUpdateDialog(true);
   };
 
   const confirmUpdate = async () => {
-    if (!loadedPresetId || !currentFilters) return;
+    if (!loadedPresetId) return;
     
     setIsSaving(true);
     try {
@@ -158,10 +152,11 @@ export function FilterPresets({ pageId, currentFilters, currentOrderBy, currentG
         setLoadedPresetId(newPreset.id);
       } else {
         // Update existing preset
+        // Send null for cleared fields so backend updates them to NULL
         const updated = await updateFilterPreset(pageId, loadedPresetId, {
-          filters: currentFilters,
-          orderBy: currentOrderBy,
-          groupBy: currentGroupBy,
+          filters: currentFilters ?? null,
+          orderBy: currentOrderBy && currentOrderBy.length > 0 ? currentOrderBy : null,
+          groupBy: currentGroupBy && currentGroupBy.length > 0 ? currentGroupBy : null,
         });
         if (updated) {
           setPresets(presets.map(p => p.id === loadedPresetId ? updated : p));

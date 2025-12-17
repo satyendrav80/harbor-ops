@@ -61,9 +61,9 @@ export async function updateFilterPreset(
   id: number,
   data: {
     name?: string;
-    filters?: Filter;
-    orderBy?: OrderByItem[];
-    groupBy?: GroupByItem[];
+    filters?: Filter | null;
+    orderBy?: OrderByItem[] | null;
+    groupBy?: GroupByItem[] | null;
     isShared?: boolean;
   }
 ): Promise<FilterPreset> {

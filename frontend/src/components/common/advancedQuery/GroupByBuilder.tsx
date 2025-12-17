@@ -3,7 +3,6 @@
  * Reusable component for building multi-level grouping configurations
  */
 
-import { useState } from 'react';
 import { Plus, X, ArrowUpDown } from 'lucide-react';
 import type { FilterFieldMetadata, GroupByItem } from '../../../features/release-notes/types/filters';
 
@@ -14,7 +13,8 @@ type GroupByBuilderProps = {
 };
 
 export function GroupByBuilder({ fields, value, onChange }: GroupByBuilderProps) {
-  const [groupByItems, setGroupByItems] = useState<GroupByItem[]>(value || []);
+  // Use value prop directly - fully controlled component
+  const groupByItems = Array.isArray(value) ? value : [];
 
   // Get only groupable fields
   const groupableFields = fields.filter(f => f.groupable);
@@ -24,31 +24,27 @@ export function GroupByBuilder({ fields, value, onChange }: GroupByBuilderProps)
       key: groupableFields[0]?.key || '',
       direction: 'asc', // Default to asc
     };
-    const updated = [...groupByItems, newItem];
-    setGroupByItems(updated);
-    onChange(updated);
+    onChange([...groupByItems, newItem]);
   };
 
   const handleRemove = (index: number) => {
-    const updated = groupByItems.filter((_, i) => i !== index);
-    setGroupByItems(updated);
-    onChange(updated);
+    onChange(groupByItems.filter((_, i) => i !== index));
   };
 
   const handleFieldChange = (index: number, key: string) => {
-    const updated = groupByItems.map((item, i) =>
-      i === index ? { ...item, key } : item
+    onChange(
+      groupByItems.map((item, i) =>
+        i === index ? { ...item, key } : item
+      )
     );
-    setGroupByItems(updated);
-    onChange(updated);
   };
 
   const handleDirectionChange = (index: number, direction: 'asc' | 'desc') => {
-    const updated = groupByItems.map((item, i) =>
-      i === index ? { ...item, direction } : item
+    onChange(
+      groupByItems.map((item, i) =>
+        i === index ? { ...item, direction } : item
+      )
     );
-    setGroupByItems(updated);
-    onChange(updated);
   };
 
   if (groupableFields.length === 0) {
