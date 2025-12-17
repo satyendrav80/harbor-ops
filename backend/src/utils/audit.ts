@@ -1,6 +1,5 @@
-import { PrismaClient, AuditResourceType, AuditAction } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { AuditResourceType, AuditAction } from '@prisma/client';
+import { prisma } from '../dataStore';
 
 interface AuditLogData {
   resourceType: AuditResourceType;

@@ -5,15 +5,13 @@
  * All sub-functions are implemented in their own module files.
  */
 
-import { PrismaClient } from '@prisma/client';
 import { buildWhereClause, mergeWhereClauses, buildSortClause } from '../../../utils/filterBuilder';
 import { extractGroupFilters, processGroupFilters } from '../../../utils/filterBuilder/groupFilters';
 import type { RequestContext, ListResult } from '../../../types/common';
 import { extractParams } from './extractParams';
 import { processFilters } from './processFilters';
 import { buildSearchWhere } from './buildSearchWhere';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 /**
  * Helper to remove password from response (don't send it)

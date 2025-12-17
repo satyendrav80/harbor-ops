@@ -3,10 +3,8 @@
  * Groups are filtered through GroupItem, which requires special handling
  */
 
-import { PrismaClient } from '@prisma/client';
 import type { FilterOperator } from '../../types/filterMetadata';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../dataStore';
 
 /**
  * Extract group filters from a where clause and return the remaining clause

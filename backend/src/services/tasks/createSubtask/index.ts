@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
 import { extractParams } from './extractParams';
 import { emitSubtaskCreated } from '../../../socket/socket';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 export async function createSubtask(context: RequestContext) {
   const userId = context.headers?.['x-user-id'] as string;

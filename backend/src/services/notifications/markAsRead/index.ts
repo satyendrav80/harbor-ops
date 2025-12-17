@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 export async function markAsRead(userId: string, notificationId: number) {
   const notification = await prisma.notification.findFirst({

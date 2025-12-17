@@ -1,4 +1,3 @@
-import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
 import { extractParams } from './extractParams';
 import {
@@ -8,8 +7,7 @@ import {
 } from '../../../utils/taskValidation';
 import { createNotification } from '../../notifications';
 import { emitTaskUpdated } from '../../../socket/socket';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 const statusOrder: Record<string, number> = {
   pending: 0,

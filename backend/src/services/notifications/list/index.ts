@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 export async function listNotifications(userId: string, options?: {
   read?: boolean;

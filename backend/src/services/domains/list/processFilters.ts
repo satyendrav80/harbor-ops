@@ -3,12 +3,10 @@
  * Converts raw filter values (enums, dates, etc.) before building Prisma queries
  */
 
-import { PrismaClient } from '@prisma/client';
 import type { Filter, FilterNode, FilterCondition, FilterGroup } from '../../../types/filterMetadata';
 import { isFilterGroup } from '../../../utils/filterBuilder';
 import { resolveSpecialDateValue } from '../../../utils/dateHelpers';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 function isFilterGroupNode(node: FilterNode): node is FilterGroup {
   return isFilterGroup(node);

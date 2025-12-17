@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 import { Response } from 'express';
 import { encrypt, decrypt } from '../utils/encryption';
@@ -7,8 +6,7 @@ import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
 import { AuditResourceType, AuditAction } from '@prisma/client';
 import { list, getMetadata } from '../controllers/credentialsController';
 import { emitEntityChanged } from '../socket/socket';
-
-const prisma = new PrismaClient();
+import { prisma } from '../dataStore';
 const router = Router();
 
 router.use(requireAuth);

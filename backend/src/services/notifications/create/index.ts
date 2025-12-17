@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
 import { getIO } from '../../../socket/socket';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 export async function createNotification(data: {
   userId: string;

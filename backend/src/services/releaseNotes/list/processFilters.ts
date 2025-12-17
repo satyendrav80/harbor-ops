@@ -2,12 +2,11 @@
  * Filter processing utilities
  */
 
-import { PrismaClient, ReleaseStatus } from '@prisma/client';
+import { ReleaseStatus } from '@prisma/client';
 import type { Filter, FilterNode, FilterCondition, FilterGroup } from '../../../types/filterMetadata';
 import { isFilterGroup } from '../../../utils/filterBuilder';
 import { resolveSpecialDateValue } from '../../../utils/dateHelpers';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 /**
  * Check if a node is a FilterGroup

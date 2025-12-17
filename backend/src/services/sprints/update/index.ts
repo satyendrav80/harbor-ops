@@ -1,8 +1,6 @@
 // Simplified sprint services - create remaining files as stubs for now
-import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 export async function update(context: RequestContext) {
   const userId = context.headers?.['x-user-id'] as string;

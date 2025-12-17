@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 export async function getSubtasks(context: RequestContext) {
   const parentTaskId = parseInt(context.params.id);

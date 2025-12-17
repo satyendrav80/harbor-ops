@@ -1,12 +1,11 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type { RequestContext, ListResult } from '../../../types/common';
 import { buildWhereClause, mergeWhereClauses, buildSortClause, isFilterGroup } from '../../../utils/filterBuilder';
 import type { Filter } from '../../../types/filterMetadata';
 import { extractParams } from './extractParams';
 import { processFilters } from './processFilters';
 import { buildSearchWhere } from './buildSearchWhere';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 /**
  * Check if filters have active conditions

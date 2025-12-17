@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../dataStore';
 
 /**
  * Check if a task has unresolved dependencies (blockedBy tasks that are not completed)

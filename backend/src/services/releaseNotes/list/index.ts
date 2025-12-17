@@ -5,14 +5,12 @@
  * All sub-functions are implemented in their own module files.
  */
 
-import { PrismaClient } from '@prisma/client';
 import { buildWhereClause, mergeWhereClauses, buildSortClause } from '../../../utils/filterBuilder';
 import type { RequestContext, ListResult } from '../../../types/common';
 import { extractParams } from './extractParams';
 import { processFilters } from './processFilters';
 import { buildSearchWhere } from './buildSearchWhere';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 /**
  * List with advanced filtering

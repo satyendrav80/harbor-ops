@@ -5,11 +5,9 @@
  * All sub-functions are implemented in their own module files.
  */
 
-import { PrismaClient } from '@prisma/client';
 import type { RequestContext, ListResult } from '../../../types/common';
 import { extractParams } from './extractParams';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 /**
  * List filter presets for the current user

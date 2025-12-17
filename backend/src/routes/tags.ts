@@ -1,11 +1,9 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 import { logAudit, getChanges, getRequestMetadata } from '../utils/audit';
 import { AuditResourceType, AuditAction } from '@prisma/client';
 import { emitEntityChanged } from '../socket/socket';
-
-const prisma = new PrismaClient();
+import { prisma } from '../dataStore';
 const router = Router();
 
 router.use(requireAuth);

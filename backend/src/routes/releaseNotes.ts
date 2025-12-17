@@ -1,13 +1,12 @@
 import { Router } from 'express';
-import { PrismaClient, ReleaseStatus, TaskStatus } from '@prisma/client';
+import { ReleaseStatus, TaskStatus } from '@prisma/client';
 import { requireAuth, requirePermission, AuthRequest } from '../middleware/auth';
 import { list, getMetadata } from '../controllers/releaseNotesController';
 import { list as listService } from '../services/releaseNotes';
 import { createNotification } from '../services/notifications';
 import { emitEntityChanged } from '../socket/socket';
 import { randomBytes } from 'crypto';
-
-const prisma = new PrismaClient();
+import { prisma } from '../dataStore';
 const router = Router();
 
 /**

@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
 import { emitCommentDeleted } from '../../../socket/socket';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 export async function deleteComment(context: RequestContext) {
   const userId = context.headers?.['x-user-id'] as string;

@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
 import dayjs from 'dayjs';
 import { BurndownDataPoint, GanttTask } from '../types/tasks';
-
-const prisma = new PrismaClient();
+import { prisma } from '../dataStore';
 
 /**
  * Generate burndown chart data for a sprint

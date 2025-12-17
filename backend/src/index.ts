@@ -3,8 +3,8 @@ import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
 import authRouter from './routes/auth';
-import { PrismaClient } from '@prisma/client';
 import { PERMISSION_RESOURCES, getActionsForResource } from './constants/permissions';
+import { prisma } from './dataStore';
 import serversRouter from './routes/servers';
 import servicesRouter from './routes/services';
 import credentialsRouter from './routes/credentials';
@@ -61,7 +61,6 @@ initializeSocket(httpServer);
 
 // Initialize default roles/permissions on boot
 async function initializeDefaults() {
-  const prisma = new PrismaClient();
   // Ensure default roles exist
   const adminRole = await prisma.role.upsert({
     where: { name: 'admin' },
@@ -112,4 +111,17 @@ async function initializeDefaults() {
 httpServer.listen(port, () => {
   console.log(`Backend listening on http://localhost:${port}`);
   initializeDefaults().catch((err) => console.error('Initialization error:', err));
+});
+
+// Graceful shutdown handlers
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, closing database connections...');
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, closing database connections...');
+  await prisma.$disconnect();
+  process.exit(0);
 });

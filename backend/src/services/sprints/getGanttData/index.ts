@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
 import type { RequestContext } from '../../../types/common';
 import { generateGanttData } from '../../../utils/sprintAnalytics';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../../dataStore';
 
 export async function getGanttData(context: RequestContext) {
   const sprintId = parseInt(context.params.id);
