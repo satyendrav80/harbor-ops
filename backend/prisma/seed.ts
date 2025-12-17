@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import 'dotenv/config';
 import bcrypt from 'bcryptjs';
 import { PERMISSION_RESOURCES, getActionsForResource } from '../src/constants/permissions';
-
-const prisma = new PrismaClient();
+import { prisma, closePrisma } from '../src/dataStore';
 
 async function main() {
   // Default roles (system)
@@ -59,4 +58,6 @@ async function main() {
   });
 }
 
-main().finally(async () => prisma.$disconnect());
+main().finally(async () => {
+  await closePrisma();
+});

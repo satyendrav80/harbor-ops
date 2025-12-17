@@ -101,8 +101,14 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
     return z.object({
       name: z.string().min(1, 'Server name is required').max(100, 'Server name must be 100 characters or less'),
       type: z.enum(serverTypes as [string, ...string[]]).default(serverTypes[0] as string),
-      publicIp: z.string().ip('Invalid IP address').optional().or(z.literal('')),
-      privateIp: z.string().ip('Invalid IP address').optional().or(z.literal('')),
+      publicIp: z.union([
+        z.literal(''),
+        z.ipv4({ message: 'Invalid IP address' }),
+      ]),
+      privateIp: z.union([
+        z.literal(''),
+        z.ipv4({ message: 'Invalid IP address' }),
+      ]),
       endpoint: z.string().optional().or(z.literal('')),
       port: z.coerce.number().int().min(1).max(65535).optional(),
       sshPort: z.coerce.number().int().min(1).max(65535).optional(),

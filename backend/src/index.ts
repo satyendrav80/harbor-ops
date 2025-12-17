@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import cors from 'cors';
 import authRouter from './routes/auth';
 import { PERMISSION_RESOURCES, getActionsForResource } from './constants/permissions';
-import { prisma } from './dataStore';
+import { prisma, closePrisma } from './dataStore';
 import serversRouter from './routes/servers';
 import servicesRouter from './routes/services';
 import credentialsRouter from './routes/credentials';
@@ -116,12 +116,12 @@ httpServer.listen(port, () => {
 // Graceful shutdown handlers
 process.on('SIGINT', async () => {
   console.log('SIGINT received, closing database connections...');
-  await prisma.$disconnect();
+  await closePrisma();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, closing database connections...');
-  await prisma.$disconnect();
+  await closePrisma();
   process.exit(0);
 });

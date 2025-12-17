@@ -1,2 +1,2 @@
-export { prisma } from './prisma';
+export { prisma, closePrisma } from './prisma';
 

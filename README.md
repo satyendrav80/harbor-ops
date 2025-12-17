@@ -11,7 +11,7 @@ Monorepo with TypeScript backend (Express + Prisma + PostgreSQL) and frontend (R
 1. Copy env file:
 
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
 ```
 
 2. Install deps:
@@ -69,14 +69,12 @@ Services:
 /backend
   package.json
   src/index.ts
+  prisma/schema.prisma
+  prisma/seed.ts
 /frontend
   package.json
   src/main.tsx
-/prisma
-  schema.prisma
-  seed.ts
 /docker-compose.yml
-/.env.example
 /README.md
 ```
 
