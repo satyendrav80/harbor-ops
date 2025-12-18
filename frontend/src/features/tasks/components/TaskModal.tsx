@@ -15,6 +15,7 @@ import type { Task, TaskStatus, TaskPriority, TaskType } from '../../../services
 import { listSprints } from '../../../services/sprints';
 import { getServices } from '../../../services/services';
 import { RichTextEditor } from '../../../components/common/RichTextEditor';
+import { listTasks } from '../../../services/tasks';
 
 type TaskModalProps = {
   isOpen: boolean;
@@ -38,6 +39,7 @@ const taskSchema = z.object({
   serviceId: z.number().optional().nullable(),
   testingSkipReason: z.string().optional().nullable(),
   parentTaskId: z.number().optional().nullable(),
+  raisedBy: z.string().optional().nullable(),
 });
 
 type TaskFormValues = z.infer<typeof taskSchema>;
@@ -75,6 +77,14 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
     enabled: isOpen && hasPermission('services:view'),
   });
 
+  // Fetch tasks for parent task selector
+  const { data: tasksData } = useQuery({
+    queryKey: ['tasks', 'for-parent-selector'],
+    queryFn: () => listTasks({ limit: 500, page: 1 }),
+    staleTime: 2 * 60 * 1000,
+    enabled: isOpen && hasPermission('tasks:view'),
+  });
+
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
     defaultValues: {
@@ -90,6 +100,7 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
       serviceId: null,
       testingSkipReason: null,
       parentTaskId: defaultParentTaskId || null,
+      raisedBy: null,
     },
   });
 
@@ -110,6 +121,7 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
         serviceId: task.serviceId || null,
         testingSkipReason: task.testingSkipReason || null,
         parentTaskId: task.parentTaskId || null,
+        raisedBy: task.raisedBy || task.createdBy || null,
       });
     } else {
       // Default Assignee = Current User
@@ -126,6 +138,7 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
         serviceId: null,
         testingSkipReason: null,
         parentTaskId: defaultParentTaskId || null,
+        raisedBy: (user?.id ? String(user.id) : null) as string | null, // Default to current user (same as createdBy)
       });
     }
     setError(null);
@@ -151,6 +164,8 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
             dueDate: values.dueDate,
             serviceId: values.serviceId,
             testingSkipReason: values.testingSkipReason,
+            parentTaskId: values.parentTaskId,
+            raisedBy: values.raisedBy,
           },
         });
       } else {
@@ -167,6 +182,7 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
           serviceId: values.serviceId || undefined,
           testingSkipReason: values.testingSkipReason || undefined,
           parentTaskId: values.parentTaskId || undefined,
+          raisedBy: values.raisedBy || undefined,
         });
       }
 
@@ -294,6 +310,22 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
                     id: u.id as unknown as number,
                     name: u.name || u.email,
                   }))}
+                  selectedIds={form.watch('raisedBy') ? [form.watch('raisedBy') as unknown as number] : []}
+                  onChange={(selectedIds) => {
+                    const id = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null;
+                    form.setValue('raisedBy', (id !== null ? String(id) : null) as string | null, { shouldDirty: true });
+                  }}
+                  label="Raised By"
+                  placeholder="Select user"
+                  disabled={isLoading}
+                />
+              </div>
+              <div>
+                <SearchableMultiSelect
+                  options={usersData.data.map((u) => ({
+                    id: u.id as unknown as number,
+                    name: u.name || u.email,
+                  }))}
                   selectedIds={form.watch('assignedTo') ? [form.watch('assignedTo') as unknown as number] : []}
                   onChange={(selectedIds) => {
                     const id = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null;
@@ -378,6 +410,30 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
               }}
               label="Service (Optional)"
               placeholder="Select service"
+              disabled={isLoading}
+            />
+          </div>
+        )}
+
+        {hasPermission('tasks:view') && tasksData?.data && (
+          <div>
+            <SearchableMultiSelect
+              options={[
+                { id: 0, name: 'No Parent Task' },
+                ...tasksData.data
+                  .filter((t: Task) => !isEditing || t.id !== task?.id) // Exclude current task when editing
+                  .map((t: Task) => ({
+                    id: t.id,
+                    name: `#${t.id} - ${t.title}`,
+                  }))
+              ]}
+              selectedIds={form.watch('parentTaskId') ? [form.watch('parentTaskId')!] : []}
+              onChange={(selectedIds) => {
+                const id = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null;
+                form.setValue('parentTaskId', id === 0 ? null : id, { shouldDirty: true });
+              }}
+              label="Parent Task (Optional)"
+              placeholder="Select parent task"
               disabled={isLoading}
             />
           </div>

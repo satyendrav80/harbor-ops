@@ -67,6 +67,7 @@ export async function list(context: RequestContext): Promise<ListResult> {
         where,
         include: {
           createdByUser: { select: { id: true, name: true, email: true } },
+          raisedByUser: { select: { id: true, name: true, email: true } },
           assignedToUser: { select: { id: true, name: true, email: true } },
           tester: { select: { id: true, name: true, email: true } },
           attentionToUser: { select: { id: true, name: true, email: true } },
@@ -192,6 +193,7 @@ export async function list(context: RequestContext): Promise<ListResult> {
     where,
     include: {
       createdByUser: { select: { id: true, name: true, email: true } },
+      raisedByUser: { select: { id: true, name: true, email: true } },
       assignedToUser: { select: { id: true, name: true, email: true } },
       tester: { select: { id: true, name: true, email: true } },
         attentionToUser: { select: { id: true, name: true, email: true } },

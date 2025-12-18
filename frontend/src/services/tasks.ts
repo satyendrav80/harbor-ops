@@ -37,6 +37,8 @@ export type Task = {
   } | null;
   createdBy?: string | null;
   createdByUser?: User | null;
+  raisedBy?: string | null;
+  raisedByUser?: User | null;
   assignedTo?: string | null;
   assignedToUser?: User | null;
   assignedAt?: string | null;
@@ -196,6 +198,7 @@ export async function createTask(data: {
   dueDate?: Date | string;
   tagIds?: number[];
   parentTaskId?: number;
+  raisedBy?: string;
 }): Promise<Task> {
   return apiFetch<Task>('/tasks', {
     method: 'POST',
@@ -218,6 +221,9 @@ export async function updateTask(id: number, data: {
   actualHours?: number | null;
   dueDate?: Date | string | null;
   tagIds?: number[];
+  parentTaskId?: number | null;
+  testingSkipReason?: string | null;
+  raisedBy?: string | null;
 }): Promise<Task> {
   return apiFetch<Task>(`/tasks/${id}`, {
     method: 'PUT',

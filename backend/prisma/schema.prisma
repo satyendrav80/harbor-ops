@@ -55,6 +55,7 @@ model User {
   deletedUsers                 User[]                 @relation("UserDeletedBy")
   filterPresets                FilterPreset[]         @relation("FilterPresetUser")
   createdTasks                 Task[]                 @relation("TaskCreatedBy")
+  raisedTasks                  Task[]                 @relation("TaskRaisedBy")
   assignedTasks                Task[]                 @relation("TaskAssignedTo")
   testingTasks                 Task[]                 @relation("TaskTester")
   completedTasks               Task[]                 @relation("TaskCompletedBy")
@@ -657,6 +658,9 @@ model Task {
   createdBy     String? @map("created_by")
   createdByUser User?   @relation("TaskCreatedBy", fields: [createdBy], references: [id])
 
+  raisedBy     String? @map("raised_by")
+  raisedByUser User?   @relation("TaskRaisedBy", fields: [raisedBy], references: [id])
+
   assignedTo     String?   @map("assigned_to")
   assignedToUser User?     @relation("TaskAssignedTo", fields: [assignedTo], references: [id])
   assignedAt     DateTime? @map("assigned_at")
@@ -722,6 +726,7 @@ model Task {
   @@index([sprintId])
   @@index([deleted])
   @@index([createdBy])
+  @@index([raisedBy])
   @@index([parentTaskId])
   @@index([attentionToId])
   @@map("tasks")

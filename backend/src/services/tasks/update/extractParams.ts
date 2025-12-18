@@ -7,7 +7,7 @@ export function extractParams(context: RequestContext) {
     throw new Error('Invalid task ID');
   }
 
-  const { title, description, type, priority, sprintId, assignedTo, testerId, estimatedHours, actualHours, dueDate, tagIds, serviceId, testingSkipReason } = context.body;
+  const { title, description, type, priority, sprintId, assignedTo, testerId, estimatedHours, actualHours, dueDate, tagIds, serviceId, testingSkipReason, parentTaskId, raisedBy } = context.body;
 
   return {
     taskId,
@@ -24,5 +24,7 @@ export function extractParams(context: RequestContext) {
     tagIds: tagIds !== undefined ? (Array.isArray(tagIds) ? tagIds.map((id: any) => parseInt(id)) : []) : undefined,
     serviceId: serviceId !== undefined ? (serviceId === null ? null : parseInt(serviceId)) : undefined,
     testingSkipReason: testingSkipReason !== undefined ? testingSkipReason : undefined,
+    parentTaskId: parentTaskId !== undefined ? (parentTaskId === null ? null : parseInt(parentTaskId)) : undefined,
+    raisedBy: raisedBy !== undefined ? (raisedBy === null || raisedBy === '' ? null : raisedBy) : undefined,
   };
 }

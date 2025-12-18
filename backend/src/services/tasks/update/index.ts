@@ -1,6 +1,6 @@
 import type { RequestContext } from '../../../types/common';
 import { extractParams } from './extractParams';
-import { createSprintHistoryRecord } from '../../../utils/taskValidation';
+import { createSprintHistoryRecord, wouldCreateParentCycle } from '../../../utils/taskValidation';
 import { createNotification } from '../../notifications';
 import { emitTaskUpdated } from '../../../socket/socket';
 import { prisma } from '../../../dataStore';
@@ -31,6 +31,26 @@ export async function update(context: RequestContext) {
   const isBeingReassigned = assignmentChanged && data.assignedTo !== null && existingTask.assignedTo !== null;
   const isBeingUnassigned = assignmentChanged && data.assignedTo === null;
 
+  // Validate parent task if being changed
+  if (data.parentTaskId !== undefined && data.parentTaskId !== existingTask.parentTaskId) {
+    const wouldCycle = await wouldCreateParentCycle(data.taskId, data.parentTaskId);
+    if (wouldCycle) {
+      throw new Error('Cannot set parent task: would create a circular dependency');
+    }
+
+    // Verify parent task exists and is not deleted
+    if (data.parentTaskId !== null) {
+      const parentTask = await prisma.task.findUnique({
+        where: { id: data.parentTaskId },
+        select: { id: true, deleted: true },
+      });
+
+      if (!parentTask || parentTask.deleted) {
+        throw new Error('Parent task not found');
+      }
+    }
+  }
+
   // Prepare update data
   const updateData: any = {
     title: data.title,
@@ -45,8 +65,10 @@ export async function update(context: RequestContext) {
     dueDate: data.dueDate,
     serviceId: data.serviceId,
     testingSkipReason: data.testingSkipReason,
+    parentTaskId: data.parentTaskId,
+    raisedBy: data.raisedBy,
     updatedBy: userId,
-  };
+  } as any;
 
   // Set assignedAt when task is assigned for the first time or reassigned
   if (isBeingAssigned || isBeingReassigned) {
@@ -61,12 +83,14 @@ export async function update(context: RequestContext) {
     data: updateData,
     include: {
       createdByUser: { select: { id: true, name: true, email: true } },
+      raisedByUser: { select: { id: true, name: true, email: true } },
       assignedToUser: { select: { id: true, name: true, email: true } },
       tester: { select: { id: true, name: true, email: true } },
       sprint: { select: { id: true, name: true } },
       service: { select: { id: true, name: true } },
       tags: { include: { tag: true } },
-    },
+      parentTask: { select: { id: true, title: true } },
+    } as any,
   });
 
   // Update tags if provided

@@ -24,6 +24,7 @@ export interface CreateTaskDTO {
   dueDate?: Date;
   tagIds?: number[];
   parentTaskId?: number;
+  raisedBy?: string;
 }
 
 export interface UpdateTaskDTO {
@@ -38,6 +39,8 @@ export interface UpdateTaskDTO {
   actualHours?: number | null;
   dueDate?: Date | null;
   tagIds?: number[];
+  parentTaskId?: number | null;
+  raisedBy?: string | null;
 }
 
 export interface UpdateTaskStatusDTO {

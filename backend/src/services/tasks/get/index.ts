@@ -11,6 +11,7 @@ export async function get(context: RequestContext) {
     where: { id: taskId },
     include: {
       createdByUser: { select: { id: true, name: true, email: true } },
+      raisedByUser: { select: { id: true, name: true, email: true } },
       assignedToUser: { select: { id: true, name: true, email: true } },
       tester: { select: { id: true, name: true, email: true } },
       completedByUser: { select: { id: true, name: true, email: true } },

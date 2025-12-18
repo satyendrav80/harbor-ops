@@ -7,6 +7,10 @@ export function TaskDetailsPage() {
   const navigate = useNavigate();
   const taskId = parseInt(id || '0');
 
+  const handleTaskClick = (clickedTaskId: number) => {
+    navigate(`/tasks/${clickedTaskId}`);
+  };
+
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-6">
@@ -18,7 +22,7 @@ export function TaskDetailsPage() {
           Back to Tasks
         </button>
       </div>
-      <TaskDetailsContent taskId={taskId} />
+      <TaskDetailsContent taskId={taskId} onTaskClick={handleTaskClick} />
     </div>
   );
 }

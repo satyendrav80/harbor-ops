@@ -28,15 +28,17 @@ export async function create(context: RequestContext) {
       parentTaskId: data.parentTaskId,
       serviceId: data.serviceId,
       createdBy: userId,
-    },
+      raisedBy: data.raisedBy || userId, // Default to createdBy if not provided
+    } as any,
     include: {
       createdByUser: { select: { id: true, name: true, email: true } },
+      raisedByUser: { select: { id: true, name: true, email: true } },
       assignedToUser: { select: { id: true, name: true, email: true } },
       tester: { select: { id: true, name: true, email: true } },
       sprint: { select: { id: true, name: true } },
       service: { select: { id: true, name: true } },
       tags: { include: { tag: true } },
-    },
+    } as any,
   });
 
   // Add tags if provided

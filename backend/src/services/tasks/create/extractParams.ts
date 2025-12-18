@@ -1,7 +1,7 @@
 import type { RequestContext } from '../../../types/common';
 
 export function extractParams(context: RequestContext) {
-  const { title, description, type, priority, sprintId, assignedTo, testerId, estimatedHours, dueDate, tagIds, parentTaskId, serviceId, testingSkipReason } = context.body;
+  const { title, description, type, priority, sprintId, assignedTo, testerId, estimatedHours, dueDate, tagIds, parentTaskId, serviceId, testingSkipReason, raisedBy } = context.body;
 
   if (!title || typeof title !== 'string') {
     throw new Error('Title is required');
@@ -21,5 +21,6 @@ export function extractParams(context: RequestContext) {
     parentTaskId: parentTaskId ? parseInt(parentTaskId) : undefined,
     serviceId: serviceId ? parseInt(serviceId) : undefined,
     testingSkipReason,
+    raisedBy: raisedBy && raisedBy !== '' ? raisedBy : undefined,
   };
 }

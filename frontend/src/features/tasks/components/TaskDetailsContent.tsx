@@ -465,8 +465,73 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
                   <span className="text-gray-900 dark:text-white">{task.service.name}</span>
                 </div>
               )}
+              {task.parentTask && (
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600 dark:text-gray-400">Parent:</span>
+                  <button
+                    onClick={() => handleTaskNavigation(task.parentTask!.id)}
+                    className="text-primary hover:text-primary/80 hover:underline text-left"
+                  >
+                    <span className="text-xs">↳</span> {task.parentTask.title}
+                  </button>
+                </div>
+              )}
+              {task.raisedByUser && (
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-600 dark:text-gray-400">Raised by:</span>
+                  <span className="text-gray-900 dark:text-white">{task.raisedByUser.name || task.raisedByUser.email}</span>
+                </div>
+              )}
+              {task.createdByUser && (
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-600 dark:text-gray-400">Created by:</span>
+                  <span className="text-gray-900 dark:text-white">{task.createdByUser.name || task.createdByUser.email}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <span className="text-gray-600 dark:text-gray-400">Created:</span>
+                <span className="text-gray-900 dark:text-white">
+                  {new Date(task.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+              {task.assignedAt && (
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-600 dark:text-gray-400">Assigned:</span>
+                  <span className="text-gray-900 dark:text-white">
+                    {new Date(task.assignedAt).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Tags */}
+          {task.tags && task.tags.length > 0 && (
+            <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <TagIcon className="w-4 h-4" />
+                Tags
+              </h3>
+              <div className="flex flex-wrap gap-1">
+                {task.tags.map((tagRel) => (
+                  <span
+                    key={tagRel.tag.id}
+                    className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded dark:bg-opacity-20"
+                    style={{
+                      backgroundColor: tagRel.tag.color ? `${tagRel.tag.color}20` : undefined,
+                      color: tagRel.tag.color || undefined,
+                    }}
+                  >
+                    {tagRel.tag.value ? `${tagRel.tag.name}:${tagRel.tag.value}` : tagRel.tag.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Dependencies */}
           {task.dependencies && task.dependencies.length > 0 && (

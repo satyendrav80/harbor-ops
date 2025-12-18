@@ -155,6 +155,56 @@ export function validateStatusTransition(
 }
 
 /**
+ * Check if setting a parent task would create a cycle
+ */
+export async function wouldCreateParentCycle(
+  taskId: number,
+  parentTaskId: number | null
+): Promise<boolean> {
+  if (!parentTaskId) {
+    return false; // No parent, no cycle possible
+  }
+
+  // Can't be parent of itself
+  if (parentTaskId === taskId) {
+    return true;
+  }
+
+  // Walk up the parent chain from the proposed parent
+  // If we encounter taskId, it's a cycle
+  const visited = new Set<number>();
+  let currentTaskId: number | null = parentTaskId;
+
+  while (currentTaskId !== null) {
+    if (visited.has(currentTaskId)) {
+      // Already visited this task, potential cycle (shouldn't happen in valid data)
+      break;
+    }
+
+    visited.add(currentTaskId);
+
+    // If we find taskId in the parent chain, it's a cycle
+    if (currentTaskId === taskId) {
+      return true;
+    }
+
+    // Get the parent of current task
+    const currentTask = await prisma.task.findUnique({
+      where: { id: currentTaskId },
+      select: { parentTaskId: true },
+    });
+
+    if (!currentTask) {
+      break; // Task not found, stop
+    }
+
+    currentTaskId = currentTask.parentTaskId;
+  }
+
+  return false;
+}
+
+/**
  * Create sprint history record when task moves between sprints
  */
 export async function createSprintHistoryRecord(
