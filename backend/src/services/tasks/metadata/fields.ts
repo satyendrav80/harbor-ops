@@ -302,6 +302,21 @@ export function getFields(): FilterFieldMetadata[] {
       groupable: isFieldGroupable('tester.email', 'STRING', 'one'),
       ui: getDefaultUIConfig('STRING', 'email'),
     },
+    // Tester User Name (relation field)
+    {
+      key: 'tester.name',
+      label: `Tester - ${formatFieldLabel('name')}`,
+      type: 'STRING',
+      operators: getOperatorsForType('STRING', false).filter(op =>
+        ['contains', 'startsWith', 'endsWith', 'eq', 'ne'].includes(op)
+      ),
+      relation: 'tester',
+      relationType: 'one',
+      searchable: isFieldSearchable('name', 'STRING'),
+      sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('tester.name', 'STRING', 'one'),
+      ui: getDefaultUIConfig('STRING', 'name'),
+    },
     // Created By User ID
     {
       key: 'createdBy',

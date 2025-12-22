@@ -5,6 +5,7 @@
 
 import { Plus, X, ArrowUpDown } from 'lucide-react';
 import type { FilterFieldMetadata, OrderByItem } from '../../../features/release-notes/types/filters';
+import { SearchableSelect } from '../SearchableSelect';
 
 type SortByBuilderProps = {
   fields: FilterFieldMetadata[];
@@ -89,17 +90,18 @@ export function SortByBuilder({ fields, value, onChange }: SortByBuilderProps) {
                 <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
                   {index + 1}.
                 </span>
-                <select
-                  value={item.key}
-                  onChange={(e) => handleFieldChange(index, e.target.value)}
-                  className="flex-1 px-3 py-1.5 text-sm bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
-                >
-                  {sortableFields.map((field) => (
-                    <option key={field.key} value={field.key}>
-                      {field.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex-1">
+                  <SearchableSelect
+                    options={sortableFields.map((field) => ({
+                      value: field.key,
+                      label: field.label,
+                    }))}
+                    value={item.key}
+                    onChange={(value) => handleFieldChange(index, value)}
+                    placeholder="Select field..."
+                    className="w-full"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => handleDirectionChange(index, item.direction === 'asc' ? 'desc' : 'asc')}
