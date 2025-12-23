@@ -81,6 +81,14 @@ export type OrderByItem = {
 };
 
 /**
+ * Group by item for aggregating results
+ */
+export type GroupByItem = {
+  key: string;
+  direction?: 'asc' | 'desc';
+};
+
+/**
  * UI configuration for a filter field
  */
 export type FilterFieldUI = {

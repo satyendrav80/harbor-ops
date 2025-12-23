@@ -9,6 +9,7 @@ import {
   formatFieldLabel,
   isFieldSearchable,
   isFieldSortable,
+  isFieldGroupable,
 } from '../../../utils/filterMetadataHelpers';
 
 /**
@@ -26,6 +27,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('id', 'INT'),
       sortable: isFieldSortable('INT'),
+      groupable: isFieldGroupable('id', 'INT'),
       ui: getDefaultUIConfig('INT', 'id'),
     },
     // Status field (enum)
@@ -40,6 +42,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('status', 'STRING'),
       sortable: isFieldSortable('STRING'),
+      groupable: isFieldGroupable('status', 'STRING'),
       enumValues: ['pending', 'deployment_started', 'deployed'],
       ui: getDefaultUIConfig('STRING', 'status', true, ['pending', 'deployment_started', 'deployed']),
     },
@@ -55,6 +58,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('note', 'STRING'),
       sortable: isFieldSortable('STRING'),
+      groupable: isFieldGroupable('note', 'STRING'),
       ui: {
         ...getDefaultUIConfig('STRING', 'note'),
         placeholder: 'Search in notes...',
@@ -70,6 +74,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('publishDate', 'DATETIME'),
       sortable: isFieldSortable('DATETIME'),
+      groupable: isFieldGroupable('publishDate', 'DATETIME'),
       ui: getDefaultUIConfig('DATETIME', 'publishDate'),
     },
     // Deployed Date
@@ -82,6 +87,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('deployedAt', 'DATETIME'),
       sortable: isFieldSortable('DATETIME'),
+      groupable: isFieldGroupable('deployedAt', 'DATETIME'),
       ui: getDefaultUIConfig('DATETIME', 'deployedAt'),
     },
     // Created Date
@@ -94,6 +100,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('createdAt', 'DATETIME'),
       sortable: isFieldSortable('DATETIME'),
+      groupable: isFieldGroupable('createdAt', 'DATETIME'),
       ui: getDefaultUIConfig('DATETIME', 'createdAt'),
     },
     // Updated Date
@@ -106,6 +113,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('updatedAt', 'DATETIME'),
       sortable: isFieldSortable('DATETIME'),
+      groupable: isFieldGroupable('updatedAt', 'DATETIME'),
       ui: getDefaultUIConfig('DATETIME', 'updatedAt'),
     },
     // Service ID (direct foreign key) - configured for service dropdown
@@ -120,6 +128,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('serviceId', 'INT'),
       sortable: isFieldSortable('INT'),
+      groupable: isFieldGroupable('serviceId', 'INT'),
       relationModel: 'Service', // Indicates this field should use Service dropdown
       relationField: 'name', // Field to display in dropdown
       ui: getDefaultUIConfig('INT', 'serviceId'),
@@ -135,6 +144,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('name', 'STRING'),
       sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('service.name', 'STRING', 'one'),
       relationModel: 'Service', // Indicates this field can use Service dropdown for in/notIn
       relationField: 'name', // Field to display in dropdown
       ui: getDefaultUIConfig('STRING', 'service name'),
@@ -149,6 +159,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('port', 'INT'),
       sortable: isFieldSortable('INT', 'one'),
+      groupable: isFieldGroupable('service.port', 'INT', 'one'),
       ui: getDefaultUIConfig('INT', 'port'),
     },
     // Created By User ID
@@ -163,6 +174,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: null,
       searchable: isFieldSearchable('createdBy', 'STRING'),
       sortable: isFieldSortable('STRING'),
+      groupable: isFieldGroupable('createdBy', 'STRING'),
       ui: getDefaultUIConfig('STRING', 'createdBy'),
     },
     // Created By User Email (relation field) - use dot notation for key
@@ -177,6 +189,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('email', 'STRING'),
       sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('createdByUser.email', 'STRING', 'one'),
       ui: getDefaultUIConfig('STRING', 'email'),
     },
     // Created By User Name (relation field) - use dot notation for key
@@ -191,6 +204,7 @@ export function getFields(): FilterFieldMetadata[] {
       relationType: 'one',
       searchable: isFieldSearchable('name', 'STRING'),
       sortable: isFieldSortable('STRING', 'one'),
+      groupable: isFieldGroupable('createdByUser.name', 'STRING', 'one'),
       ui: getDefaultUIConfig('STRING', 'name'),
     },
   ];

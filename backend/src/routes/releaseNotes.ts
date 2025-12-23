@@ -354,6 +354,13 @@ router.get('/:id', async (req, res) => {
               description: true,
               status: true,
               type: true,
+              serviceId: true,
+              service: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
               sprint: {
                 select: {
                   id: true,
@@ -420,6 +427,13 @@ router.get('/', async (req, res) => {
                 description: true,
                 status: true,
                 type: true,
+              serviceId: true,
+              service: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
                 sprint: {
                   select: {
                     id: true,
@@ -529,6 +543,13 @@ router.post('/', requirePermission('release-notes:create'), async (req: AuthRequ
                 description: true,
                 status: true,
                 type: true,
+              serviceId: true,
+              service: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
                 sprint: {
                   select: {
                     id: true,
@@ -631,6 +652,13 @@ router.put('/:id', requirePermission('release-notes:update'), async (req: AuthRe
                 description: true,
                 status: true,
                 type: true,
+              serviceId: true,
+              service: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
                 sprint: {
                   select: {
                     id: true,
@@ -687,6 +715,13 @@ router.post('/:id/mark-deployed', requirePermission('release-notes:deploy'), asy
                 createdBy: true,
                 assignedTo: true,
                 testerId: true,
+                serviceId: true,
+                service: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
               },
             },
           },

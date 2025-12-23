@@ -16,8 +16,17 @@ export type RequestContext = {
 /**
  * Generic list result structure for paginated responses
  */
-export type ListResult<T = any> = {
+export type ListGroup<T = any, M = Record<string, any>> = {
+  key: string | number | null;
+  label: string;
+  count: number;
+  items: T[];
+  meta?: M;
+};
+
+export type ListResult<T = any, G extends ListGroup<T> = ListGroup<T>> = {
   data: T[];
+  groupedData?: G[];
   pagination: {
     page: number;
     limit: number;

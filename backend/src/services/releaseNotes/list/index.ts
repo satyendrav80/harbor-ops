@@ -7,6 +7,7 @@
 
 import { buildWhereClause, mergeWhereClauses, buildSortClause } from '../../../utils/filterBuilder';
 import type { RequestContext, ListResult } from '../../../types/common';
+import type { GroupByItem } from '../../../types/filterMetadata';
 import { extractParams } from './extractParams';
 import { processFilters } from './processFilters';
 import { buildSearchWhere } from './buildSearchWhere';
@@ -20,7 +21,7 @@ import { prisma } from '../../../dataStore';
  */
 export async function list(context: RequestContext): Promise<ListResult> {
   // Extract and validate parameters from request context
-  const { filters, search, page, limit, orderBy } = extractParams(context);
+  const { filters, search, page, limit, orderBy, groupBy } = extractParams(context);
 
   const offset = (page - 1) * limit;
 
@@ -58,6 +59,13 @@ export async function list(context: RequestContext): Promise<ListResult> {
                 description: true,
                 status: true,
                 type: true,
+                serviceId: true,
+                service: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
                 sprint: {
                   select: {
                     id: true,
@@ -77,8 +85,11 @@ export async function list(context: RequestContext): Promise<ListResult> {
     prisma.releaseNote.count({ where }),
   ]);
 
+  const groupedData = buildGroupedData(items, groupBy);
+
   return {
     data: items,
+    groupedData,
     pagination: {
       page,
       limit,
@@ -86,5 +97,72 @@ export async function list(context: RequestContext): Promise<ListResult> {
       totalPages: Math.ceil(total / limit),
     },
   };
+}
+
+function buildGroupedData(items: any[], groupBy?: GroupByItem[]) {
+  if (!groupBy || groupBy.length === 0) {
+    return undefined;
+  }
+
+  const serviceGroup = groupBy.find(
+    (group) => group.key === 'serviceId' || group.key === 'service.name'
+  );
+
+  if (!serviceGroup) {
+    return undefined;
+  }
+
+  const groups = new Map<
+    string,
+    {
+      key: string | number | null;
+      label: string;
+      items: any[];
+      meta: {
+        serviceId: number | null;
+        serviceName: string | null;
+        servicePort: number | null;
+      };
+    }
+  >();
+
+  items.forEach((item) => {
+    const serviceId = item.service?.id ?? item.serviceId ?? null;
+    const serviceName = item.service?.name ?? null;
+    const servicePort = item.service?.port ?? null;
+    const mapKey =
+      serviceId !== null ? `service:${serviceId}` : `service:none:${serviceName || 'unknown'}`;
+
+    if (!groups.has(mapKey)) {
+      groups.set(mapKey, {
+        key: serviceId,
+        label: serviceName || 'No Service',
+        items: [],
+        meta: {
+          serviceId,
+          serviceName,
+          servicePort,
+        },
+      });
+    }
+
+    groups.get(mapKey)!.items.push(item);
+  });
+
+  const direction = serviceGroup.direction === 'desc' ? 'desc' : 'asc';
+
+  return Array.from(groups.values())
+    .sort((a, b) => {
+      const aLabel = a.label || '';
+      const bLabel = b.label || '';
+      return direction === 'desc' ? bLabel.localeCompare(aLabel) : aLabel.localeCompare(bLabel);
+    })
+    .map((group) => ({
+      key: group.key,
+      label: group.label,
+      count: group.items.length,
+      items: group.items,
+      meta: group.meta,
+    }));
 }
 

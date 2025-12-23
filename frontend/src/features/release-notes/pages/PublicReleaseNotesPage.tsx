@@ -9,6 +9,7 @@ import { FileText, AlertCircle } from 'lucide-react';
 import { formatLocal } from '../../../utils/dateTime';
 import dayjs from '../../../utils/dayjs';
 import { ExpandableContent } from '../../../components/common/ExpandableContent';
+import { groupReleaseNoteTasks } from '../utils/groupReleaseNoteTasks';
 
 export function PublicReleaseNotesPage() {
   const { token } = useParams<{ token: string }>();
@@ -44,6 +45,13 @@ export function PublicReleaseNotesPage() {
   }
 
   const { shareLink, data: releaseNotes, pagination } = data;
+  const typeIcons: Record<string, string> = {
+    bug: '🐛',
+    feature: '✨',
+    todo: '📝',
+    epic: '🎯',
+    improvement: '⚡',
+  };
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark">
@@ -73,124 +81,157 @@ export function PublicReleaseNotesPage() {
           />
         ) : (
           <div className="space-y-4">
-            {releaseNotes.map((releaseNote) => (
-              <div
-                key={releaseNote.id}
-                className="bg-white dark:bg-[#1C252E] border rounded-xl p-6 pt-10 relative group border-gray-200 dark:border-gray-700/50"
-              >
-                <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
-                  <span
-                    className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
-                      releaseNote.status === 'deployed'
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                        : releaseNote.status === 'deployment_started'
-                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                        : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-                    }`}
-                  >
-                    {releaseNote.status === 'deployment_started' ? 'deployment started' : releaseNote.status}
-                  </span>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="flex-1 min-w-0 pr-24">
-                    <div className="flex items-start gap-3 mb-2 flex-wrap">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white break-words flex-1 min-w-0">
-                          {releaseNote.note && !isEmptyHtml(releaseNote.note) ? (() => {
-                            const tmp = document.createElement('div');
-                            tmp.innerHTML = releaseNote.note;
-                            const plainText = tmp.textContent || tmp.innerText || '';
-                            return plainText.length > 100 ? `${plainText.substring(0, 100)}...` : plainText;
-                          })() : 'Untitled Release Note'}
-                        </h3>
-                      </div>
-                    </div>
-
-                    <div className="mt-2">
-                      <ExpandableContent
-                        label="Content"
-                        placeholder='Click "Expand" to view full content'
-                        defaultExpanded={true}
-                      >
-                        <div className="space-y-4">
-                          {releaseNote.note && (
-                            <RichTextRenderer html={releaseNote.note} />
-                          )}
-                          
-                          {releaseNote.tasks && releaseNote.tasks.length > 0 && (
-                            <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
-                              <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                                Added Tasks
-                              </h4>
-                              {releaseNote.tasks.map((releaseNoteTask) => {
-                                const task = releaseNoteTask.task;
-                                const typeIcons: Record<string, string> = {
-                                  bug: '🐛',
-                                  feature: '✨',
-                                  todo: '📝',
-                                  epic: '🎯',
-                                  improvement: '⚡',
-                                };
-                                return (
-                                  <div key={task.id} className="space-y-2">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-base">{typeIcons[task.type] || '📝'}</span>
-                                      <h5 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                        {task.title}
-                                      </h5>
-                                    </div>
-                                    {task.description && (
-                                      <div className="ml-6">
-                                        <RichTextRenderer html={task.description} variant="muted" />
-                                      </div>
-                                    )}
-                                    <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 ml-6">
-                                      <span>
-                                        Status: <span className="capitalize">{task.status.replace('_', ' ')}</span>
-                                      </span>
-                                      {task.sprint && (
-                                        <span>
-                                          Sprint: <span className="font-medium">{task.sprint.name}</span>
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </ExpandableContent>
-                    </div>
-
-                    {releaseNote.service && (
-                      <div className="mt-4">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Service</p>
-                        <div className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800">
-                          <span>☁️</span>
-                          {releaseNote.service.name} (:{releaseNote.service.port})
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-gray-500 dark:text-gray-400">
-                      {releaseNote.publishDate && (
-                        <span className="font-medium">
-                          Publish Date: {formatLocal(releaseNote.publishDate)}
+            {releaseNotes.map((releaseNote) => {
+              const { primaryTasks, otherTasks } = groupReleaseNoteTasks(
+                releaseNote.tasks,
+                releaseNote.serviceId
+              );
+              const renderTask = (
+                releaseNoteTask: NonNullable<typeof releaseNote.tasks>[number],
+                showServiceBadge?: boolean
+              ) => {
+                const task = releaseNoteTask.task;
+                if (!task) return null;
+                return (
+                  <div key={task.id} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{typeIcons[task.type] || '📝'}</span>
+                      <h5 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {task.title}
+                      </h5>
+                      {showServiceBadge && (
+                        <span className="ml-auto text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          {task.service?.name || 'Other service'}
                         </span>
                       )}
-                      {releaseNote.deployedAt && (
-                        <span className="font-medium text-green-700 dark:text-green-300">
-                          Deployed: {formatLocal(releaseNote.deployedAt)}
+                    </div>
+                    {task.description && (
+                      <div className="ml-6">
+                        <RichTextRenderer html={task.description} variant="muted" />
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 ml-6">
+                      <span>
+                        Status: <span className="capitalize">{task.status.replace('_', ' ')}</span>
+                      </span>
+                      {task.sprint && (
+                        <span>
+                          Sprint: <span className="font-medium">{task.sprint.name}</span>
                         </span>
                       )}
                     </div>
                   </div>
+                );
+              };
+
+              return (
+                <div
+                  key={releaseNote.id}
+                  className="bg-white dark:bg-[#1C252E] border rounded-xl p-6 pt-10 relative group border-gray-200 dark:border-gray-700/50"
+                >
+                  <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
+                        releaseNote.status === 'deployed'
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                          : releaseNote.status === 'deployment_started'
+                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                          : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                      }`}
+                    >
+                      {releaseNote.status === 'deployment_started' ? 'deployment started' : releaseNote.status}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="flex-1 min-w-0 pr-24">
+                      <div className="flex items-start gap-3 mb-2 flex-wrap">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white break-words flex-1 min-w-0">
+                            {releaseNote.note && !isEmptyHtml(releaseNote.note) ? (() => {
+                              const tmp = document.createElement('div');
+                              tmp.innerHTML = releaseNote.note;
+                              const plainText = tmp.textContent || tmp.innerText || '';
+                              return plainText.length > 100 ? `${plainText.substring(0, 100)}...` : plainText;
+                            })() : 'Untitled Release Note'}
+                          </h3>
+                        </div>
+                      </div>
+
+                      <div className="mt-2">
+                        <ExpandableContent
+                          label="Content"
+                          placeholder='Click "Expand" to view full content'
+                          defaultExpanded={true}
+                        >
+                          <div className="space-y-4">
+                            {releaseNote.note && (
+                              <RichTextRenderer html={releaseNote.note} />
+                            )}
+                            
+                            {(primaryTasks.length > 0 || otherTasks.length > 0) && (
+                              <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                                  Added Tasks
+                                </h4>
+                                {primaryTasks.length > 0 && (
+                                  <div className="space-y-3">
+                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                      {releaseNote.service?.name
+                                        ? `Tasks for ${releaseNote.service.name}`
+                                        : 'Primary Service'}
+                                    </p>
+                                    {primaryTasks.map((releaseNoteTask) => renderTask(releaseNoteTask))}
+                                  </div>
+                                )}
+                                {otherTasks.length > 0 && (
+                                  <div
+                                    className={`space-y-3 ${
+                                      primaryTasks.length > 0
+                                        ? 'pt-4 border-t border-gray-200 dark:border-gray-700'
+                                        : ''
+                                    }`}
+                                  >
+                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                      Other Services
+                                    </p>
+                                    {otherTasks.map((releaseNoteTask) => renderTask(releaseNoteTask, true))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </ExpandableContent>
+                      </div>
+
+                      {releaseNote.service && (
+                        <div className="mt-4">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Service</p>
+                          <div className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800">
+                            <span>☁️</span>
+                            {releaseNote.service.name} (:{releaseNote.service.port})
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-gray-500 dark:text-gray-400">
+                        {releaseNote.publishDate && (
+                          <span className="font-medium">
+                            Publish Date: {formatLocal(releaseNote.publishDate)}
+                          </span>
+                        )}
+                        {releaseNote.deployedAt && (
+                          <span className="font-medium text-green-700 dark:text-green-300">
+                            Deployed: {formatLocal(releaseNote.deployedAt)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

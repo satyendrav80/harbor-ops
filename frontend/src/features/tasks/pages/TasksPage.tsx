@@ -20,7 +20,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Filter, OrderByItem, GroupByItem } from '../../release-notes/types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../utils/urlSync';
 import { hasActiveFilters } from '../../release-notes/utils/filterState';
-import { groupTasks, type GroupedTask } from '../utils/groupTasks';
+import { GroupedList } from '../../../components/common/grouping/GroupedList';
+import type { GroupNode } from '../../../types/grouping';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
 import { SelectionBar } from '../../../components/common/SelectionBar';
 import { getSocket } from '../../../services/socket';
@@ -255,44 +256,7 @@ export function TasksPage() {
     return [];
   }, [tasksDataToUse]);
 
-  // Group tasks if groupBy is specified
-  const groupedTasks = useMemo(() => {
-    if (groupBy && groupBy.length > 0) {
-      return groupTasks(tasks, groupBy);
-    }
-    return null;
-  }, [tasks, groupBy]);
-
-  // Track expanded groups - expand all by default
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-
-  // Auto-expand all groups when groupedTasks changes
-  useEffect(() => {
-    if (groupedTasks && groupedTasks.length > 0) {
-      const allGroupKeys = new Set<string>();
-      function collectKeys(groups: GroupedTask[], parentKey: string = '') {
-        groups.forEach(group => {
-          const fullKey = parentKey ? `${parentKey}::${group.groupKey}` : group.groupKey;
-          allGroupKeys.add(fullKey);
-          if (group.subgroups && group.subgroups.length > 0) {
-            collectKeys(group.subgroups, fullKey);
-          }
-        });
-      }
-      collectKeys(groupedTasks);
-      setExpandedGroups(allGroupKeys);
-    }
-  }, [groupedTasks]);
-
-  const toggleGroup = (groupKey: string) => {
-    const newExpanded = new Set(expandedGroups);
-    if (newExpanded.has(groupKey)) {
-      newExpanded.delete(groupKey);
-    } else {
-      newExpanded.add(groupKey);
-    }
-    setExpandedGroups(newExpanded);
-  };
+  const hasGrouping = Boolean(groupBy && groupBy.length > 0);
 
   // Infinite scroll observer (always on, advanced hook handles pagination)
   const tasksObserverTarget = useInfiniteScroll({
@@ -465,48 +429,18 @@ export function TasksPage() {
   };
 
   // --- RENDERING HELPERS ---
+  const getGroupTaskCount = (group: GroupNode<Task>): number => {
+    const direct = group.items?.length || 0;
+    const nested = group.subgroups?.reduce((sum, subgroup) => sum + getGroupTaskCount(subgroup), 0) || 0;
+    return direct + nested;
+  };
 
-  // Render a single group (recursive for nested groups)
-  const renderGroup = (group: GroupedTask, level: number = 0, parentKey: string = ''): React.ReactNode => {
-    const fullKey = parentKey ? `${parentKey}::${group.groupKey}` : group.groupKey;
-    const isExpanded = expandedGroups.has(fullKey);
-    const hasSubgroups = group.subgroups && group.subgroups.length > 0;
-
-    if (viewMode === 'table') {
-      return (
-        <React.Fragment key={fullKey}>
-          <tr className="bg-gray-100 dark:bg-gray-800/50 border-t border-gray-300 dark:border-gray-700">
-            <td colSpan={11} className="px-4 py-2">
-              <button
-                onClick={() => toggleGroup(fullKey)}
-                className="flex items-center gap-2 w-full text-left font-medium text-gray-900 dark:text-white hover:text-primary transition-colors"
-              >
-                {hasSubgroups ? (
-                  isExpanded ? (
-                    <ChevronDown className="w-4 h-4" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4" />
-                  )
-                ) : (
-                  <span className="w-4" />
-                )}
-                <span style={{ paddingLeft: `${level * 1.5}rem` }}>
-                  {group.groupLabel}
-                </span>
-                <span className="ml-auto text-sm text-gray-500 dark:text-gray-400">
-                  ({hasSubgroups ? group.subgroups!.length : group.items.length} {hasSubgroups ? 'groups' : 'tasks'})
-                </span>
-              </button>
-            </td>
-          </tr>
-          {isExpanded && (
-            <>
-              {hasSubgroups
-                ? group.subgroups!.map(subgroup => renderGroup(subgroup, level + 1, fullKey))
-                : group.items.map(task => (
+  const renderTaskTableRow = (task: Task) => (
                     <tr
                       key={task.id}
-                      className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${selectedTaskIds.has(task.id) ? 'bg-blue-50 dark:bg-primary/5' : ''}`}
+      className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
+        selectedTaskIds.has(task.id) ? 'bg-blue-50 dark:bg-primary/5' : ''
+      }`}
                     >
                       <td className="px-4 py-3">
                         <input
@@ -532,22 +466,32 @@ export function TasksPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize 
-                          ${task.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400' :
-                            task.status === 'in_progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400' :
-                              task.status === 'blocked' ? 'bg-red-100 text-red-800 dark:bg-red-500/10 dark:text-red-400' :
-                                'bg-gray-100 text-gray-800 dark:bg-gray-500/10 dark:text-gray-400'
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${
+            task.status === 'completed'
+              ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400'
+              : task.status === 'in_progress'
+              ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400'
+              : task.status === 'blocked'
+              ? 'bg-red-100 text-red-800 dark:bg-red-500/10 dark:text-red-400'
+              : 'bg-gray-100 text-gray-800 dark:bg-gray-500/10 dark:text-gray-400'
                           }`}
                         >
                           {task.status.replace('_', ' ')}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`capitalize ${task.priority === 'critical' ? 'text-red-500' :
-                          task.priority === 'high' ? 'text-orange-500' :
-                            task.priority === 'medium' ? 'text-blue-500' :
-                              'text-gray-500 dark:text-gray-400'
-                        }`}>
+        <span
+          className={`capitalize ${
+            task.priority === 'critical'
+              ? 'text-red-500'
+              : task.priority === 'high'
+              ? 'text-orange-500'
+              : task.priority === 'medium'
+              ? 'text-blue-500'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}
+        >
                           {task.priority}
                         </span>
                       </td>
@@ -555,7 +499,17 @@ export function TasksPage() {
                         {task.assignedToUser?.name || task.assignedToUser?.email || '-'}
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                        {task.tester?.name || task.tester?.email || '-'}
+        <div className="flex items-center gap-2">
+          {task.tester && <ShieldCheck className="w-4 h-4 text-emerald-500" />}
+          <div className="flex flex-col leading-tight">
+            <span>{task.tester?.name || task.tester?.email || '-'}</span>
+            {task.testerAssignedAt && (
+              <span className="text-xs text-gray-500 dark:text-gray-500">
+                {new Date(task.testerAssignedAt).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+        </div>
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                         {task.attentionToUser?.name || task.attentionToUser?.email || '-'}
@@ -580,49 +534,20 @@ export function TasksPage() {
                           >
                             <span className="text-xs">↳</span> {task.parentTask.title}
                           </span>
-                        ) : '-'}
+        ) : (
+          '-'
+        )}
                       </td>
                     </tr>
-                  ))}
-            </>
-          )}
-        </React.Fragment>
-      );
-    } else {
-      // Grid view
-      return (
-        <div key={fullKey} className="space-y-2">
-          <button
-            onClick={() => toggleGroup(fullKey)}
-            className="flex items-center gap-2 w-full px-4 py-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-left"
-          >
-            {hasSubgroups ? (
-              isExpanded ? (
-                <ChevronDown className="w-4 h-4" />
-              ) : (
-                <ChevronRight className="w-4 h-4" />
-              )
-            ) : (
-              <span className="w-4" />
-            )}
-            <span className="font-medium text-gray-900 dark:text-white" style={{ paddingLeft: `${level * 1.5}rem` }}>
-              {group.groupLabel}
-            </span>
-            <span className="ml-auto text-sm text-gray-500 dark:text-gray-400">
-              ({hasSubgroups ? group.subgroups!.length : group.items.length} {hasSubgroups ? 'groups' : 'tasks'})
-            </span>
-          </button>
-          {isExpanded && (
-            <div style={{ paddingLeft: `${(level + 1) * 1.5}rem` }}>
-              {hasSubgroups ? (
-                <div className="space-y-2">
-                  {group.subgroups!.map(subgroup => renderGroup(subgroup, level + 1, fullKey))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {group.items.map((task) => (
+  );
+
+  const renderTaskGridCard = (task: Task) => (
                     <div key={task.id} className="relative group">
-                      <div className={`absolute top-2 left-2 z-10 transition-opacity ${selectedTaskIds.has(task.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+      <div
+        className={`absolute top-2 left-2 z-10 transition-opacity ${
+          selectedTaskIds.has(task.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}
+      >
                         <input
                           type="checkbox"
                           checked={selectedTaskIds.has(task.id)}
@@ -648,16 +573,8 @@ export function TasksPage() {
                           onParentTaskClick={openTaskPanel}
                         />
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       );
-    }
-  };
 
   const renderContent = () => {
     if (tasksLoadingToUse && tasks.length === 0) {
@@ -697,7 +614,7 @@ export function TasksPage() {
     }
 
     // If grouped, render grouped view
-    if (groupedTasks && groupedTasks.length > 0) {
+    if (hasGrouping) {
       if (viewMode === 'table') {
         return (
           <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden shadow-sm">
@@ -724,18 +641,80 @@ export function TasksPage() {
                   <th className="px-4 py-3 font-medium text-gray-900 dark:text-gray-200">Parent Task</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {groupedTasks.map(group => renderGroup(group))}
-              </tbody>
+              <GroupedList
+                items={tasks}
+                groupBy={groupBy}
+                collapseLeaves
+                renderContainer={(children) => (
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-800">{children}</tbody>
+                )}
+                renderHeader={({ group, level, isExpanded, toggle, canToggle }) => (
+                  <tr className="bg-gray-100 dark:bg-gray-800/50 border-t border-gray-300 dark:border-gray-700">
+                    <td colSpan={11} className="px-4 py-2">
+                      <button
+                        onClick={() => canToggle && toggle()}
+                        className="flex items-center gap-2 w-full text-left font-medium text-gray-900 dark:text-white hover:text-primary transition-colors"
+                      >
+                        {canToggle ? (
+                          isExpanded ? (
+                            <ChevronDown className="w-4 h-4" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4" />
+                          )
+                        ) : (
+                          <span className="w-4" />
+                        )}
+                        <span style={{ paddingLeft: `${level * 1.5}rem` }}>{group.label || '(Unassigned)'}</span>
+                        <span className="ml-auto text-sm text-gray-500 dark:text-gray-400">
+                          ({getGroupTaskCount(group)} tasks)
+                        </span>
+                      </button>
+                    </td>
+                  </tr>
+                )}
+                renderItems={(groupItems) => groupItems.map(renderTaskTableRow)}
+              />
             </table>
           </div>
         );
       } else {
         // Grid view with grouping
         return (
-          <div className="space-y-4">
-            {groupedTasks.map(group => renderGroup(group))}
+          <GroupedList
+            items={tasks}
+            groupBy={groupBy}
+            collapseLeaves
+            renderContainer={(children) => <div className="space-y-4">{children}</div>}
+            renderHeader={({ group, level, isExpanded, toggle, canToggle }) => (
+              <button
+                className="flex items-center gap-2 w-full px-4 py-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-left"
+                onClick={() => canToggle && toggle()}
+              >
+                {canToggle ? (
+                  isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />
+                ) : (
+                  <span className="w-4" />
+                )}
+                <span
+                  className="font-medium text-gray-900 dark:text-white"
+                  style={{ paddingLeft: `${level * 1.5}rem` }}
+                >
+                  {group.label || '(Unassigned)'}
+                </span>
+                <span className="ml-auto text-sm text-gray-500 dark:text-gray-400">
+                  ({getGroupTaskCount(group)} tasks)
+                </span>
+              </button>
+            )}
+            renderItems={(groupItems, { level }) => (
+              <div
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+                style={{ paddingLeft: `${(level + 1) * 1.5}rem` }}
+              >
+                {groupItems.map(renderTaskGridCard)}
           </div>
+            )}
+          />
         );
       }
     }

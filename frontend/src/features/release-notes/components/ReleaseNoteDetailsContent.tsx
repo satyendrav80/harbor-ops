@@ -12,6 +12,7 @@ import { ConfirmationDialog } from '../../../components/common/ConfirmationDialo
 import { toast } from 'react-hot-toast';
 import { getSocket } from '../../../services/socket';
 import { CopyButton } from '../../../components/common/CopyButton';
+import { groupReleaseNoteTasks } from '../utils/groupReleaseNoteTasks';
 
 type ReleaseNoteDetailsContentProps = {
   releaseNoteId: number;
@@ -130,6 +131,47 @@ export function ReleaseNoteDetailsContent({
     epic: '🎯',
     improvement: '⚡',
   };
+  const { primaryTasks, otherTasks } = groupReleaseNoteTasks(releaseNote.tasks, releaseNote.serviceId);
+  const renderTask = (
+    releaseNoteTask: NonNullable<typeof releaseNote.tasks>[number],
+    showServiceBadge?: boolean
+  ) => {
+    const task = releaseNoteTask.task;
+    if (!task) return null;
+    return (
+      <div key={task.id} className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-base">{typeIcons[task.type] || '📝'}</span>
+          <button
+            onClick={() => onTaskClick?.(task.id)}
+            className="text-sm font-semibold text-gray-900 dark:text-white hover:text-primary transition-colors text-left"
+          >
+            {task.title}
+          </button>
+          {showServiceBadge && (
+            <span className="ml-auto text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              {task.service?.name || 'Other service'}
+            </span>
+          )}
+        </div>
+        {task.description && (
+          <div className="ml-6">
+            <RichTextRenderer html={task.description} variant="muted" />
+          </div>
+        )}
+        <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 ml-6">
+          <span>
+            Status: <span className="capitalize">{task.status.replace('_', ' ')}</span>
+          </span>
+          {task.sprint && (
+            <span>
+              Sprint: <span className="font-medium">{task.sprint.name}</span>
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -223,42 +265,31 @@ export function ReleaseNoteDetailsContent({
             )}
             
             {/* Tasks List - Shown Below Note Content */}
-            {releaseNote.tasks && releaseNote.tasks.length > 0 && (
+            {(primaryTasks.length > 0 || otherTasks.length > 0) && (
               <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
                   Added Tasks
                 </h4>
-                {releaseNote.tasks.map((releaseNoteTask) => {
-                  const task = releaseNoteTask.task;
-                  return (
-                    <div key={task.id} className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{typeIcons[task.type] || '📝'}</span>
-                        <button
-                          onClick={() => onTaskClick?.(task.id)}
-                          className="text-sm font-semibold text-gray-900 dark:text-white hover:text-primary transition-colors text-left"
-                        >
-                          {task.title}
-                        </button>
-                      </div>
-                      {task.description && (
-                        <div className="ml-6">
-                          <RichTextRenderer html={task.description} variant="muted" />
-                        </div>
-                      )}
-                      <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 ml-6">
-                        <span>
-                          Status: <span className="capitalize">{task.status.replace('_', ' ')}</span>
-                        </span>
-                        {task.sprint && (
-                          <span>
-                            Sprint: <span className="font-medium">{task.sprint.name}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                {primaryTasks.length > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                      {releaseNote.service?.name
+                        ? `Tasks for ${releaseNote.service.name}`
+                        : 'Primary Service'}
+                    </p>
+                    {primaryTasks.map((releaseNoteTask) => renderTask(releaseNoteTask))}
+                  </div>
+                )}
+                {otherTasks.length > 0 && (
+                  <div
+                    className={`space-y-3 ${
+                      primaryTasks.length > 0 ? 'pt-4 border-t border-gray-200 dark:border-gray-700' : ''
+                    }`}
+                  >
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Other Services</p>
+                    {otherTasks.map((releaseNoteTask) => renderTask(releaseNoteTask, true))}
+                  </div>
+                )}
               </div>
             )}
           </div>

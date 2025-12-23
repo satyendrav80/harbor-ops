@@ -11,7 +11,7 @@ export function useReleaseNotesAdvanced(
   limit: number = 20
 ) {
   return useInfiniteQuery<ReleaseNotesResponse, Error>({
-    queryKey: ['release-notes', 'advanced', request.filters, request.search, request.orderBy],
+    queryKey: ['release-notes', 'advanced', request.filters, request.search, request.orderBy, request.groupBy],
     queryFn: async ({ pageParam = 1 }) => {
       return listReleaseNotesAdvanced({
         ...request,

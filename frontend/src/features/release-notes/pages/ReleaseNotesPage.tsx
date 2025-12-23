@@ -23,7 +23,7 @@ import { ExpandableContent } from '../../../components/common/ExpandableContent'
 import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
 import { isEmptyHtml } from '../../../utils/richText';
 import { AdvancedFiltersPanel } from '../components/AdvancedFiltersPanel';
-import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle, Filter as FilterIcon, Share2 } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Cloud, PlayCircle, Filter as FilterIcon, Share2, ChevronDown, ChevronRight } from 'lucide-react';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import { getReleaseNotesFilterMetadata } from '../../../services/releaseNotes';
 import { useInfiniteScroll } from '../../../components/common/useInfiniteScroll';
@@ -35,6 +35,9 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import type { Filter, OrderByItem, GroupByItem } from '../types/filters';
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from '../utils/urlSync';
 import { hasActiveFilters } from '../utils/filterState';
+import { groupReleaseNoteTasks } from '../utils/groupReleaseNoteTasks';
+import { GroupedList } from '../../../components/common/grouping/GroupedList';
+import type { GroupNode } from '../../../types/grouping';
 import { TaskDetailsSidePanel } from '../../tasks/components/TaskDetailsSidePanel';
 import { ServiceDetailsSidePanel } from '../../services/components/ServiceDetailsSidePanel';
 import { ReleaseNoteDetailsSidePanel } from '../components/ReleaseNoteDetailsSidePanel';
@@ -207,6 +210,50 @@ const ReleaseNoteItem = memo(({
   
   const plainText = getPlainText(releaseNote.note);
   const preview = plainText.length > 100 ? `${plainText.substring(0, 100)}...` : plainText;
+  const { primaryTasks, otherTasks } = groupReleaseNoteTasks(releaseNote.tasks, releaseNote.serviceId);
+  const typeIcons: Record<string, string> = {
+    bug: '🐛',
+    feature: '✨',
+    todo: '📝',
+    epic: '🎯',
+    improvement: '⚡',
+  };
+
+  const renderTask = (
+    releaseNoteTask: NonNullable<ReleaseNote['tasks']>[number],
+    showServiceBadge?: boolean
+  ) => {
+    const task = releaseNoteTask.task;
+    if (!task) return null;
+    return (
+      <div key={task.id} className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-base">{typeIcons[task.type] || '📝'}</span>
+          <h5 className="text-sm font-semibold text-gray-900 dark:text-white">{task.title}</h5>
+          {showServiceBadge && (
+            <span className="ml-auto text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              {task.service?.name || 'Other service'}
+            </span>
+          )}
+        </div>
+        {task.description && (
+          <div className="ml-6">
+            <RichTextRenderer html={task.description} variant="muted" />
+          </div>
+        )}
+        <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 ml-6">
+          <span>
+            Status: <span className="capitalize">{task.status.replace('_', ' ')}</span>
+          </span>
+          {task.sprint && (
+            <span>
+              Sprint: <span className="font-medium">{task.sprint.name}</span>
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
   
   return (
             <div
@@ -343,46 +390,35 @@ const ReleaseNoteItem = memo(({
                 )}
                 
                 {/* Tasks List - Shown Below Note Content */}
-                {releaseNote.tasks && releaseNote.tasks.length > 0 && (
+                {(primaryTasks.length > 0 || otherTasks.length > 0) && (
                   <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
                     <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
                       Added Tasks
                     </h4>
-                    {releaseNote.tasks.map((releaseNoteTask) => {
-                      const task = releaseNoteTask.task;
-                      const typeIcons: Record<string, string> = {
-                        bug: '🐛',
-                        feature: '✨',
-                        todo: '📝',
-                        epic: '🎯',
-                        improvement: '⚡',
-                      };
-                      return (
-                        <div key={task.id} className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">{typeIcons[task.type] || '📝'}</span>
-                            <h5 className="text-sm font-semibold text-gray-900 dark:text-white">
-                              {task.title}
-                            </h5>
-                          </div>
-                          {task.description && (
-                            <div className="ml-6">
-                              <RichTextRenderer html={task.description} variant="muted" />
-                            </div>
-                          )}
-                          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 ml-6">
-                            <span>
-                              Status: <span className="capitalize">{task.status.replace('_', ' ')}</span>
-                            </span>
-                            {task.sprint && (
-                              <span>
-                                Sprint: <span className="font-medium">{task.sprint.name}</span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {primaryTasks.length > 0 && (
+                      <div className="space-y-3">
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                          {releaseNote.service?.name
+                            ? `Tasks for ${releaseNote.service.name}`
+                            : 'Primary Service'}
+                        </p>
+                        {primaryTasks.map((releaseNoteTask) => renderTask(releaseNoteTask))}
+                      </div>
+                    )}
+                    {otherTasks.length > 0 && (
+                      <div
+                        className={`space-y-3 ${
+                          primaryTasks.length > 0
+                            ? 'pt-4 border-t border-gray-200 dark:border-gray-700'
+                            : ''
+                        }`}
+                      >
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                          Other Services
+                        </p>
+                        {otherTasks.map((releaseNoteTask) => renderTask(releaseNoteTask, true))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -755,6 +791,7 @@ export function ReleaseNotesPage() {
       filters: advancedFilters,
       search: debouncedSearch || undefined,
       orderBy: apiOrderBy,
+      groupBy: groupBy && groupBy.length > 0 ? groupBy : undefined,
     },
     20
   );
@@ -811,6 +848,53 @@ export function ReleaseNotesPage() {
     // Update ref with new data
     previousDataRef.current = flattened;
     return flattened;
+  }, [releaseNotesDataToUse]);
+
+  const groupedReleaseNotes = useMemo<GroupNode<ReleaseNote>[] | undefined>(() => {
+    if (!releaseNotesDataToUse?.pages) {
+      return undefined;
+    }
+
+    type InternalGroup = { node: GroupNode<ReleaseNote>; order: number };
+    const groupMap = new Map<string, InternalGroup>();
+    let orderCounter = 0;
+
+    releaseNotesDataToUse.pages.forEach((page) => {
+      if (!page.groupedData || page.groupedData.length === 0) {
+        return;
+      }
+
+      page.groupedData.forEach((group) => {
+        const rawKey =
+          group.key === null || group.key === undefined
+            ? group.meta?.serviceId ?? group.label ?? 'unknown'
+            : group.key;
+        const mapKey = String(rawKey);
+
+        if (!groupMap.has(mapKey)) {
+          groupMap.set(mapKey, {
+            node: {
+              key: mapKey,
+              label: group.label || 'No Service',
+              items: [...group.items],
+              meta: group.meta,
+            },
+            order: orderCounter++,
+          });
+        } else {
+          const existing = groupMap.get(mapKey)!;
+          existing.node.items = existing.node.items.concat(group.items);
+        }
+      });
+    });
+
+    if (groupMap.size === 0) {
+      return undefined;
+    }
+
+    return Array.from(groupMap.values())
+      .sort((a, b) => a.order - b.order)
+      .map(({ node }) => node);
   }, [releaseNotesDataToUse]);
 
   // Infinite scroll observer
@@ -1027,6 +1111,9 @@ export function ReleaseNotesPage() {
 
   const isAllSelected = selectedIds.size > 0 && selectedIds.size === releaseNotes.length;
   const isProcessing = bulkDeleteReleaseNotes.isPending || bulkMarkDeploymentStarted.isPending || bulkMarkDeployed.isPending;
+  const shouldShowGroupedView = Boolean(
+    groupedReleaseNotes && groupedReleaseNotes.length > 0 && groupBy && groupBy.length > 0
+  );
 
   // Only show loading on initial load when there's truly no data
   // placeholderData keeps previous data during refetches, so we don't flicker
@@ -1119,6 +1206,73 @@ export function ReleaseNotesPage() {
             ) : null
           }
         />
+      ) : shouldShowGroupedView && groupedReleaseNotes ? (
+        <>
+          <GroupedList
+            items={releaseNotes}
+            groups={groupedReleaseNotes}
+            collapseLeaves
+            renderContainer={(children) => <div className="space-y-6">{children}</div>}
+            renderHeader={({ group, isExpanded, toggle, canToggle }) => (
+              <button
+                onClick={() => canToggle && toggle()}
+                className="rounded-2xl border border-gray-800/60 bg-[#101a24] px-4 py-3 flex items-center justify-between text-left w-full transition-colors hover:border-gray-700"
+              >
+                <div className="flex items-center gap-3">
+                  {canToggle ? (
+                    isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />
+                  ) : (
+                    <span className="w-4" />
+                  )}
+                  <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-300">
+                    <Cloud className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-white">
+                      {group.label || 'No Service'}
+                    </span>
+                    {group.meta?.servicePort && (
+                      <span className="text-xs text-gray-400">Port {group.meta.servicePort}</span>
+                    )}
+                  </div>
+                </div>
+                <span className="text-xs text-gray-400">
+                  {group.items.length} {group.items.length === 1 ? 'release' : 'releases'}
+                </span>
+              </button>
+            )}
+            renderItems={(groupItems) => (
+              <div className="space-y-4 mt-3">
+                {groupItems.map((releaseNote) => (
+                  <ReleaseNoteItem
+                    key={releaseNote.id}
+                    releaseNote={releaseNote}
+                    onView={handleViewReleaseNote}
+                    onEdit={handleEditReleaseNote}
+                    onMarkDeployed={handleMarkDeployed}
+                    onMarkDeploymentStarted={handleMarkDeploymentStarted}
+                    onDelete={handleDeleteReleaseNote}
+                    hasPermission={hasPermission}
+                    markDeployedPending={markDeployed.isPending}
+                    markDeploymentStartedPending={markDeploymentStarted.isPending}
+                    deletePending={deleteReleaseNote.isPending}
+                    isSelected={selectedIds.has(releaseNote.id)}
+                    onSelect={handleSelect}
+                    onDeselect={handleDeselect}
+                    onTaskClick={openTaskPanel}
+                    onServiceClick={openServicePanel}
+                  />
+                ))}
+              </div>
+            )}
+          />
+          <div ref={releaseNotesObserverTarget as any} className="h-4" />
+          {isFetchingNextReleaseNotesPage && (
+            <div className="p-4 text-center">
+              <div className="inline-block w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+        </>
       ) : (
         <ReleaseNotesList
           releaseNotes={releaseNotes}

@@ -1,4 +1,5 @@
 import { apiFetch } from './apiClient';
+import type { GroupByItem } from '../features/release-notes/types/filters';
 
 export type ReleaseNote = {
   id: number;
@@ -34,6 +35,11 @@ export type ReleaseNote = {
       description?: string | null;
       status: string;
       type: string;
+      serviceId?: number | null;
+      service?: {
+        id: number;
+        name: string;
+      } | null;
       sprint?: {
         id: number;
         name: string;
@@ -45,11 +51,24 @@ export type ReleaseNote = {
 
 export type ReleaseNotesResponse = {
   data: ReleaseNote[];
+  groupedData?: ReleaseNoteGroup[];
   pagination: {
     page: number;
     limit: number;
     total: number;
     totalPages: number;
+  };
+};
+
+export type ReleaseNoteGroup = {
+  key: string | number | null;
+  label: string;
+  count: number;
+  items: ReleaseNote[];
+  meta?: {
+    serviceId: number | null;
+    serviceName: string | null;
+    servicePort: number | null;
   };
 };
 
@@ -150,6 +169,7 @@ export async function listReleaseNotesAdvanced(request: {
   page?: number;
   limit?: number;
   orderBy?: any;
+  groupBy?: GroupByItem[];
 }): Promise<ReleaseNotesResponse> {
   return apiFetch<ReleaseNotesResponse>('/release-notes/list', {
     method: 'POST',
@@ -159,6 +179,7 @@ export async function listReleaseNotesAdvanced(request: {
       page: request.page || 1,
       limit: request.limit || 20,
       orderBy: request.orderBy,
+      groupBy: request.groupBy,
     }),
   });
 }
