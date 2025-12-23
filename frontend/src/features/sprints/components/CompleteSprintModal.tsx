@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, AlertTriangle, Trash2 } from 'lucide-react';
 import { type Sprint, createSprint } from '../../../services/sprints';
 import { useSprints } from '../hooks/useSprintQueries';
-import { toast } from 'react-hot-toast';
+import { useModalError } from '../../../hooks/useModalError';
 import { SearchableSelect } from '../../../components/common/SearchableSelect';
 
 interface CompleteSprintModalProps {
@@ -18,6 +18,7 @@ export function CompleteSprintModal({ isOpen, onClose, onConfirm, sprint, mode }
   const [targetSprintId, setTargetSprintId] = useState<number | null>(null);
   const [newSprintName, setNewSprintName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { ErrorBanner, showError, clearError } = useModalError();
 
   // Fetch planned sprints for moving tasks to
   const { data: sprintsData } = useSprints({ status: ['planned'], limit: 50 });
@@ -31,6 +32,15 @@ export function CompleteSprintModal({ isOpen, onClose, onConfirm, sprint, mode }
     if (isOpen) window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      clearError();
+      setNewSprintName('');
+      setTargetSprintId(null);
+      setMoveTarget('backlog');
+    }
+  }, [isOpen, clearError]);
 
   if (!isOpen) return null;
 
@@ -49,7 +59,7 @@ export function CompleteSprintModal({ isOpen, onClose, onConfirm, sprint, mode }
 
       if (moveTarget === 'new_sprint') {
         if (!newSprintName.trim()) {
-          toast.error('Please enter a name for the new sprint');
+          showError('Please enter a name for the new sprint');
           setIsSubmitting(false);
           return;
         }
@@ -68,10 +78,9 @@ export function CompleteSprintModal({ isOpen, onClose, onConfirm, sprint, mode }
         });
 
         finalTargetId = newSprint.id;
-        toast.success(`Created new sprint: ${newSprint.name}`);
       } else if (moveTarget === 'existing_sprint') {
         if (!targetSprintId) {
-          toast.error('Please select a sprint');
+          showError('Please select a sprint');
           setIsSubmitting(false);
           return;
         }

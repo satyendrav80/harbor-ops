@@ -18,6 +18,7 @@ import { getCredentials } from '../../../services/credentials';
 import { getDomains, getDomainsByItem } from '../../../services/domains';
 import { getTags } from '../../../services/tags';
 import { RichTextEditor } from '../../../components/common/RichTextEditor';
+import { useModalError } from '../../../hooks/useModalError';
 
 type ServerModalProps = {
   isOpen: boolean;
@@ -33,7 +34,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
   const deleteServer = useDeleteServer();
   const { data: constants } = useConstants();
 
-  const [error, setError] = useState<string | null>(null);
+  const { error, showError, clearError, ErrorBanner } = useModalError();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { hasPermission } = useAuth();
@@ -216,9 +217,9 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
         documentation: '',
       });
     }
-    setError(null);
+    clearError();
     setDeleteConfirmOpen(false);
-  }, [isOpen, server, form, constants, existingGroupsData, existingDomainsData]);
+  }, [isOpen, server, form, constants, existingGroupsData, existingDomainsData, clearError]);
 
   // Watch server type for conditional fields (after form is initialized)
   const watchedType = form.watch('type');
@@ -227,7 +228,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
   const isCloudService = ['amplify', 'lambda', 'ecs', 'other'].includes(watchedType);
 
   const onSubmit = async (values: ServerFormValues) => {
-    setError(null);
+    clearError();
     try {
       let createdOrUpdatedServer: Server;
       
@@ -323,20 +324,20 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
       }
       onClose();
     } catch (err: any) {
-      setError(err?.message || `Failed to ${isEditing ? 'update' : 'create'} server`);
+      showError(err, `Failed to ${isEditing ? 'update' : 'create'} server`);
     }
   };
 
   const confirmDelete = async () => {
     if (!server) return;
-    setError(null);
+    clearError();
     try {
       await deleteServer.mutateAsync(server.id);
       setDeleteConfirmOpen(false);
       onClose();
       if (onDelete) onDelete();
     } catch (err: any) {
-      setError(err?.message || 'Failed to delete server');
+      showError(err, 'Failed to delete server');
     }
   };
 
@@ -345,11 +346,7 @@ export function ServerModal({ isOpen, onClose, server, onDelete }: ServerModalPr
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Server' : 'Create Server'} size="xl">
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {error && (
-          <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
-            <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
-          </div>
-        )}
+        {ErrorBanner}
 
         <div>
           <label className="flex flex-col">

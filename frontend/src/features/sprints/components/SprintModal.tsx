@@ -8,6 +8,7 @@ import { useCreateSprint, useUpdateSprint, useDeleteSprint } from '../hooks/useS
 import { useAuth } from '../../auth/context/AuthContext';
 import { Trash2 } from 'lucide-react';
 import type { Sprint, SprintStatus } from '../../../services/sprints';
+import { useModalError } from '../../../hooks/useModalError';
 
 type SprintModalProps = {
   isOpen: boolean;
@@ -37,12 +38,24 @@ type SprintFormValues = z.infer<typeof sprintSchema>;
 
 export function SprintModal({ isOpen, onClose, sprint, onDelete, onStatusChangeRedirect }: SprintModalProps) {
   const isEditing = !!sprint;
-  const createSprint = useCreateSprint();
-  const updateSprint = useUpdateSprint();
-  const deleteSprint = useDeleteSprint();
+  const { error, showError, clearError, ErrorBanner } = useModalError();
+  const createSprint = useCreateSprint({
+    mode: 'inline',
+    suppressSuccessToast: true,
+    onErrorMessage: (msg) => showError(msg, 'Failed to create sprint'),
+  });
+  const updateSprint = useUpdateSprint({
+    mode: 'inline',
+    suppressSuccessToast: true,
+    onErrorMessage: (msg) => showError(msg, 'Failed to update sprint'),
+  });
+  const deleteSprint = useDeleteSprint({
+    mode: 'inline',
+    suppressSuccessToast: true,
+    onErrorMessage: (msg) => showError(msg, 'Failed to delete sprint'),
+  });
   const { hasPermission } = useAuth();
 
-  const [error, setError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const form = useForm<SprintFormValues>({
@@ -79,13 +92,11 @@ export function SprintModal({ isOpen, onClose, sprint, onDelete, onStatusChangeR
         status: 'planned',
       });
     }
-    setError(null);
+    clearError();
     setDeleteConfirmOpen(false);
-  }, [isOpen, sprint, form, isEditing]);
+  }, [isOpen, sprint, form, isEditing, clearError]);
 
   const onSubmit = async (values: SprintFormValues) => {
-    setError(null);
-
     try {
       if (isEditing && sprint) {
         // Intercept status changes to 'completed' or 'cancelled'
@@ -121,20 +132,20 @@ export function SprintModal({ isOpen, onClose, sprint, onDelete, onStatusChangeR
       }
       onClose();
     } catch (err: any) {
-      setError(err?.message || `Failed to ${isEditing ? 'update' : 'create'} sprint`);
+      showError(err, `Failed to ${isEditing ? 'update' : 'create'} sprint`);
     }
   };
 
   const confirmDelete = async () => {
     if (!sprint) return;
-    setError(null);
+    clearError();
     try {
       await deleteSprint.mutateAsync(sprint.id);
       setDeleteConfirmOpen(false);
       onClose();
       if (onDelete) onDelete();
     } catch (err: any) {
-      setError(err?.message || 'Failed to delete sprint');
+      showError(err, 'Failed to delete sprint');
     }
   };
 
@@ -143,11 +154,7 @@ export function SprintModal({ isOpen, onClose, sprint, onDelete, onStatusChangeR
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Sprint' : 'Create Sprint'} size="lg">
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {error && (
-          <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
-            <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
-          </div>
-        )}
+        {ErrorBanner}
 
         <div>
           <label className="flex flex-col">

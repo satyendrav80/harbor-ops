@@ -7,15 +7,20 @@ import {
   deleteReleaseNote,
 } from '../../../services/releaseNotes';
 import toast from 'react-hot-toast';
+import { useMutationFeedback, type MutationFeedbackConfig } from '../../../hooks/useMutationFeedback';
 
-export function useCreateReleaseNote() {
+export function useCreateReleaseNote(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to create release note',
+    successMessage: 'Release note created successfully',
+  });
   return useMutation({
     mutationFn: ({ serviceId, note, publishDate, taskIds }: { serviceId: number; note: string; publishDate?: string; taskIds?: number[] }) =>
       createReleaseNote(serviceId, note, publishDate, taskIds),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['release-notes'] });
-      toast.success('Release note created successfully');
+      handleSuccess();
     },
     onError: (error: any) => {
       const errorData = error?.data || {};
@@ -25,26 +30,28 @@ export function useCreateReleaseNote() {
         const taskList = invalidTasks
           .map((task: any) => `Task #${task.id} (${task.status === 'not_found' ? 'not found' : task.status})`)
           .join(', ');
-        toast.error(
-          `Cannot add tasks: Only tasks with status "completed" or "testing" can be added. Invalid tasks: ${taskList}`,
-          { duration: 8000 }
-        );
+        const message = `Cannot add tasks: Only tasks with status "completed" or "testing" can be added. Invalid tasks: ${taskList}`;
+        handleError(message);
       } else {
-        toast.error(errorData.message || error?.message || 'Failed to create release note');
+        handleError(errorData.message || error?.message || 'Failed to create release note');
       }
     },
   });
 }
 
-export function useUpdateReleaseNote() {
+export function useUpdateReleaseNote(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to update release note',
+    successMessage: 'Release note updated successfully',
+  });
   return useMutation({
     mutationFn: ({ id, note, publishDate, serviceId, taskIds }: { id: number; note?: string; publishDate?: string; serviceId?: number; taskIds?: number[] }) =>
       updateReleaseNote(id, note, publishDate, serviceId, taskIds),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['release-notes'] });
       queryClient.invalidateQueries({ queryKey: ['release-note', variables.id] });
-      toast.success('Release note updated successfully');
+      handleSuccess();
     },
     onError: (error: any) => {
       const errorData = error?.data || {};
@@ -54,25 +61,27 @@ export function useUpdateReleaseNote() {
         const taskList = invalidTasks
           .map((task: any) => `Task #${task.id} (${task.status === 'not_found' ? 'not found' : task.status})`)
           .join(', ');
-        toast.error(
-          `Cannot update tasks: Only tasks with status "completed" or "testing" can be added. Invalid tasks: ${taskList}`,
-          { duration: 8000 }
-        );
+        const message = `Cannot update tasks: Only tasks with status "completed" or "testing" can be added. Invalid tasks: ${taskList}`;
+        handleError(message);
       } else {
-        toast.error(errorData.message || error?.message || 'Failed to update release note');
+        handleError(errorData.message || error?.message || 'Failed to update release note');
       }
     },
   });
 }
 
-export function useMarkReleaseNoteDeployed() {
+export function useMarkReleaseNoteDeployed(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to mark release note as deployed',
+    successMessage: 'Release note marked as deployed',
+  });
   return useMutation({
     mutationFn: (id: number) => markReleaseNoteDeployed(id),
     onSuccess: (data, id) => {
       queryClient.invalidateQueries({ queryKey: ['release-notes'] });
       queryClient.invalidateQueries({ queryKey: ['release-note', id] });
-      toast.success('Release note marked as deployed');
+      handleSuccess();
     },
     onError: (error: any) => {
       // Try multiple ways to access error data
@@ -83,27 +92,29 @@ export function useMarkReleaseNoteDeployed() {
         const taskList = incompleteTasks
           .map((task: any) => `"${task.title || `Task #${task.id}`}" (${task.status})`)
           .join(', ');
-        toast.error(
-          `Cannot deploy: All tasks must be completed. Incomplete tasks: ${taskList}`,
-          { duration: 8000 }
-        );
+        const message = `Cannot deploy: All tasks must be completed. Incomplete tasks: ${taskList}`;
+        handleError(message);
       } else {
         // Show the backend message if available, otherwise show generic error
         const errorMessage = errorData.message || error?.message || 'Failed to mark release note as deployed';
-        toast.error(errorMessage, { duration: 5000 });
+        handleError(errorMessage);
       }
     },
   });
 }
 
-export function useMarkReleaseNoteDeploymentStarted() {
+export function useMarkReleaseNoteDeploymentStarted(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to start deployment',
+    successMessage: 'Deployment started',
+  });
   return useMutation({
     mutationFn: (id: number) => markReleaseNoteDeploymentStarted(id),
     onSuccess: (data, id) => {
       queryClient.invalidateQueries({ queryKey: ['release-notes'] });
       queryClient.invalidateQueries({ queryKey: ['release-note', id] });
-      toast.success('Deployment started');
+      handleSuccess();
     },
     onError: (error: any) => {
       // Try multiple ways to access error data
@@ -114,14 +125,12 @@ export function useMarkReleaseNoteDeploymentStarted() {
         const taskList = incompleteTasks
           .map((task: any) => `"${task.title || `Task #${task.id}`}" (${task.status})`)
           .join(', ');
-        toast.error(
-          `Cannot start deployment: All tasks must be completed. Incomplete tasks: ${taskList}`,
-          { duration: 8000 }
-        );
+        const message = `Cannot start deployment: All tasks must be completed. Incomplete tasks: ${taskList}`;
+        handleError(message);
       } else {
         // Show the backend message if available, otherwise show generic error
         const errorMessage = errorData.message || error?.message || 'Failed to start deployment';
-        toast.error(errorMessage, { duration: 5000 });
+        handleError(errorMessage);
       }
     },
   });

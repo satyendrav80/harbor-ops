@@ -90,6 +90,8 @@ export async function createReleaseNote(
   return apiFetch<ReleaseNote>('/release-notes', {
     method: 'POST',
     body: JSON.stringify({ serviceId, note, publishDate, taskIds }),
+    // Errors are handled inline in the ReleaseNoteModal
+    skipGlobalError: true,
   });
 }
 
@@ -106,6 +108,8 @@ export async function updateReleaseNote(
   return apiFetch<ReleaseNote>(`/release-notes/${id}`, {
     method: 'PUT',
     body: JSON.stringify({ note, publishDate, serviceId, taskIds }),
+    // Errors are handled inline in the ReleaseNoteModal
+    skipGlobalError: true,
   });
 }
 

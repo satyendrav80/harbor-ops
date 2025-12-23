@@ -7,47 +7,59 @@ import {
   removeTaskFromSprint,
 } from '../../../services/sprints';
 import type { Sprint, SprintStatus } from '../../../services/sprints';
-import toast from 'react-hot-toast';
+import { useMutationFeedback, type MutationFeedbackConfig } from '../../../hooks/useMutationFeedback';
 
-export function useCreateSprint() {
+export function useCreateSprint(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to create sprint',
+    successMessage: 'Sprint created successfully',
+  });
   return useMutation<Sprint, Error, any>({
     mutationFn: createSprint,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sprints'] });
-      toast.success('Sprint created successfully');
+      handleSuccess();
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to create sprint');
+      handleError(error);
     },
   });
 }
 
-export function useUpdateSprint() {
+export function useUpdateSprint(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to update sprint',
+    successMessage: 'Sprint updated successfully',
+  });
   return useMutation<Sprint, Error, { id: number; data: any }>({
     mutationFn: ({ id, data }) => updateSprint(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['sprints'] });
       queryClient.invalidateQueries({ queryKey: ['sprint', variables.id] });
-      toast.success('Sprint updated successfully');
+      handleSuccess();
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to update sprint');
+      handleError(error);
     },
   });
 }
 
-export function useDeleteSprint() {
+export function useDeleteSprint(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to delete sprint',
+    successMessage: 'Sprint deleted successfully',
+  });
   return useMutation<void, Error, number>({
     mutationFn: deleteSprint,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sprints'] });
-      toast.success('Sprint deleted successfully');
+      handleSuccess();
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to delete sprint');
+      handleError(error);
     },
   });
 }

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '../../../components/common/Modal';
 import { createReleaseNoteShareLink, type ReleaseNoteShareLink } from '../../../services/releaseNotes';
-import { toast } from 'react-hot-toast';
 import dayjs from '../../../utils/dayjs';
 import { formatLocal } from '../../../utils/dateTime';
 import { hasActiveFilters } from '../utils/filterState';
 import { CopyButton } from '../../../components/common/CopyButton';
+import { useModalError } from '../../../hooks/useModalError';
 
 type ShareLinkModalProps = {
   isOpen: boolean;
@@ -18,20 +18,22 @@ export function ShareLinkModal({ isOpen, onClose, filters, onShareLinkCreated }:
   const [expiresInDays, setExpiresInDays] = useState<number | null>(2);
   const [isCreating, setIsCreating] = useState(false);
   const [createdLink, setCreatedLink] = useState<ReleaseNoteShareLink | null>(null);
+  const { ErrorBanner, clearError, showError } = useModalError();
 
   useEffect(() => {
     if (!isOpen) {
       setCreatedLink(null);
       setExpiresInDays(2);
+      clearError();
     }
-  }, [isOpen]);
+  }, [isOpen, clearError]);
 
   const hasFilters = filters && hasActiveFilters(filters);
 
   const handleCreate = async () => {
     // Validate that at least one filter is present
     if (!hasFilters) {
-      toast.error('Please apply at least one filter before creating a share link');
+      showError('Please apply at least one filter before creating a share link');
       return;
     }
 
@@ -40,9 +42,8 @@ export function ShareLinkModal({ isOpen, onClose, filters, onShareLinkCreated }:
       const shareLink = await createReleaseNoteShareLink(filters, expiresInDays);
       setCreatedLink(shareLink);
       onShareLinkCreated?.(shareLink);
-      toast.success('Share link created successfully');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to create share link');
+      showError(error, 'Failed to create share link');
     } finally {
       setIsCreating(false);
     }

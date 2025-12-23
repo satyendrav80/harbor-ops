@@ -20,6 +20,7 @@ import { SearchableMultiSelect } from '../../../components/common/SearchableMult
 import { getTags } from '../../../services/tags';
 import { ServiceDependencies } from './ServiceDependencies';
 import { RichTextEditor } from '../../../components/common/RichTextEditor';
+import { useModalError } from '../../../hooks/useModalError';
 
 const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required').max(100, 'Service name must be 100 characters or less'),
@@ -63,7 +64,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
   const addItemToGroup = useAddItemToGroup();
   const removeItemFromGroup = useRemoveItemFromGroup();
 
-  const [error, setError] = useState<string | null>(null);
+  const { error, showError, clearError, ErrorBanner } = useModalError();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [createdService, setCreatedService] = useState<Service | null>(null);
   
@@ -238,16 +239,16 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
       // Clear local dependencies when creating new service
       setLocalDependencies([]);
     }
-    setError(null);
+    clearError();
     setDeleteConfirmOpen(false);
     if (!isOpen) {
       setCreatedService(null); // Reset created service when modal closes
       setLocalDependencies([]); // Reset local dependencies when modal closes
     }
-  }, [isOpen, service, form, existingGroupsData, existingDomainsData]);
+  }, [isOpen, service, form, existingGroupsData, existingDomainsData, clearError]);
 
   const onSubmit = async (values: ServiceFormValues) => {
-    setError(null);
+    clearError();
     try {
       let createdOrUpdatedService: Service;
       
@@ -378,20 +379,20 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
       // Close modal after successful creation or update
       onClose();
     } catch (err: any) {
-      setError(err?.message || `Failed to ${isEditing ? 'update' : 'create'} service`);
+      showError(err, `Failed to ${isEditing ? 'update' : 'create'} service`);
     }
   };
 
   const confirmDelete = async () => {
     if (!service) return;
-    setError(null);
+    clearError();
     try {
       await deleteService.mutateAsync(service.id);
       setDeleteConfirmOpen(false);
       onClose();
       if (onDelete) onDelete();
     } catch (err: any) {
-      setError(err?.message || 'Failed to delete service');
+      showError(err, 'Failed to delete service');
     }
   };
 
@@ -403,11 +404,7 @@ export function ServiceModal({ isOpen, onClose, service, onDelete }: ServiceModa
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Service' : 'Create Service'} size="full">
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-[90vh] overflow-y-auto">
-        {error && (
-          <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
-            <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
-          </div>
-        )}
+        {ErrorBanner}
 
         <div>
           <label className="flex flex-col">

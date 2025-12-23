@@ -11,6 +11,7 @@ import { getGroups, getGroupsByItem } from '../../../services/groups';
 import { getTags } from '../../../services/tags';
 import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
 import { useAuth } from '../../../features/auth/context/AuthContext';
+import { useModalError } from '../../../hooks/useModalError';
 import { Trash2 } from 'lucide-react';
 import type { Domain } from '../../../services/domains';
 
@@ -38,7 +39,7 @@ export function DomainModal({ isOpen, onClose, domain, onDelete }: DomainModalPr
   const removeItemFromGroup = useRemoveItemFromGroup();
   const { hasPermission } = useAuth();
 
-  const [error, setError] = useState<string | null>(null);
+  const { error, showError, clearError, ErrorBanner } = useModalError();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // Fetch groups for multi-select
@@ -96,12 +97,12 @@ export function DomainModal({ isOpen, onClose, domain, onDelete }: DomainModalPr
         groupIds: [],
       });
     }
-    setError(null);
+    clearError();
     setDeleteConfirmOpen(false);
-  }, [isOpen, domain, form, existingGroupsData]);
+  }, [isOpen, domain, form, existingGroupsData, clearError]);
 
   const onSubmit = async (values: DomainFormValues) => {
-    setError(null);
+    clearError();
     try {
       let createdOrUpdatedDomain: Domain;
 
@@ -156,20 +157,20 @@ export function DomainModal({ isOpen, onClose, domain, onDelete }: DomainModalPr
       }
       onClose();
     } catch (err: any) {
-      setError(err?.message || 'Failed to save domain');
+      showError(err, 'Failed to save domain');
     }
   };
 
   const confirmDelete = async () => {
     if (!domain) return;
-    setError(null);
+    clearError();
     try {
       await deleteDomain.mutateAsync(domain.id);
       setDeleteConfirmOpen(false);
       onDelete?.();
       onClose();
     } catch (err: any) {
-      setError(err?.message || 'Failed to delete domain');
+      showError(err, 'Failed to delete domain');
     }
   };
 
@@ -230,11 +231,7 @@ export function DomainModal({ isOpen, onClose, domain, onDelete }: DomainModalPr
         )}
 
         {/* Error Message */}
-        {error && (
-          <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
-            <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
-          </div>
-        )}
+        {ErrorBanner}
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700/50">

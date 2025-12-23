@@ -155,7 +155,8 @@ export function TaskSelectionModal({
   };
 
   const handleConfirm = () => {
-    onConfirm(Array.from(selectedTaskIds));
+    const confirmedIds = Array.from(selectedTaskIds);
+    onConfirm(confirmedIds);
     onClose();
     // Reset selection after closing (will be re-initialized if modal reopens with initialSelectedIds)
     setSelectedTaskIds(new Set());

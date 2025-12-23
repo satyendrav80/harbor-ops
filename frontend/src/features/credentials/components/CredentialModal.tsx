@@ -14,6 +14,7 @@ import { useAuth } from '../../../features/auth/context/AuthContext';
 import { Trash2, Upload, Download, Copy, FileJson, FileText } from 'lucide-react';
 import type { Credential } from '../../../services/credentials';
 import { parseJSON, parseProperties, exportToJSON, exportToProperties, downloadFile, copyToClipboard, type BulkDataFormat } from '../../../utils/bulkDataUtils';
+import { useModalError } from '../../../hooks/useModalError';
 
 type CredentialModalProps = {
   isOpen: boolean;
@@ -41,7 +42,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
   const removeItemFromGroup = useRemoveItemFromGroup();
   const { hasPermission } = useAuth();
 
-  const [error, setError] = useState<string | null>(null);
+  const { error, showError, clearError, ErrorBanner } = useModalError();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [dataKeys, setDataKeys] = useState<string[]>([]);
   const [dataValues, setDataValues] = useState<Record<string, string>>({});
@@ -143,14 +144,14 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
       setDataValues({});
       setDataStructureModified(false);
     }
-    setError(null);
+    clearError();
     setDeleteConfirmOpen(false);
     if (!isOpen) {
       // Assuming these states are defined elsewhere or are placeholders
       // setCreatedService(null);
       // setLocalDependencies([]);
     }
-  }, [isOpen, credential, form, isEditing, existingGroupsData]);
+  }, [isOpen, credential, form, isEditing, existingGroupsData, clearError]);
 
   const addDataField = () => {
     const newKey = `key${dataKeys.length + 1}`;
@@ -243,7 +244,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
     });
 
     if (Object.keys(dataObject).length === 0) {
-      setError('No data to export. Please add some key-value pairs first.');
+      showError('No data to export. Please add some key-value pairs first.');
       return;
     }
 
@@ -263,12 +264,12 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
         setTimeout(() => setShowExportSuccess(false), 2000);
       }
     } catch (err) {
-      setError('Failed to export data');
+      showError(err, 'Failed to export data');
     }
   };
 
   const onSubmit = async (values: CredentialFormValues) => {
-    setError(null);
+    clearError();
 
     // Build data object from keys and values
     const dataObject: Record<string, any> = {};
@@ -298,10 +299,10 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
     }
 
     // Validate data has at least one non-empty key-value pair (only required on create, not update)
-    if (!isEditing && Object.keys(dataObject).length === 0) {
-      form.setError('data', { message: 'Credential data is required. Please add at least one key-value pair with both key and value filled.' });
-      return;
-    }
+      if (!isEditing && Object.keys(dataObject).length === 0) {
+        form.setError('data', { message: 'Credential data is required. Please add at least one key-value pair with both key and value filled.' });
+        return;
+      }
 
     // Clear any previous errors
     form.clearErrors('data');
@@ -374,20 +375,20 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
       }
       onClose();
     } catch (err: any) {
-      setError(err?.message || `Failed to ${isEditing ? 'update' : 'create'} credential`);
+      showError(err, `Failed to ${isEditing ? 'update' : 'create'} credential`);
     }
   };
 
   const confirmDelete = async () => {
     if (!credential) return;
-    setError(null);
+    clearError();
     try {
       await deleteCredential.mutateAsync(credential.id);
       setDeleteConfirmOpen(false);
       onClose();
       if (onDelete) onDelete();
     } catch (err: any) {
-      setError(err?.message || 'Failed to delete credential');
+      showError(err, 'Failed to delete credential');
     }
   };
 
@@ -396,11 +397,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Credential' : 'Create Credential'} size="full">
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {error && (
-          <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
-            <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
-          </div>
-        )}
+        {ErrorBanner}
 
         <div>
           <label className="flex flex-col">

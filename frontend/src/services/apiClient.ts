@@ -2,11 +2,20 @@ import { env } from '../constants/env';
 
 export type ApiError = { message: string; status?: number; data?: any };
 
+type ApiRequestInit = RequestInit & {
+  skipAuth?: boolean;
+  /**
+   * When true, the global api-error event (used by GlobalApiError) will NOT be dispatched.
+   * Callers that render their own inline error UI (e.g. modals) can set this to avoid duplicates.
+   */
+  skipGlobalError?: boolean;
+};
+
 function baseUrl() {
   return env.app_backend_url || '';
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit & { skipAuth?: boolean }): Promise<T> {
+export async function apiFetch<T>(path: string, init?: ApiRequestInit): Promise<T> {
   const token = localStorage.getItem('token');
   const headers = new Headers(init?.headers ?? {});
   headers.set('Content-Type', 'application/json');
@@ -17,7 +26,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { skipAuth?
   if (!res.ok) {
     const errorMessage = json && data?.error ? data.error : (json && data?.message ? data.message : 'Request failed');
     try {
-      if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined' && !init?.skipGlobalError) {
         window.dispatchEvent(new CustomEvent('api-error', { 
           detail: { 
             message: errorMessage, 

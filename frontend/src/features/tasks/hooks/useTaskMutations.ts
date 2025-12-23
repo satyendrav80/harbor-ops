@@ -15,79 +15,99 @@ import {
   removeReaction,
 } from '../../../services/tasks';
 import type { Task, TaskComment, TaskStatus } from '../../../services/tasks';
-import toast from 'react-hot-toast';
+import { useMutationFeedback, type MutationFeedbackConfig } from '../../../hooks/useMutationFeedback';
 
-export function useCreateTask() {
+export function useCreateTask(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to create task',
+    successMessage: 'Task created successfully',
+  });
   return useMutation<Task, Error, any>({
     mutationFn: createTask,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast.success('Task created successfully');
+      handleSuccess();
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to create task');
+      handleError(error);
     },
   });
 }
 
-export function useUpdateTask() {
+export function useUpdateTask(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to update task',
+    successMessage: 'Task updated successfully',
+  });
   return useMutation<Task, Error, { id: number; data: any }>({
     mutationFn: ({ id, data }) => updateTask(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['task', variables.id] });
       queryClient.invalidateQueries({ queryKey: ['sprints'] });
-      toast.success('Task updated successfully');
+      handleSuccess();
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to update task');
+      handleError(error);
     },
   });
 }
 
-export function useDeleteTask() {
+export function useDeleteTask(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to delete task',
+    successMessage: 'Task deleted successfully',
+  });
   return useMutation<void, Error, number>({
     mutationFn: deleteTask,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast.success('Task deleted successfully');
+      handleSuccess();
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to delete task');
+      handleError(error);
     },
   });
 }
 
-export function useUpdateTaskStatus() {
+export function useUpdateTaskStatus(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to update status',
+    successMessage: 'Task status updated',
+  });
   return useMutation<Task, Error, { id: number; status: TaskStatus; testingSkipped?: boolean; testingSkipReason?: string; attentionToId?: string | null; statusReason?: string; testerId?: string | null }>({
     mutationFn: ({ id, status, testingSkipped, testingSkipReason, attentionToId, statusReason, testerId }) =>
       updateTaskStatus(id, { status, testingSkipped, testingSkipReason, attentionToId, statusReason, testerId }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['task', variables.id] });
-      toast.success('Task status updated');
+      handleSuccess();
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to update status');
+      handleError(error);
     },
   });
 }
 
-export function useReopenTask() {
+export function useReopenTask(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to reopen task',
+    successMessage: 'Task reopened',
+  });
   return useMutation<Task, Error, { id: number; reason: string }>({
     mutationFn: ({ id, reason }) => reopenTask(id, reason),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['task', variables.id] });
-      toast.success('Task reopened');
+      handleSuccess();
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to reopen task');
+      handleError(error);
     },
   });
 }

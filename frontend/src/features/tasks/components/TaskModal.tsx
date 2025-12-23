@@ -16,6 +16,7 @@ import { listSprints } from '../../../services/sprints';
 import { getServices } from '../../../services/services';
 import { RichTextEditor } from '../../../components/common/RichTextEditor';
 import { listTasks } from '../../../services/tasks';
+import { useModalError } from '../../../hooks/useModalError';
 
 type TaskModalProps = {
   isOpen: boolean;
@@ -46,12 +47,24 @@ type TaskFormValues = z.infer<typeof taskSchema>;
 
 export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, defaultParentTaskId }: TaskModalProps) {
   const isEditing = !!task;
-  const createTask = useCreateTask();
-  const updateTask = useUpdateTask();
-  const deleteTask = useDeleteTask();
   const { hasPermission, user } = useAuth(); // Destructured user
 
-  const [error, setError] = useState<string | null>(null);
+  const { error, showError, clearError, ErrorBanner } = useModalError();
+  const createTask = useCreateTask({
+    mode: 'inline',
+    suppressSuccessToast: true,
+    onErrorMessage: (msg) => showError(msg, 'Failed to create task'),
+  });
+  const updateTask = useUpdateTask({
+    mode: 'inline',
+    suppressSuccessToast: true,
+    onErrorMessage: (msg) => showError(msg, 'Failed to update task'),
+  });
+  const deleteTask = useDeleteTask({
+    mode: 'inline',
+    suppressSuccessToast: true,
+    onErrorMessage: (msg) => showError(msg, 'Failed to delete task'),
+  });
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // Fetch sprints
@@ -141,13 +154,11 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
         raisedBy: (user?.id ? String(user.id) : null) as string | null, // Default to current user (same as createdBy)
       });
     }
-    setError(null);
+    clearError();
     setDeleteConfirmOpen(false);
-  }, [isOpen, task, form, isEditing, defaultSprintId, defaultParentTaskId, user]);
+  }, [isOpen, task, form, isEditing, defaultSprintId, defaultParentTaskId, user, clearError]);
 
   const onSubmit = async (values: TaskFormValues) => {
-    setError(null);
-
     try {
       if (isEditing && task) {
         await updateTask.mutateAsync({
@@ -191,20 +202,20 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
       }
       onClose();
     } catch (err: any) {
-      setError(err?.message || `Failed to ${isEditing ? 'update' : 'create'} task`);
+      showError(err, `Failed to ${isEditing ? 'update' : 'create'} task`);
     }
   };
 
   const confirmDelete = async () => {
     if (!task) return;
-    setError(null);
+    clearError();
     try {
       await deleteTask.mutateAsync(task.id);
       setDeleteConfirmOpen(false);
       onClose();
       if (onDelete) onDelete();
     } catch (err: any) {
-      setError(err?.message || 'Failed to delete task');
+      showError(err, 'Failed to delete task');
     }
   };
 
@@ -213,11 +224,7 @@ export function TaskModal({ isOpen, onClose, task, onDelete, defaultSprintId, de
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Task' : 'Create Task'} size="xl">
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {error && (
-          <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
-            <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
-          </div>
-        )}
+        {ErrorBanner}
 
         <div>
           <label className="flex flex-col">

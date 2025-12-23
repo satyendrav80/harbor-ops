@@ -7,15 +7,18 @@ import { RichTextEditor } from '../../../components/common/RichTextEditor';
 import { SearchableMultiSelect } from '../../../components/common/SearchableMultiSelect';
 import { TaskSelectionModal } from '../../tasks/components/TaskSelectionModal';
 import { useCreateReleaseNote, useUpdateReleaseNote } from '../hooks/useReleaseNoteMutations';
-import { useTasks } from '../../tasks/hooks/useTaskQueries';
+import { useTasksByIds } from '../../tasks/hooks/useTaskQueries';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import type { Service } from '../../../services/services';
+import type { Task } from '../../../services/tasks';
 import { X } from 'lucide-react';
 import dayjs from '../../../utils/dayjs';
 import { toDateTimeLocalValue, fromDateTimeLocalValueToIso } from '../../../utils/dateTime';
 import { useQuery } from '@tanstack/react-query';
 import { listReleaseNotesAdvanced } from '../../../services/releaseNotes';
 import { isEmptyHtml } from '../../../utils/richText';
+import { useMemo } from 'react';
+import { useModalError } from '../../../hooks/useModalError';
 
 type ReleaseNoteModalProps = {
   isOpen: boolean;
@@ -39,10 +42,18 @@ type ReleaseNoteFormValues = z.infer<typeof releaseNoteSchema>;
 
 export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: ReleaseNoteModalProps) {
   const isEditing = !!releaseNote;
-  const createReleaseNote = useCreateReleaseNote();
-  const updateReleaseNote = useUpdateReleaseNote();
+  const { error, showError, clearError, ErrorBanner } = useModalError();
+  const createReleaseNote = useCreateReleaseNote({
+    mode: 'inline',
+    suppressSuccessToast: true,
+    onErrorMessage: (msg) => showError(msg, 'Failed to create release note'),
+  });
+  const updateReleaseNote = useUpdateReleaseNote({
+    mode: 'inline',
+    suppressSuccessToast: true,
+    onErrorMessage: (msg) => showError(msg, 'Failed to update release note'),
+  });
   
-  const [error, setError] = useState<string | null>(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
   const [isTaskSelectionModalOpen, setIsTaskSelectionModalOpen] = useState(false);
 
@@ -79,16 +90,18 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
       });
       setSelectedTaskIds([]);
     }
-    setError(null);
-  }, [isOpen, releaseNote, form]);
+    clearError();
+  }, [isOpen, releaseNote, form, clearError]);
 
   const onSubmit = async (values: ReleaseNoteFormValues) => {
-    setError(null);
+    // Clear local validation error
+    clearError();
     try {
       // Convert datetime-local input value to ISO string (UTC) for backend
       const publishDateIso = fromDateTimeLocalValueToIso(values.publishDate);
       if (!publishDateIso) {
-        setError('Invalid publish date');
+        // Keep inline error only for client-side validation issues
+        showError('Invalid publish date');
         return;
       }
 
@@ -120,16 +133,72 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
       }
       onClose();
     } catch (err: any) {
-      setError(err?.message || `Failed to ${isEditing ? 'update' : 'create'} release note`);
+      // Fall back to a generic inline error if something unexpected happens
+      showError(err, `Failed to ${isEditing ? 'update' : 'create'} release note`);
     }
   };
 
-  // Fetch selected tasks for display
-  const { data: selectedTasksData } = useTasks({
-    limit: 1000,
-  });
+  // Build preloaded tasks map from release note data (for immediate display)
+  const preloadedTasksMap = useMemo(() => {
+    if (!releaseNote?.tasks) return new Map<number, Partial<Task>>();
+    const map = new Map<number, Partial<Task>>();
+    releaseNote.tasks.forEach((rt) => {
+      const task = rt.task;
+      // Convert release note task format to partial Task format
+      // This provides immediate display while full data is fetched
+      map.set(task.id, {
+        id: task.id,
+        title: task.title,
+        description: task.description || null,
+        type: task.type as Task['type'],
+        status: task.status as Task['status'],
+        sprintId: task.sprint?.id || null,
+        sprint: task.sprint ? {
+          id: task.sprint.id,
+          name: task.sprint.name,
+          status: task.sprint.status,
+        } : null,
+      });
+    });
+    return map;
+  }, [releaseNote]);
 
-  const selectedTasks = selectedTasksData?.data?.filter(task => selectedTaskIds.includes(task.id)) || [];
+  // Find task IDs that need to be fetched (not in preloaded map)
+  const taskIdsToFetch = useMemo(() => {
+    return selectedTaskIds.filter((id) => !preloadedTasksMap.has(id));
+  }, [selectedTaskIds, preloadedTasksMap]);
+
+  // Fetch missing tasks by IDs
+  const { data: fetchedTasks = [], isLoading: isLoadingTasks } = useTasksByIds(taskIdsToFetch);
+
+  // Merge preloaded and fetched tasks
+  const selectedTasks = useMemo(() => {
+    const tasks: Task[] = [];
+    const taskMap = new Map<number, Task | Partial<Task>>();
+    
+    // Add preloaded tasks (partial data from release note)
+    preloadedTasksMap.forEach((task) => {
+      if (task.id) {
+        taskMap.set(task.id, task);
+      }
+    });
+    
+    // Add fetched tasks (full data - will override preloaded)
+    fetchedTasks.forEach((task) => {
+      taskMap.set(task.id, task);
+    });
+    
+    // Return tasks in the order of selectedTaskIds
+    selectedTaskIds.forEach((id) => {
+      const task = taskMap.get(id);
+      if (task && task.id && task.title) {
+        // Ensure we have at least id and title before adding
+        tasks.push(task as Task);
+      }
+    });
+    
+    return tasks;
+  }, [preloadedTasksMap, fetchedTasks, selectedTaskIds]);
 
   // Fetch tasks already linked to non-deployed release notes (pending or deployment_started)
   const { data: blockedTaskIds = [] } = useQuery({
