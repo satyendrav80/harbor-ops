@@ -17,6 +17,8 @@ interface TaskSelectionModalProps {
   excludedTaskIds?: number[];
   alwaysIncludeTasks?: Task[]; // Always show these tasks even if they don't match filters (e.g., already selected)
   serviceId?: number | null; // Service ID to prioritize tasks from the same service
+  serviceName?: string;
+  servicePort?: number | null;
 }
 
 export function TaskSelectionModal({ 
@@ -30,20 +32,31 @@ export function TaskSelectionModal({
   excludedTaskIds = [],
   alwaysIncludeTasks = [],
   serviceId,
+  serviceName,
+  servicePort,
 }: TaskSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set(initialSelectedIds));
   const lastInitialIdsKey = useRef<string>('');
+  const wasOpenRef = useRef<boolean>(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Initialize selected tasks when modal opens
   useEffect(() => {
-    if (!isOpen) return;
     const key = initialSelectedIds.slice().sort().join(',');
-    if (key !== lastInitialIdsKey.current) {
+    const opening = isOpen && !wasOpenRef.current;
+    
+    if (opening || (isOpen && key !== lastInitialIdsKey.current)) {
       lastInitialIdsKey.current = key;
       setSelectedTaskIds(new Set(initialSelectedIds));
     }
+
+    if (!isOpen && wasOpenRef.current) {
+      setSelectedTaskIds(new Set());
+      lastInitialIdsKey.current = '';
+    }
+
+    wasOpenRef.current = isOpen;
   }, [isOpen, initialSelectedIds]);
 
   const PAGE_SIZE = 50;
@@ -95,34 +108,29 @@ export function TaskSelectionModal({
     }
   });
 
-  // Filter and sort tasks based on serviceId
-  let tasks: Task[];
-  
-  if (serviceId) {
-    // When serviceId is provided, only show tasks with same service or no service
-    tasks = Array.from(taskMap.values()).filter(t => 
-      t.serviceId === serviceId || t.serviceId === null || t.serviceId === undefined
-    ).sort((a, b) => {
-      const aServiceId = a.serviceId;
-      const bServiceId = b.serviceId;
-      const aHasNoService = aServiceId === null || aServiceId === undefined;
-      const bHasNoService = bServiceId === null || bServiceId === undefined;
-      
-      // Tasks with matching serviceId come first
-      if (aServiceId === serviceId && bHasNoService) return -1;
-      if (aHasNoService && bServiceId === serviceId) return 1;
-      
-      // Maintain original order for tasks in the same category
-      return 0;
-    });
-  } else {
-    // When no serviceId, show all tasks
-    tasks = Array.from(taskMap.values());
-  }
-  
-  // Group tasks for visual separation (only when serviceId is provided)
-  const sameServiceTasks = serviceId ? tasks.filter(t => t.serviceId === serviceId) : [];
-  const noServiceTasks = serviceId ? tasks.filter(t => t.serviceId === null || t.serviceId === undefined) : [];
+  const normalizeId = (value: number | string | null | undefined) => {
+    if (value === null || value === undefined) return null;
+    const numericValue = typeof value === 'string' ? Number(value) : value;
+    return typeof numericValue === 'number' && Number.isFinite(numericValue) && numericValue > 0
+      ? numericValue
+      : null;
+  };
+
+  const getTaskServiceId = (task: Task) => normalizeId(task.serviceId ?? task.service?.id);
+
+  const tasks = Array.from(taskMap.values());
+  const normalizedServiceId = normalizeId(serviceId);
+  const sameServiceTasks =
+    normalizedServiceId !== null
+      ? tasks.filter((t) => getTaskServiceId(t) === normalizedServiceId)
+      : [];
+  const otherServiceTasks =
+    normalizedServiceId !== null
+      ? tasks.filter((t) => getTaskServiceId(t) !== normalizedServiceId)
+      : [];
+  const sameServiceHeader = serviceName
+    ? `Tasks for ${serviceName}${servicePort ? ` (:${servicePort})` : ''}`
+    : 'Tasks for selected service';
 
   useEffect(() => {
     if (isOpen) {
@@ -179,6 +187,52 @@ export function TaskSelectionModal({
 
   if (!isOpen) return null;
 
+  const renderTaskRow = (task: Task, { showServiceBadge }: { showServiceBadge?: boolean } = {}) => (
+    <li
+      key={task.id}
+      className={`p-3 flex items-start gap-3 hover:bg-white dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${
+        selectedTaskIds.has(task.id) ? 'bg-blue-50 dark:bg-primary/10' : ''
+      }`}
+      onClick={() => toggleSelection(task.id)}
+    >
+      <input
+        type="checkbox"
+        checked={selectedTaskIds.has(task.id)}
+        onChange={() => toggleSelection(task.id)}
+        className="mt-1 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50 dark:bg-gray-800"
+      />
+      <div className="flex-1 min-w-0 space-y-1">
+        <p className="text-sm font-medium text-gray-900 dark:text-gray-200 truncate">{task.title}</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-xs px-2 py-0.5 rounded capitalize ${getPriorityColor(task.priority)}`}>
+            {task.priority}
+          </span>
+          <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+            {task.status.replace('_', ' ')}
+          </span>
+          {showServiceBadge && (
+            <span className="text-xs text-primary dark:text-primary-300 font-medium">
+              {task.service?.name || 'No Service'}
+            </span>
+          )}
+          {!showServiceBadge && task.service && (
+            <span className="text-xs text-gray-500 dark:text-gray-400">{task.service.name}</span>
+          )}
+          {task.sprint && (
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              Sprint: {task.sprint.name}
+            </span>
+          )}
+        </div>
+        {task.description && (
+          <div className="line-clamp-2">
+            <RichTextRenderer html={task.description} variant="compact" />
+          </div>
+        )}
+      </div>
+    </li>
+  );
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
@@ -220,155 +274,33 @@ export function TaskSelectionModal({
               </div>
             ) : tasks.length === 0 ? (
               <div className="p-8 text-center text-gray-500 dark:text-gray-400">No tasks found</div>
-            ) : serviceId ? (
+            ) : normalizedServiceId !== null ? (
               <ul className="divide-y divide-gray-200 dark:divide-gray-700/50">
-                {/* Same Service Tasks */}
                 {sameServiceTasks.length > 0 && (
                   <>
                     <li className="px-3 py-2 bg-primary/10 dark:bg-primary/20 border-b border-primary/20">
                       <span className="text-xs font-semibold text-primary dark:text-primary-300">
-                        Same Service ({sameServiceTasks.length})
+                        {sameServiceHeader} ({sameServiceTasks.length})
                       </span>
                     </li>
-                    {sameServiceTasks.map((task) => (
-                      <li
-                        key={task.id}
-                        className={`p-3 flex items-start gap-3 hover:bg-white dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${
-                          selectedTaskIds.has(task.id) ? 'bg-blue-50 dark:bg-primary/10' : ''
-                        }`}
-                        onClick={() => toggleSelection(task.id)}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedTaskIds.has(task.id)}
-                          onChange={() => toggleSelection(task.id)}
-                          className="mt-1 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50 dark:bg-gray-800"
-                        />
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-200 truncate">{task.title}</p>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`text-xs px-2 py-0.5 rounded capitalize ${getPriorityColor(task.priority)}`}>
-                              {task.priority}
-                            </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                              {task.status.replace('_', ' ')}
-                            </span>
-                            {task.service && (
-                              <span className="text-xs text-primary dark:text-primary-300 font-medium">
-                                {task.service.name}
-                              </span>
-                            )}
-                            {task.sprint && (
-                              <span className="text-xs text-gray-500 dark:text-gray-400">
-                                Sprint: {task.sprint.name}
-                              </span>
-                            )}
-                          </div>
-                          {task.description && (
-                            <div className="line-clamp-2">
-                              <RichTextRenderer html={task.description} variant="compact" />
-                            </div>
-                          )}
-                        </div>
-                      </li>
-                    ))}
+                    {sameServiceTasks.map((task) => renderTaskRow(task))}
                   </>
                 )}
-                
-                {/* No Service Tasks */}
-                {noServiceTasks.length > 0 && (
+
+                {otherServiceTasks.length > 0 && (
                   <>
-                    {sameServiceTasks.length > 0 && (
-                      <li className="px-3 py-2 bg-gray-100 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
-                        <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">
-                          No Service ({noServiceTasks.length})
-                        </span>
-                      </li>
-                    )}
-                    {noServiceTasks.map((task) => (
-                      <li
-                        key={task.id}
-                        className={`p-3 flex items-start gap-3 hover:bg-white dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${
-                          selectedTaskIds.has(task.id) ? 'bg-blue-50 dark:bg-primary/10' : ''
-                        }`}
-                        onClick={() => toggleSelection(task.id)}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedTaskIds.has(task.id)}
-                          onChange={() => toggleSelection(task.id)}
-                          className="mt-1 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50 dark:bg-gray-800"
-                        />
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-200 truncate">{task.title}</p>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`text-xs px-2 py-0.5 rounded capitalize ${getPriorityColor(task.priority)}`}>
-                              {task.priority}
-                            </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                              {task.status.replace('_', ' ')}
-                            </span>
-                            {task.sprint && (
-                              <span className="text-xs text-gray-500 dark:text-gray-400">
-                                Sprint: {task.sprint.name}
-                              </span>
-                            )}
-                          </div>
-                          {task.description && (
-                            <div className="line-clamp-2">
-                              <RichTextRenderer html={task.description} variant="compact" />
-                            </div>
-                          )}
-                        </div>
-                      </li>
-                    ))}
+                    <li className="px-3 py-2 bg-gray-100 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+                        Other Services ({otherServiceTasks.length})
+                      </span>
+                    </li>
+                    {otherServiceTasks.map((task) => renderTaskRow(task, { showServiceBadge: true }))}
                   </>
                 )}
               </ul>
             ) : (
               <ul className="divide-y divide-gray-200 dark:divide-gray-700/50">
-                {tasks.map((task) => (
-                  <li
-                    key={task.id}
-                    className={`p-3 flex items-start gap-3 hover:bg-white dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${
-                      selectedTaskIds.has(task.id) ? 'bg-blue-50 dark:bg-primary/10' : ''
-                    }`}
-                    onClick={() => toggleSelection(task.id)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedTaskIds.has(task.id)}
-                      onChange={() => toggleSelection(task.id)}
-                      className="mt-1 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary/50 dark:bg-gray-800"
-                    />
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-200 truncate">{task.title}</p>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs px-2 py-0.5 rounded capitalize ${getPriorityColor(task.priority)}`}>
-                          {task.priority}
-                        </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                          {task.status.replace('_', ' ')}
-                        </span>
-                        {task.service && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {task.service.name}
-                          </span>
-                        )}
-                        {task.sprint && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            Sprint: {task.sprint.name}
-                          </span>
-                        )}
-                      </div>
-                      {task.description && (
-                        <div className="line-clamp-2">
-                          <RichTextRenderer html={task.description} variant="compact" />
-                        </div>
-                      )}
-                    </div>
-                  </li>
-                ))}
+                {tasks.map((task) => renderTaskRow(task))}
               </ul>
             )}
             {isFetchingNextPage && (

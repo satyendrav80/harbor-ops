@@ -68,6 +68,21 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
     },
   });
 
+  const normalizeServiceId = (value: number | string | null | undefined) => {
+    if (value === null || value === undefined) return null;
+    const numericValue = typeof value === 'string' ? Number(value) : value;
+    return typeof numericValue === 'number' && Number.isFinite(numericValue) && numericValue > 0
+      ? numericValue
+      : null;
+  };
+
+  const watchedServiceId = form.watch('serviceId');
+  const normalizedServiceId = normalizeServiceId(watchedServiceId);
+  const selectedService = useMemo(() => {
+    if (!normalizedServiceId) return null;
+    return services.find((service) => service.id === normalizedServiceId) || null;
+  }, [services, normalizedServiceId]);
+
   // Reset form when modal opens/closes or releaseNote changes
   useEffect(() => {
     if (!isOpen) return;
@@ -144,6 +159,10 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
     const map = new Map<number, Partial<Task>>();
     releaseNote.tasks.forEach((rt) => {
       const task = rt.task;
+      const normalizedServiceId =
+        typeof task.serviceId === 'number'
+          ? task.serviceId
+          : task.service?.id ?? null;
       // Convert release note task format to partial Task format
       // This provides immediate display while full data is fetched
       map.set(task.id, {
@@ -153,11 +172,25 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         type: task.type as Task['type'],
         status: task.status as Task['status'],
         sprintId: task.sprint?.id || null,
-        sprint: task.sprint ? {
-          id: task.sprint.id,
-          name: task.sprint.name,
-          status: task.sprint.status,
-        } : null,
+        sprint: task.sprint
+          ? {
+              id: task.sprint.id,
+              name: task.sprint.name,
+              status: task.sprint.status,
+            }
+          : null,
+        serviceId: normalizedServiceId,
+        service: task.service
+          ? {
+              id: task.service.id,
+              name: task.service.name,
+            }
+          : normalizedServiceId
+          ? {
+              id: normalizedServiceId,
+              name: task.service?.name || releaseNote.service?.name || 'Service',
+            }
+          : null,
       });
     });
     return map;
@@ -259,11 +292,12 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
                   id: service.id,
                   name: `${service.name} (:${service.port})`,
                 }))}
-                selectedIds={form.watch('serviceId') ? [form.watch('serviceId')] : []}
+                selectedIds={watchedServiceId ? [watchedServiceId] : []}
                 onChange={(selectedIds) => {
                   // Only allow single selection - take the last selected item (most recently clicked)
-                  const serviceId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : 0;
-                  form.setValue('serviceId', serviceId, { shouldDirty: true });
+                  const lastSelected = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null;
+                  const normalizedId = normalizeServiceId(lastSelected);
+                  form.setValue('serviceId', normalizedId ?? 0, { shouldDirty: true });
                 }}
                 label="Service *"
                 placeholder="Search and select a service..."
@@ -394,7 +428,9 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         allowedStatuses={['completed', 'testing']}
         excludedTaskIds={blockedTaskIds}
         alwaysIncludeTasks={selectedTasks}
-        serviceId={form.watch('serviceId') || null}
+        serviceId={normalizedServiceId}
+        serviceName={selectedService?.name}
+        servicePort={selectedService?.port}
       />
     </Modal>
   );
