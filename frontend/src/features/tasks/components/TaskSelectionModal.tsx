@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Search } from 'lucide-react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { listTasks, type TasksResponse } from '../../../services/tasks';
 import { Loading } from '../../../components/common/Loading';
 import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
-import type { TaskStatus, Task, ReleaseNoteStatus } from '../../../services/tasks';
+import type { TaskStatus, Task } from '../../../services/tasks';
 
 interface TaskSelectionModalProps {
   isOpen: boolean;
@@ -19,7 +19,6 @@ interface TaskSelectionModalProps {
   serviceId?: number | null; // Service ID to prioritize tasks from the same service
   serviceName?: string;
   servicePort?: number | null;
-  excludeReleaseNoteStatuses?: ReleaseNoteStatus[];
   excludeReleaseNoteId?: number | null;
 }
 
@@ -36,7 +35,6 @@ export function TaskSelectionModal({
   serviceId,
   serviceName,
   servicePort,
-  excludeReleaseNoteStatuses,
   excludeReleaseNoteId,
 }: TaskSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -81,7 +79,6 @@ export function TaskSelectionModal({
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
-    refetch,
   } = useInfiniteQuery<TasksResponse>({
     queryKey: [
       'task-selection',
@@ -91,7 +88,6 @@ export function TaskSelectionModal({
         allowedStatuses,
         excludedTaskIds,
         alwaysIncludeTasks,
-        excludeReleaseNoteStatuses,
         excludeReleaseNoteId: normalizedExcludeReleaseNoteId,
       },
     ],
@@ -106,7 +102,6 @@ export function TaskSelectionModal({
           : ['pending', 'in_progress', 'reopened', 'in_review'],
         page: pageParam,
         limit: PAGE_SIZE,
-        excludeReleaseNoteStatuses,
         excludeReleaseNoteId:
           normalizedExcludeReleaseNoteId !== null ? normalizedExcludeReleaseNoteId : undefined,
       }),
@@ -151,20 +146,11 @@ export function TaskSelectionModal({
 
   useEffect(() => {
     if (isOpen) {
-      refetch();
       setTimeout(() => {
         if (listRef.current) listRef.current.scrollTop = 0;
       }, 0);
     }
-  }, [
-    isOpen,
-    refetch,
-    searchQuery,
-    showAllTasks,
-    allowedStatuses,
-    excludeReleaseNoteStatuses,
-    normalizedExcludeReleaseNoteId,
-  ]);
+  }, [isOpen, searchQuery, showAllTasks, allowedStatuses, normalizedExcludeReleaseNoteId]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;

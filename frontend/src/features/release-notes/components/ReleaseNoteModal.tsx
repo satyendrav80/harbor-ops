@@ -10,7 +10,7 @@ import { useCreateReleaseNote, useUpdateReleaseNote } from '../hooks/useReleaseN
 import { useTasksByIds } from '../../tasks/hooks/useTaskQueries';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import type { Service } from '../../../services/services';
-import type { Task, ReleaseNoteStatus } from '../../../services/tasks';
+import type { Task } from '../../../services/tasks';
 import { X } from 'lucide-react';
 import dayjs from '../../../utils/dayjs';
 import { toDateTimeLocalValue, fromDateTimeLocalValueToIso } from '../../../utils/dateTime';
@@ -19,8 +19,6 @@ import { listReleaseNotesAdvanced } from '../../../services/releaseNotes';
 import { isEmptyHtml } from '../../../utils/richText';
 import { useMemo } from 'react';
 import { useModalError } from '../../../hooks/useModalError';
-
-const ACTIVE_RELEASE_NOTE_STATUSES: ReleaseNoteStatus[] = ['pending', 'deployment_started'];
 
 type ReleaseNoteModalProps = {
   isOpen: boolean;
@@ -442,7 +440,6 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         serviceId={normalizedServiceId}
         serviceName={selectedService?.name}
         servicePort={selectedService?.port}
-        excludeReleaseNoteStatuses={ACTIVE_RELEASE_NOTE_STATUSES}
         excludeReleaseNoteId={releaseNote?.id ?? null}
       />
     </Modal>

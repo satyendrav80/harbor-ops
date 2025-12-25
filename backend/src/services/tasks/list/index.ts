@@ -36,37 +36,24 @@ function hasActiveFilters(filters?: Filter | Filter[]): boolean {
     : true;
 }
 
-function buildReleaseNoteExclusionWhere(
-  statuses?: Prisma.ReleaseStatus[],
-  excludeReleaseNoteId?: number
-): Prisma.TaskWhereInput | undefined {
-  if (!statuses || statuses.length === 0) {
-    return undefined;
-  }
+function buildReleaseNoteExclusionWhere(excludeReleaseNoteId?: number): Prisma.TaskWhereInput | undefined {
+  const hasValidId =
+    typeof excludeReleaseNoteId === 'number' && Number.isFinite(excludeReleaseNoteId) && excludeReleaseNoteId > 0;
 
-  const releaseNoteWhere: Prisma.ReleaseNoteWhereInput = {
-    status: { in: statuses },
-  };
-
-  if (typeof excludeReleaseNoteId === 'number' && Number.isFinite(excludeReleaseNoteId) && excludeReleaseNoteId > 0) {
-    releaseNoteWhere.id = { not: excludeReleaseNoteId };
-  }
+  const releaseNoteTaskWhere: Prisma.ReleaseNoteTaskWhereInput = hasValidId
+    ? { releaseNoteId: { not: excludeReleaseNoteId } }
+    : {};
 
   return {
     releaseNoteTasks: {
-      none: {
-        releaseNote: releaseNoteWhere,
-      },
+      none: releaseNoteTaskWhere,
     },
   };
 }
 
 export async function list(context: RequestContext): Promise<ListResult> {
   const params = extractParams(context);
-  const releaseNoteExclusionWhere = buildReleaseNoteExclusionWhere(
-    params.excludeReleaseNoteStatuses as Prisma.ReleaseStatus[] | undefined,
-    params.excludeReleaseNoteId
-  );
+  const releaseNoteExclusionWhere = buildReleaseNoteExclusionWhere(params.excludeReleaseNoteId);
 
   // Check if advanced filtering is being used
   const useAdvancedFiltering = hasActiveFilters(params.filters) || (params.orderBy && typeof params.orderBy === 'object' && 'key' in params.orderBy);
