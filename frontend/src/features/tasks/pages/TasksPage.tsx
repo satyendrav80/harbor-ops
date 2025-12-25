@@ -435,6 +435,14 @@ export function TasksPage() {
     return direct + nested;
   };
 
+  const TableScrollContainer = ({ children }: { children: React.ReactNode }) => (
+    <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm">
+      <div className="overflow-x-auto rounded-lg">
+        <div className="max-h-[70vh] overflow-y-auto">{children}</div>
+      </div>
+    </div>
+  );
+
   const renderTaskTableRow = (task: Task) => (
                     <tr
                       key={task.id}
@@ -617,7 +625,7 @@ export function TasksPage() {
     if (hasGrouping) {
       if (viewMode === 'table') {
         return (
-          <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden shadow-sm">
+          <TableScrollContainer>
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-800">
                 <tr>
@@ -675,7 +683,7 @@ export function TasksPage() {
                 renderItems={(groupItems) => groupItems.map(renderTaskTableRow)}
               />
             </table>
-          </div>
+          </TableScrollContainer>
         );
       } else {
         // Grid view with grouping
@@ -722,7 +730,7 @@ export function TasksPage() {
     // Non-grouped view (original rendering)
     if (viewMode === 'table') {
       return (
-        <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden shadow-sm">
+        <TableScrollContainer>
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-800">
               <tr>
@@ -843,7 +851,7 @@ export function TasksPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScrollContainer>
       );
     }
 

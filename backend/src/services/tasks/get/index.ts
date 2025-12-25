@@ -17,6 +17,17 @@ export async function get(context: RequestContext) {
       completedByUser: { select: { id: true, name: true, email: true } },
       lastReopenedByUser: { select: { id: true, name: true, email: true } },
       attentionToUser: { select: { id: true, name: true, email: true } },
+      service: {
+        select: {
+          id: true,
+          name: true,
+          port: true,
+          sourceRepo: true,
+          deploymentUrl: true,
+          documentationUrl: true,
+          metadata: true,
+        },
+      },
       sprint: { select: { id: true, name: true, status: true } },
       tags: { include: { tag: true } },
       parentTask: { select: { id: true, title: true } },
