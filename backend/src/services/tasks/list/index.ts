@@ -53,7 +53,9 @@ function buildReleaseNoteExclusionWhere(excludeReleaseNoteId?: number): Prisma.T
 
 export async function list(context: RequestContext): Promise<ListResult> {
   const params = extractParams(context);
-  const releaseNoteExclusionWhere = buildReleaseNoteExclusionWhere(params.excludeReleaseNoteId);
+  const releaseNoteExclusionWhere = params.excludeReleaseNoteTasks
+    ? buildReleaseNoteExclusionWhere(params.excludeReleaseNoteId)
+    : undefined;
 
   // Check if advanced filtering is being used
   const useAdvancedFiltering = hasActiveFilters(params.filters) || (params.orderBy && typeof params.orderBy === 'object' && 'key' in params.orderBy);

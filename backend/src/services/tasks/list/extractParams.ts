@@ -22,6 +22,12 @@ export function extractParams(context: RequestContext) {
   // Support both new array format and legacy single object format for orderBy
   const orderBy = body.orderBy || { key: 'createdAt', direction: 'desc' as const };
 
+  const excludeReleaseNoteTasksRaw = body.excludeReleaseNoteTasks ?? query.excludeReleaseNoteTasks;
+  const excludeReleaseNoteTasks =
+    typeof excludeReleaseNoteTasksRaw === 'string'
+      ? excludeReleaseNoteTasksRaw === 'true'
+      : Boolean(excludeReleaseNoteTasksRaw);
+
   const excludeReleaseNoteIdRaw = body.excludeReleaseNoteId ?? query.excludeReleaseNoteId;
   const excludeReleaseNoteId =
     excludeReleaseNoteIdRaw !== undefined && excludeReleaseNoteIdRaw !== null
@@ -38,6 +44,7 @@ export function extractParams(context: RequestContext) {
     page,
     limit,
     orderBy,
+    excludeReleaseNoteTasks,
     excludeReleaseNoteId: normalizedExcludeReleaseNoteId,
   };
 }

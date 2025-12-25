@@ -169,6 +169,7 @@ export async function listTasks(request: {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   actionableFor?: string;
+  excludeReleaseNoteTasks?: boolean;
   excludeReleaseNoteId?: number;
 }): Promise<TasksResponse> {
   return apiFetch<TasksResponse>('/tasks/list', {

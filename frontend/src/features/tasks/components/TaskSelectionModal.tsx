@@ -20,6 +20,7 @@ interface TaskSelectionModalProps {
   serviceName?: string;
   servicePort?: number | null;
   excludeReleaseNoteId?: number | null;
+  excludeReleaseNoteTasks?: boolean;
 }
 
 export function TaskSelectionModal({ 
@@ -36,6 +37,7 @@ export function TaskSelectionModal({
   serviceName,
   servicePort,
   excludeReleaseNoteId,
+  excludeReleaseNoteTasks = false,
 }: TaskSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set(initialSelectedIds));
@@ -89,6 +91,7 @@ export function TaskSelectionModal({
         excludedTaskIds,
         alwaysIncludeTasks,
         excludeReleaseNoteId: normalizedExcludeReleaseNoteId,
+        excludeReleaseNoteTasks,
       },
     ],
     queryFn: ({ pageParam = 1 }: any) =>
@@ -102,6 +105,7 @@ export function TaskSelectionModal({
           : ['pending', 'in_progress', 'reopened', 'in_review'],
         page: pageParam,
         limit: PAGE_SIZE,
+        excludeReleaseNoteTasks: excludeReleaseNoteTasks || undefined,
         excludeReleaseNoteId:
           normalizedExcludeReleaseNoteId !== null ? normalizedExcludeReleaseNoteId : undefined,
       }),
@@ -150,7 +154,7 @@ export function TaskSelectionModal({
         if (listRef.current) listRef.current.scrollTop = 0;
       }, 0);
     }
-  }, [isOpen, searchQuery, showAllTasks, allowedStatuses, normalizedExcludeReleaseNoteId]);
+  }, [isOpen, searchQuery, showAllTasks, allowedStatuses, normalizedExcludeReleaseNoteId, excludeReleaseNoteTasks]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;

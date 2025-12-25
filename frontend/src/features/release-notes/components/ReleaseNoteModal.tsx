@@ -441,6 +441,7 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         serviceName={selectedService?.name}
         servicePort={selectedService?.port}
         excludeReleaseNoteId={releaseNote?.id ?? null}
+        excludeReleaseNoteTasks
       />
     </Modal>
   );
