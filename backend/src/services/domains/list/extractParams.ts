@@ -17,7 +17,7 @@ export function extractParams(context: RequestContext) {
   const filters: Filter | Filter[] = body.filters || [];
   const search = body.search?.trim() || undefined;
   const page = Math.max(1, parseInt(body.page) || parseInt(query.page) || 1);
-  const limit = Math.max(1, Math.min(100, parseInt(body.limit) || parseInt(query.limit) || 20)); // Limit max to 100
+  const limit = Math.max(1, Math.min(1000, parseInt(body.limit) || parseInt(query.limit) || 20)); // Limit max to 1000
   
   // Support both new array format and legacy single object format for orderBy
   const orderBy = body.orderBy || { key: 'createdAt', direction: 'desc' as const };

@@ -4,7 +4,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { listTasks, type TasksResponse } from '../../../services/tasks';
 import { Loading } from '../../../components/common/Loading';
 import { RichTextRenderer } from '../../../components/common/RichTextRenderer';
-import type { TaskStatus, Task } from '../../../services/tasks';
+import type { TaskStatus, Task, ReleaseNoteStatus } from '../../../services/tasks';
 
 interface TaskSelectionModalProps {
   isOpen: boolean;
@@ -19,6 +19,8 @@ interface TaskSelectionModalProps {
   serviceId?: number | null; // Service ID to prioritize tasks from the same service
   serviceName?: string;
   servicePort?: number | null;
+  excludeReleaseNoteStatuses?: ReleaseNoteStatus[];
+  excludeReleaseNoteId?: number | null;
 }
 
 export function TaskSelectionModal({ 
@@ -34,6 +36,8 @@ export function TaskSelectionModal({
   serviceId,
   serviceName,
   servicePort,
+  excludeReleaseNoteStatuses,
+  excludeReleaseNoteId,
 }: TaskSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set(initialSelectedIds));
@@ -59,7 +63,17 @@ export function TaskSelectionModal({
     wasOpenRef.current = isOpen;
   }, [isOpen, initialSelectedIds]);
 
-  const PAGE_SIZE = 50;
+  const PAGE_SIZE = 1000;
+
+  const normalizeId = (value: number | string | null | undefined) => {
+    if (value === null || value === undefined) return null;
+    const numericValue = typeof value === 'string' ? Number(value) : value;
+    return typeof numericValue === 'number' && Number.isFinite(numericValue) && numericValue > 0
+      ? numericValue
+      : null;
+  };
+
+  const normalizedExcludeReleaseNoteId = normalizeId(excludeReleaseNoteId);
 
   const {
     data,
@@ -71,7 +85,15 @@ export function TaskSelectionModal({
   } = useInfiniteQuery<TasksResponse>({
     queryKey: [
       'task-selection',
-      { searchQuery, showAllTasks, allowedStatuses, excludedTaskIds, alwaysIncludeTasks },
+      {
+        searchQuery,
+        showAllTasks,
+        allowedStatuses,
+        excludedTaskIds,
+        alwaysIncludeTasks,
+        excludeReleaseNoteStatuses,
+        excludeReleaseNoteId: normalizedExcludeReleaseNoteId,
+      },
     ],
     queryFn: ({ pageParam = 1 }: any) =>
       listTasks({
@@ -84,6 +106,9 @@ export function TaskSelectionModal({
           : ['pending', 'in_progress', 'reopened', 'in_review'],
         page: pageParam,
         limit: PAGE_SIZE,
+        excludeReleaseNoteStatuses,
+        excludeReleaseNoteId:
+          normalizedExcludeReleaseNoteId !== null ? normalizedExcludeReleaseNoteId : undefined,
       }),
     getNextPageParam: (lastPage: TasksResponse) => {
       const nextPage = lastPage.pagination.page + 1;
@@ -108,14 +133,6 @@ export function TaskSelectionModal({
     }
   });
 
-  const normalizeId = (value: number | string | null | undefined) => {
-    if (value === null || value === undefined) return null;
-    const numericValue = typeof value === 'string' ? Number(value) : value;
-    return typeof numericValue === 'number' && Number.isFinite(numericValue) && numericValue > 0
-      ? numericValue
-      : null;
-  };
-
   const getTaskServiceId = (task: Task) => normalizeId(task.serviceId ?? task.service?.id);
 
   const tasks = Array.from(taskMap.values());
@@ -139,7 +156,15 @@ export function TaskSelectionModal({
         if (listRef.current) listRef.current.scrollTop = 0;
       }, 0);
     }
-  }, [isOpen, refetch, searchQuery, showAllTasks, allowedStatuses]);
+  }, [
+    isOpen,
+    refetch,
+    searchQuery,
+    showAllTasks,
+    allowedStatuses,
+    excludeReleaseNoteStatuses,
+    normalizedExcludeReleaseNoteId,
+  ]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;

@@ -15,6 +15,7 @@ export type TaskStatus =
   | 'reopened';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 export type TaskType = 'bug' | 'feature' | 'todo' | 'epic' | 'improvement';
+export type ReleaseNoteStatus = 'pending' | 'deployment_started' | 'deployed';
 
 export type User = {
   id: string;
@@ -169,6 +170,8 @@ export async function listTasks(request: {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   actionableFor?: string;
+  excludeReleaseNoteStatuses?: ReleaseNoteStatus[];
+  excludeReleaseNoteId?: number;
 }): Promise<TasksResponse> {
   return apiFetch<TasksResponse>('/tasks/list', {
     method: 'POST',

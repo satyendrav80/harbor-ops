@@ -36,8 +36,37 @@ function hasActiveFilters(filters?: Filter | Filter[]): boolean {
     : true;
 }
 
+function buildReleaseNoteExclusionWhere(
+  statuses?: Prisma.ReleaseStatus[],
+  excludeReleaseNoteId?: number
+): Prisma.TaskWhereInput | undefined {
+  if (!statuses || statuses.length === 0) {
+    return undefined;
+  }
+
+  const releaseNoteWhere: Prisma.ReleaseNoteWhereInput = {
+    status: { in: statuses },
+  };
+
+  if (typeof excludeReleaseNoteId === 'number' && Number.isFinite(excludeReleaseNoteId) && excludeReleaseNoteId > 0) {
+    releaseNoteWhere.id = { not: excludeReleaseNoteId };
+  }
+
+  return {
+    releaseNoteTasks: {
+      none: {
+        releaseNote: releaseNoteWhere,
+      },
+    },
+  };
+}
+
 export async function list(context: RequestContext): Promise<ListResult> {
   const params = extractParams(context);
+  const releaseNoteExclusionWhere = buildReleaseNoteExclusionWhere(
+    params.excludeReleaseNoteStatuses as Prisma.ReleaseStatus[] | undefined,
+    params.excludeReleaseNoteId
+  );
 
   // Check if advanced filtering is being used
   const useAdvancedFiltering = hasActiveFilters(params.filters) || (params.orderBy && typeof params.orderBy === 'object' && 'key' in params.orderBy);
@@ -55,7 +84,7 @@ export async function list(context: RequestContext): Promise<ListResult> {
     const deletedWhere = { deleted: false };
     const where = mergeWhereClauses(
       mergeWhereClauses(filterWhere, searchWhere),
-      deletedWhere
+      mergeWhereClauses(deletedWhere, releaseNoteExclusionWhere)
     );
 
     // Build orderBy clause using filterBuilder
@@ -180,6 +209,10 @@ export async function list(context: RequestContext): Promise<ListResult> {
     } else {
       where.OR = searchOr;
     }
+  }
+
+  if (releaseNoteExclusionWhere) {
+    Object.assign(where, releaseNoteExclusionWhere);
   }
 
   // Calculate pagination

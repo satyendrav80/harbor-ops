@@ -10,7 +10,7 @@ import { useCreateReleaseNote, useUpdateReleaseNote } from '../hooks/useReleaseN
 import { useTasksByIds } from '../../tasks/hooks/useTaskQueries';
 import type { ReleaseNote } from '../../../services/releaseNotes';
 import type { Service } from '../../../services/services';
-import type { Task } from '../../../services/tasks';
+import type { Task, ReleaseNoteStatus } from '../../../services/tasks';
 import { X } from 'lucide-react';
 import dayjs from '../../../utils/dayjs';
 import { toDateTimeLocalValue, fromDateTimeLocalValueToIso } from '../../../utils/dateTime';
@@ -19,6 +19,8 @@ import { listReleaseNotesAdvanced } from '../../../services/releaseNotes';
 import { isEmptyHtml } from '../../../utils/richText';
 import { useMemo } from 'react';
 import { useModalError } from '../../../hooks/useModalError';
+
+const ACTIVE_RELEASE_NOTE_STATUSES: ReleaseNoteStatus[] = ['pending', 'deployment_started'];
 
 type ReleaseNoteModalProps = {
   isOpen: boolean;
@@ -85,27 +87,36 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
 
   // Reset form when modal opens/closes or releaseNote changes
   useEffect(() => {
-    if (!isOpen) return;
-    
-    if (releaseNote) {
-      form.reset({
-        serviceId: releaseNote.serviceId,
-        note: releaseNote.note,
-        publishDate: releaseNote.publishDate
-          ? toDateTimeLocalValue(releaseNote.publishDate)
-          : dayjs().format('YYYY-MM-DDTHH:mm'),
-      });
-      // Set selected tasks from release note
-      setSelectedTaskIds(releaseNote.tasks?.map(t => t.task.id) || []);
+    if (isOpen) {
+      if (releaseNote) {
+        form.reset({
+          serviceId: releaseNote.serviceId,
+          note: releaseNote.note,
+          publishDate: releaseNote.publishDate
+            ? toDateTimeLocalValue(releaseNote.publishDate)
+            : dayjs().format('YYYY-MM-DDTHH:mm'),
+        });
+        // Set selected tasks from release note
+        setSelectedTaskIds(releaseNote.tasks?.map((t) => t.task.id) || []);
+      } else {
+        form.reset({
+          serviceId: 0,
+          note: '',
+          publishDate: dayjs().format('YYYY-MM-DDTHH:mm'),
+        });
+        setSelectedTaskIds([]);
+      }
+      clearError();
     } else {
+      setSelectedTaskIds([]);
+      setIsTaskSelectionModalOpen(false);
+      clearError();
       form.reset({
         serviceId: 0,
         note: '',
         publishDate: dayjs().format('YYYY-MM-DDTHH:mm'),
       });
-      setSelectedTaskIds([]);
     }
-    clearError();
   }, [isOpen, releaseNote, form, clearError]);
 
   const onSubmit = async (values: ReleaseNoteFormValues) => {
@@ -431,6 +442,8 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
         serviceId={normalizedServiceId}
         serviceName={selectedService?.name}
         servicePort={selectedService?.port}
+        excludeReleaseNoteStatuses={ACTIVE_RELEASE_NOTE_STATUSES}
+        excludeReleaseNoteId={releaseNote?.id ?? null}
       />
     </Modal>
   );
