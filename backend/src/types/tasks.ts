@@ -52,6 +52,7 @@ export interface UpdateTaskStatusDTO {
     | 'testing'
     | 'not_fixed'
     | 'completed'
+    | 'duplicate'
     | 'paused'
     | 'blocked'
     | 'cancelled'

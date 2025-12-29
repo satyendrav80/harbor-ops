@@ -17,6 +17,7 @@ const statusOrder: Record<string, number> = {
   testing: 3,
   not_fixed: 1,
   completed: 4,
+  duplicate: 4,
   paused: 1,
   blocked: 1,
   cancelled: 0,
@@ -41,6 +42,8 @@ export async function updateStatus(context: RequestContext) {
   }
 
   const isCompleting = data.status === 'completed';
+  const isDuplicate = data.status === 'duplicate';
+  const isTerminalCompletion = isCompleting || isDuplicate;
   const isBlocked = data.status === 'blocked';
   const isInReview = data.status === 'in_review';
   const isProceed = data.status === 'proceed';
@@ -62,8 +65,8 @@ export async function updateStatus(context: RequestContext) {
     targetOrder < currentOrder;
 
   // Only the assigned tester can complete when one is set
-  if (isCompleting && task.testerId && task.testerId !== userId) {
-    throw new Error('Only the assigned tester can mark this task as completed');
+  if (isTerminalCompletion && task.testerId && task.testerId !== userId) {
+    throw new Error('Only the assigned tester can complete or mark this task as duplicate');
   }
 
   // Require a reason when completing without an assigned tester
@@ -107,12 +110,17 @@ export async function updateStatus(context: RequestContext) {
     throw new Error('Reason is required when moving status backward, blocking, pausing, or sending to review');
   }
 
+  if (isDuplicate && !statusReason) {
+    throw new Error('Reason is required when marking duplicate');
+  }
+
   // Validate status transition
   const validation = validateStatusTransition(task.status, data.status, {
     assignedTo: task.assignedTo,
     testerId: data.testerId || task.testerId,
     testingSkipped: data.testingSkipped || requireTestingReason,
     testingSkipReason: completionReason || data.testingSkipReason || null,
+    statusReason,
   });
 
   if (!validation.valid) {
@@ -120,16 +128,16 @@ export async function updateStatus(context: RequestContext) {
   }
 
   // Check for unresolved dependencies if completing
-  if (data.status === 'completed') {
+  if (isTerminalCompletion) {
     const depCheck = await hasUnresolvedDependencies(data.taskId);
     if (depCheck.hasUnresolved) {
-      throw new Error(`Cannot complete task with unresolved dependencies: ${depCheck.unresolvedTasks.map(t => t.title).join(', ')}`);
+      throw new Error(`Cannot close task with unresolved dependencies: ${depCheck.unresolvedTasks.map(t => t.title).join(', ')}`);
     }
 
     // Check if all subtasks are completed
     const subtaskCheck = await areAllSubtasksCompleted(data.taskId);
     if (!subtaskCheck.allCompleted) {
-      throw new Error(`Cannot complete task with incomplete subtasks: ${subtaskCheck.incompleteSubtasks.map(t => t.title).join(', ')}`);
+      throw new Error(`Cannot close task with incomplete subtasks: ${subtaskCheck.incompleteSubtasks.map(t => t.title).join(', ')}`);
     }
   }
 
@@ -145,10 +153,10 @@ export async function updateStatus(context: RequestContext) {
     updateData.testerAssignedAt = new Date();
   }
 
-  if (data.status === 'completed') {
+  if (isTerminalCompletion) {
     updateData.completedBy = userId;
     updateData.completedAt = new Date();
-    if (requireTestingReason || data.testingSkipped) {
+    if (isCompleting && (requireTestingReason || data.testingSkipped)) {
       updateData.testingSkipped = true;
       updateData.testingSkipReason = completionReason || data.testingSkipReason;
     }
@@ -273,6 +281,38 @@ export async function updateStatus(context: RequestContext) {
     } catch (err) {
       // ignore notification failures
     }
+  }
+
+  // Notify core stakeholders on completion or duplicate
+  if (isTerminalCompletion) {
+    const completionType = isDuplicate ? 'task_duplicate' : 'task_completed';
+    const completionTitle = isDuplicate ? 'Task marked duplicate' : 'Task completed';
+    const completionMessageBase = isDuplicate ? `“${task.title}” was closed as duplicate` : `“${task.title}” was marked as completed`;
+    const completionMessage =
+      isDuplicate && statusReason
+        ? `${completionMessageBase}. Reason: ${statusReason}`
+        : completionMessageBase;
+
+    const recipientIds = [task.createdBy, task.assignedTo, task.raisedBy]
+      .filter((value): value is string => Boolean(value) && value !== userId);
+
+    const uniqueRecipientIds = Array.from(new Set(recipientIds));
+
+    await Promise.all(
+      uniqueRecipientIds.map(async targetId => {
+        try {
+          await createNotification({
+            userId: targetId,
+            type: completionType,
+            taskId: data.taskId,
+            title: completionTitle,
+            message: completionMessage,
+          });
+        } catch (err) {
+          // ignore notification failures
+        }
+      })
+    );
   }
 
   // Emit real-time task updated event

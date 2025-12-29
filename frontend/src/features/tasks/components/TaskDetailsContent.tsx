@@ -27,6 +27,7 @@ const statusColors: Record<TaskStatus, string> = {
   testing: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200',
   not_fixed: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200',
   completed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200',
+  duplicate: 'bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-200',
   paused: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200',
   blocked: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200',
   cancelled: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
@@ -41,6 +42,7 @@ const statusOrder: Record<TaskStatus, number> = {
   testing: 3,
   not_fixed: 1,
   completed: 4,
+  duplicate: 4,
   paused: 1,
   blocked: 1,
   cancelled: 0,
@@ -142,6 +144,7 @@ const isAttentionUser = !!(task.attentionToId && currentUserId && task.attention
 const isTesterUser = !!(task.testerId && currentUserId && task.testerId === currentUserId);
 const canMarkProceed = isAttentionUser;
 const canMarkNotFixed = isTesterUser && task.status === 'testing';
+const isClosedStatus = task.status === 'completed' || task.status === 'duplicate';
 
   const dialogCurrentOrder = statusOrder[task.status];
   const dialogTargetOrder = selectedStatus ? statusOrder[selectedStatus] : undefined;
@@ -159,6 +162,7 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
     selectedStatus === 'in_review' ||
     selectedStatus === 'proceed' ||
     selectedStatus === 'not_fixed' ||
+    selectedStatus === 'duplicate' ||
     dialogNeedsTestingSkip;
   const statusConfirmDisabled =
     updateStatus.isPending ||
@@ -180,7 +184,8 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
       newStatus === 'paused' ||
       newStatus === 'in_review' ||
       newStatus === 'proceed' ||
-      newStatus === 'not_fixed';
+      newStatus === 'not_fixed' ||
+      newStatus === 'duplicate';
     const needsTestingSkipReason = newStatus === 'completed' && !task.testerId;
     const needsTesterSelection = newStatus === 'testing' && !task.testerId;
     const wantsReviewComment = newStatus === 'in_review';
@@ -223,7 +228,8 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
       selectedStatus === 'paused' ||
       selectedStatus === 'in_review' ||
       requiresProceed ||
-      requiresNotFixed;
+      requiresNotFixed ||
+      selectedStatus === 'duplicate';
     const wantsReviewComment = selectedStatus === 'in_review';
     // Convert HTML to plain text for reason field
     const tempDiv = document.createElement('div');
@@ -343,7 +349,7 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
             <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg p-4">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Status</h3>
               <div className="space-y-2">
-                {task.status === 'completed' ? (
+                {isClosedStatus ? (
                   <button
                     onClick={() => setShowReopenDialog(true)}
                     className="w-full px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg transition-colors"
@@ -364,6 +370,7 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
                       { value: 'testing', label: 'Testing' },
                       { value: 'not_fixed', label: 'Not Fixed', visible: canMarkNotFixed },
                       { value: 'completed', label: 'Completed' },
+                      { value: 'duplicate', label: 'Duplicate' },
                       { value: 'paused', label: 'Paused' },
                       { value: 'blocked', label: 'Blocked' },
                     ]
@@ -385,6 +392,7 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
                       'testing',
                       'not_fixed',
                       'completed',
+                      'duplicate',
                       'paused',
                       'blocked',
                     ].includes(task.status) && (
@@ -563,14 +571,14 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
             <div className="bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg p-4">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                 <CheckSquare className="w-4 h-4" />
-                Subtasks ({task.subtasks.filter(s => s.status === 'completed').length}/{task.subtasks.length})
+                Subtasks ({task.subtasks.filter(s => ['completed', 'duplicate'].includes(s.status)).length}/{task.subtasks.length})
               </h3>
               <div className="space-y-2">
                 {task.subtasks.map((subtask) => (
                   <div key={subtask.id} className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
-                      checked={subtask.status === 'completed'}
+                      checked={['completed', 'duplicate'].includes(subtask.status)}
                       readOnly
                       className="w-4 h-4"
                     />
@@ -659,6 +667,7 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
               if (selectedStatus === 'proceed') return 'Mark Proceed';
               if (selectedStatus === 'not_fixed') return 'Mark Not Fixed';
                 if (selectedStatus === 'in_review') return 'Send to Review';
+                if (selectedStatus === 'duplicate') return 'Mark Duplicate';
                 if (dialogIsBackward) return 'Provide Reason for Rollback';
                 return 'Update Status';
               })();
@@ -677,7 +686,8 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
                       selectedStatus === 'paused' ||
                       selectedStatus === 'in_review' ||
                       selectedStatus === 'proceed' ||
-                      selectedStatus === 'not_fixed') && (
+                      selectedStatus === 'not_fixed' ||
+                      selectedStatus === 'duplicate') && (
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         Please add a brief note for this status change so the team has context.
                       </p>
@@ -721,7 +731,8 @@ const canMarkNotFixed = isTesterUser && task.status === 'testing';
                       selectedStatus === 'paused' ||
                       selectedStatus === 'in_review' ||
                       selectedStatus === 'proceed' ||
-                      selectedStatus === 'not_fixed') && (
+                      selectedStatus === 'not_fixed' ||
+                      selectedStatus === 'duplicate') && (
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-900 dark:text-white">Reason</label>
                         <RichTextEditor

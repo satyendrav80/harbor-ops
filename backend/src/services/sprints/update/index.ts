@@ -65,9 +65,11 @@ export async function list(context: RequestContext) {
   });
 
   // Calculate generic metrics if not present (simplified for list view)
+  const terminalTaskStatuses = new Set(['completed', 'duplicate']);
+
   const sprintsWithMetrics = sprints.map(sprint => {
     const totalTasks = sprint.tasks.length;
-    const completedTasks = sprint.tasks.filter(t => t.status === 'completed').length;
+    const completedTasks = sprint.tasks.filter(t => terminalTaskStatuses.has(t.status)).length;
     return {
       ...sprint,
       metrics: {

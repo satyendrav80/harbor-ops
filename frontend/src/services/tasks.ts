@@ -9,6 +9,7 @@ export type TaskStatus =
   | 'testing'
   | 'not_fixed'
   | 'completed'
+  | 'duplicate'
   | 'paused'
   | 'blocked'
   | 'cancelled'

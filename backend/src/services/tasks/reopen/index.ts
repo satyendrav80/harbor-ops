@@ -20,8 +20,8 @@ export async function reopen(context: RequestContext) {
     throw new Error('Task not found');
   }
 
-  if (task.status !== 'completed') {
-    throw new Error('Only completed tasks can be reopened');
+  if (!['completed', 'duplicate'].includes(task.status)) {
+    throw new Error('Only completed or duplicate tasks can be reopened');
   }
 
   // Increment reopen count

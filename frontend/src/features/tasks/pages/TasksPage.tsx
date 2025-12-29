@@ -107,8 +107,8 @@ export function TasksPage() {
   const useAdvancedFiltering = hasActiveFilters(advancedFilters) || (orderBy && orderBy.length > 0) || (groupBy && groupBy.length > 0);
 
   // Build default "My Tasks" filter with role-aware status visibility:
-  // - Assignee sees all except completed (includes not_fixed/reopened)
-  // - Tester/Attention hides not_fixed and reopened (and completed)
+  // - Assignee sees all except closed (completed/duplicate) plus other attention-specific states
+  // - Tester/Attention hides not_fixed and reopened (and closed states)
   const myTasksFilter: Filter | undefined = useMemo(() => {
     if (useAdvancedFiltering || !user?.id) return undefined;
     
@@ -125,6 +125,7 @@ export function TasksPage() {
                 childs: [
                   { key: 'assignedTo', type: 'STRING', operator: 'eq', value: user.id },
                   { key: 'status', type: 'STRING', operator: 'ne', value: 'completed' },
+                  { key: 'status', type: 'STRING', operator: 'ne', value: 'duplicate' },
                   // Hide if testing with tester assigned
                   {
                     condition: 'not',
@@ -166,6 +167,7 @@ export function TasksPage() {
                 childs: [
                   { key: 'testerId', type: 'STRING', operator: 'eq', value: user.id },
                   { key: 'status', type: 'STRING', operator: 'ne', value: 'completed' },
+                  { key: 'status', type: 'STRING', operator: 'ne', value: 'duplicate' },
                   { key: 'status', type: 'STRING', operator: 'ne', value: 'reopened' },
                   { key: 'status', type: 'STRING', operator: 'ne', value: 'not_fixed' },
                   { key: 'status', type: 'STRING', operator: 'ne', value: 'proceed' },
@@ -177,6 +179,7 @@ export function TasksPage() {
                 childs: [
                   { key: 'attentionToId', type: 'STRING', operator: 'eq', value: user.id },
                   { key: 'status', type: 'STRING', operator: 'ne', value: 'completed' },
+                  { key: 'status', type: 'STRING', operator: 'ne', value: 'duplicate' },
                   { key: 'status', type: 'STRING', operator: 'ne', value: 'reopened' },
                   { key: 'status', type: 'STRING', operator: 'ne', value: 'not_fixed' },
                 ],
@@ -476,7 +479,7 @@ export function TasksPage() {
                       <td className="px-4 py-3">
         <span
           className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${
-            task.status === 'completed'
+            ['completed', 'duplicate'].includes(task.status)
               ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400'
               : task.status === 'in_progress'
               ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400'
@@ -788,7 +791,7 @@ export function TasksPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize 
-                      ${task.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400' :
+                      ${['completed', 'duplicate'].includes(task.status) ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400' :
                         task.status === 'in_progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/10 dark:text-blue-400' :
                           task.status === 'blocked' ? 'bg-red-100 text-red-800 dark:bg-red-500/10 dark:text-red-400' :
                             'bg-gray-100 text-gray-800 dark:bg-gray-500/10 dark:text-gray-400'

@@ -22,7 +22,11 @@ export async function hasUnresolvedDependencies(taskId: number): Promise<{
   });
 
   const unresolvedTasks = dependencies
-    .filter((dep) => !dep.blockedByTask.deleted && dep.blockedByTask.status !== 'completed')
+    .filter(
+      (dep) =>
+        !dep.blockedByTask.deleted &&
+        !['completed', 'duplicate'].includes(dep.blockedByTask.status)
+    )
     .map((dep) => ({
       id: dep.blockedByTask.id,
       title: dep.blockedByTask.title,
@@ -91,7 +95,9 @@ export async function areAllSubtasksCompleted(parentTaskId: number): Promise<{
     },
   });
 
-  const incompleteSubtasks = subtasks.filter((task) => task.status !== 'completed');
+  const incompleteSubtasks = subtasks.filter(
+    (task) => !['completed', 'duplicate'].includes(task.status)
+  );
 
   return {
     allCompleted: incompleteSubtasks.length === 0,
@@ -110,6 +116,7 @@ export function validateStatusTransition(
     testerId: string | null;
     testingSkipped: boolean;
     testingSkipReason: string | null;
+    statusReason?: string | null;
   }
 ): { valid: boolean; error?: string } {
   // Free-flowing transitions: Allow potentially any transition, but check for required fields for specific destination statuses
@@ -124,29 +131,31 @@ export function validateStatusTransition(
     return { valid: false, error: 'Tester must be assigned before moving to testing' };
   }
 
-  // 3. Moving to 'completed' without testing requires a reason (if skipping testing is toggled)
+  const terminalCompletionStatuses = ['completed', 'duplicate'];
+
+  // 3. Moving to 'completed' or 'duplicate' without testing requires a reason (if skipping testing is toggled)
   // Note: If jumping straight to completed from in_progress, we assume standard flow might be skipped.
   // We only check this if the request explicitly says testing is skipped.
-  if (newStatus === 'completed' && task.testingSkipped && !task.testingSkipReason) {
+  if (terminalCompletionStatuses.includes(newStatus) && task.testingSkipped && !task.testingSkipReason) {
     return {
       valid: false,
-      error: 'Must provide testing skip reason to complete without testing',
+      error: 'Must provide testing skip reason to close without testing',
     };
   }
 
-  // 3b. Completing without a tester requires an explicit reason (e.g., testing skipped)
-  if (newStatus === 'completed' && !task.testerId) {
-    const reason = (task.testingSkipReason || '').trim();
+  // 3b. Completing or marking duplicate without a tester requires an explicit reason
+  if (terminalCompletionStatuses.includes(newStatus) && !task.testerId) {
+    const reason = (task.testingSkipReason || task.statusReason || '').trim();
     if (!reason) {
       return {
         valid: false,
-        error: 'Assign a tester or provide a reason to complete without one',
+        error: 'Assign a tester or provide a reason to close without one',
       };
     }
   }
 
-  // 4. Blocked/Paused/Cancelled/Proceed/Not Fixed are always allowed (field-level checks handled elsewhere)
-  if (['blocked', 'paused', 'cancelled', 'proceed', 'not_fixed'].includes(newStatus)) {
+  // 4. Blocked/Paused/Cancelled/Proceed/Not Fixed/Duplicate are always allowed (field-level checks handled elsewhere)
+  if (['blocked', 'paused', 'cancelled', 'proceed', 'not_fixed', 'duplicate'].includes(newStatus)) {
     return { valid: true };
   }
 

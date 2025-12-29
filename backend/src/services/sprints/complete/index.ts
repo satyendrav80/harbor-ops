@@ -31,10 +31,9 @@ export async function complete(context: RequestContext) {
   const incompleteTasks = await prisma.task.findMany({
     where: {
       sprintId: id,
-      status: { not: 'completed' },
-      AND: {
-        status: { not: 'cancelled' }
-      }
+      status: {
+        notIn: ['completed', 'duplicate', 'cancelled'],
+      },
     },
   });
 

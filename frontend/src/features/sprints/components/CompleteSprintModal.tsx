@@ -44,7 +44,8 @@ export function CompleteSprintModal({ isOpen, onClose, onConfirm, sprint, mode }
 
   if (!isOpen) return null;
 
-  const incompleteTasksCount = sprint.tasks?.filter(t => t.status !== 'completed' && t.status !== 'cancelled').length || 0;
+  const incompleteTasksCount =
+    sprint.tasks?.filter(t => !['completed', 'duplicate', 'cancelled'].includes(t.status)).length || 0;
   const totalTasks = sprint.tasks?.length || 0;
 
   // For cancel mode, we move ALL tasks. For complete mode, only incomplete ones.

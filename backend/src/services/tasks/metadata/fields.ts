@@ -79,8 +79,8 @@ export function getFields(): FilterFieldMetadata[] {
       searchable: isFieldSearchable('status', 'STRING'),
       sortable: isFieldSortable('STRING'),
       groupable: isFieldGroupable('status', 'STRING'),
-      enumValues: [ 'pending', 'in_progress', 'in_review', 'proceed', 'testing', 'not_fixed', 'completed', 'paused', 'blocked', 'cancelled', 'reopened', ],
-      ui: getDefaultUIConfig('STRING', 'status', true, [ 'pending', 'in_progress', 'in_review', 'proceed', 'testing', 'not_fixed', 'completed', 'paused', 'blocked', 'cancelled', 'reopened', ]),
+      enumValues: [ 'pending', 'in_progress', 'in_review', 'proceed', 'testing', 'not_fixed', 'completed', 'duplicate', 'paused', 'blocked', 'cancelled', 'reopened', ],
+      ui: getDefaultUIConfig('STRING', 'status', true, [ 'pending', 'in_progress', 'in_review', 'proceed', 'testing', 'not_fixed', 'completed', 'duplicate', 'paused', 'blocked', 'cancelled', 'reopened', ]),
     },
     // Type field (enum)
     {

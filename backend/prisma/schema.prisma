@@ -584,6 +584,7 @@ enum TaskStatus {
   testing // Assigned to tester
   not_fixed // Tester marked as not fixed/persisting
   completed // Task completed and verified
+  duplicate // Task closed as duplicate for tracking
   paused // Work temporarily stopped
   blocked // Blocked by dependencies
   cancelled // Task cancelled

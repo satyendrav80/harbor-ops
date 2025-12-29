@@ -31,6 +31,8 @@ export async function generateBurndownData(sprintId: number): Promise<BurndownDa
 
   const data: BurndownDataPoint[] = [];
 
+  const terminalStatuses = new Set(['completed', 'duplicate']);
+
   for (let i = 0; i < totalDays; i++) {
     const currentDate = startDate.add(i, 'day');
     const dateStr = currentDate.format('YYYY-MM-DD');
@@ -40,7 +42,7 @@ export async function generateBurndownData(sprintId: number): Promise<BurndownDa
 
     // Actual: count tasks not completed by this date
     const completedByDate = sprint.tasks.filter((task) => {
-      if (task.status !== 'completed' || !task.completedAt) {
+      if (!terminalStatuses.has(task.status) || !task.completedAt) {
         return false;
       }
       return dayjs(task.completedAt).isBefore(currentDate.endOf('day'));
@@ -92,6 +94,7 @@ export async function generateGanttData(sprintId: number): Promise<GanttTask[]> 
     let progress = 0;
     switch (task.status) {
       case 'completed':
+      case 'duplicate':
         progress = 100;
         break;
       case 'testing':
@@ -142,7 +145,7 @@ export async function calculateSprintMetrics(sprintId: number) {
   });
 
   const totalTasks = tasks.length;
-  const completedTasks = tasks.filter((t) => t.status === 'completed').length;
+  const completedTasks = tasks.filter((t) => ['completed', 'duplicate'].includes(t.status)).length;
   const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
   const totalEstimatedHours = tasks.reduce((sum, t) => sum + (t.estimatedHours || 0), 0);
