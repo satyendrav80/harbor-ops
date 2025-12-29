@@ -71,7 +71,7 @@ export function getFields(): FilterFieldMetadata[] {
       key: 'status',
       label: formatFieldLabel('status'),
       type: 'STRING',
-      operators: getOperatorsForType('STRING', false).filter(op => 
+      operators: getOperatorsForType('STRING', false).filter(op =>
         ['eq', 'ne', 'in', 'notIn'].includes(op)
       ),
       relation: null,
@@ -79,8 +79,8 @@ export function getFields(): FilterFieldMetadata[] {
       searchable: isFieldSearchable('status', 'STRING'),
       sortable: isFieldSortable('STRING'),
       groupable: isFieldGroupable('status', 'STRING'),
-      enumValues: ['pending', 'in_progress', 'in_review', 'testing', 'completed', 'paused', 'blocked', 'cancelled', 'reopened'],
-      ui: getDefaultUIConfig('STRING', 'status', true, ['pending', 'in_progress', 'in_review', 'testing', 'completed', 'paused', 'blocked', 'cancelled', 'reopened']),
+      enumValues: [ 'pending', 'in_progress', 'in_review', 'proceed', 'testing', 'not_fixed', 'completed', 'paused', 'blocked', 'cancelled', 'reopened', ],
+      ui: getDefaultUIConfig('STRING', 'status', true, [ 'pending', 'in_progress', 'in_review', 'proceed', 'testing', 'not_fixed', 'completed', 'paused', 'blocked', 'cancelled', 'reopened', ]),
     },
     // Type field (enum)
     {
