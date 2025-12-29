@@ -1,0 +1,22 @@
+---
+description: Java coding and architecture rules
+globs: ["**/*.java"]
+alwaysApply: false
+---
+
+# Java Standards
+- Follow standard Java conventions.
+- Avoid god classes.
+- Keep responsibilities clear.
+
+## Structure
+- Max ~200 lines per class.
+- Extract services/helpers when exceeded.
+
+## Architecture
+- controller → service → repository
+- No business logic in controllers.
+
+## Safety
+- Do not change behavior without confirmation.
+- Explain risks before modifying.

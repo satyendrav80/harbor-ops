@@ -1,0 +1,22 @@
+---
+description: Mandatory confirmation before any code changes
+alwaysApply: true
+---
+
+# Confirmation Workflow
+
+Before doing ANY of the following, ask for confirmation:
+
+- Modifying existing code
+- Refactoring or restructuring
+- Changing architecture or patterns
+- Fixing bugs in old logic
+- Adding/removing dependencies
+- Introducing breaking changes
+
+## Required Behavior
+- Explain the issue clearly.
+- Propose the change.
+- Proceed ONLY after explicit confirmation.
+
+If confirmation is not given, do NOT change code.

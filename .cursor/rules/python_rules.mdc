@@ -1,0 +1,21 @@
+---
+description: Python coding and architecture rules
+globs: ["**/*.py"]
+alwaysApply: false
+---
+
+# Python Standards
+- Follow PEP 8.
+- Prefer explicit, readable code.
+- Avoid deep nesting.
+
+## Structure
+- Max ~200 lines per file.
+- Split large modules into packages.
+
+## Architecture
+- Separate API/handlers, business logic, data access.
+
+## Safety
+- Do not change existing logic without confirmation.
+- Explain issues first.

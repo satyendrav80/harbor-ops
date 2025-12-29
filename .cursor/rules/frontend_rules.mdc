@@ -1,0 +1,23 @@
+---
+description: Frontend structure and safety rules
+globs: ["**/*.jsx", "**/*.tsx", "**/*.coffee"]
+alwaysApply: false
+---
+
+# Frontend Rules
+
+## File Size
+- Max ~200–500 lines per file.
+- Split into components, hooks, or utilities if exceeded.
+
+## Reuse
+- Check for existing components before creating new ones.
+- Prefer composable, reusable UI elements.
+
+## Separation
+- Separate UI from business logic.
+- Avoid monolithic components.
+
+## Safety
+- Do not refactor existing UI logic without confirmation.
+- Explain issues before changing.

@@ -1,0 +1,22 @@
+---
+description: JavaScript, TypeScript, CoffeeScript rules
+globs: ["**/*.js", "**/*.ts", "**/*.coffee", "**/*.jsx", "**/*.tsx"]
+alwaysApply: false
+---
+
+# Language Preservation
+- Preserve the existing file language.
+- Do NOT convert between JS, TS, or CoffeeScript unless requested.
+- Do NOT mix TypeScript syntax into JS or CoffeeScript.
+
+# Idiomatic Usage
+- Use idiomatic syntax for the file’s language.
+- Avoid experimental or unclear constructs.
+
+# TypeScript
+- Prefer explicit types.
+- Do not weaken existing type safety.
+
+# CoffeeScript
+- Respect indentation-based syntax.
+- Prefer clarity over cleverness.

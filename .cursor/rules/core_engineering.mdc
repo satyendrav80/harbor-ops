@@ -1,0 +1,32 @@
+---
+description: Core engineering standards for all projects
+alwaysApply: true
+---
+
+# Core Engineering Rules
+
+## Accuracy & Safety
+- Do NOT hallucinate.
+- If unsure, say exactly: "Not certain".
+- Suggest how to verify when uncertain.
+- Double-check logic, calculations, and code.
+
+## Change Discipline
+- Never modify existing code without explicit confirmation.
+- Before suggesting changes:
+  - Fully understand the code.
+  - Check for duplicate or reusable logic.
+  - Prefer reuse over rewrite.
+
+## Output Rules
+- Follow the requested output format exactly.
+- No extra explanations unless explicitly asked.
+
+## Naming Conventions
+- variables, keys: snake_case
+- functions, classes: camelCase
+- constants: SCREAMING_SNAKE_CASE
+
+## Quality Bar
+- Provide clean, runnable, production-ready code only.
+- Prefer simple, correct solutions.

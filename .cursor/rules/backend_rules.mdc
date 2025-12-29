@@ -1,0 +1,27 @@
+---
+description: Backend architecture and modularity rules
+globs: ["**/*.js", "**/*.ts", "**/*.coffee", "**/*.py", "**/*.java"]
+alwaysApply: false
+---
+
+# Backend Architecture
+
+## API Structure
+- Enforce strict layering:
+  - routes → controllers → services
+- routes: endpoint mapping only
+- controllers: validation + orchestration
+- services: business logic only
+
+## Modularity
+- Max ~200 lines per backend file/class.
+- Split large files into modules or folders.
+- Do not place all logic in one file.
+
+## Reuse
+- Reuse existing helpers/services.
+- Do not duplicate logic.
+
+## Safety
+- Do not change legacy logic without confirmation.
+- Explain problems first, then wait.
