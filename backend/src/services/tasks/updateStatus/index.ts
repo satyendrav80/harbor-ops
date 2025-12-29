@@ -50,6 +50,7 @@ export async function updateStatus(context: RequestContext) {
   const isTesting = data.status === 'testing';
   const isNotFixed = data.status === 'not_fixed';
   const isPaused = data.status === 'paused';
+  const isCancelled = data.status === 'cancelled';
   const isResumingFromPause = task.status === 'paused' && data.status === 'in_progress';
   const requiresAttentionUser = isBlocked || isInReview;
   const completionReason = isCompleting
@@ -108,6 +109,10 @@ export async function updateStatus(context: RequestContext) {
 
   if (!isResumingFromPause && (isBackward || isBlocked || isPaused || isInReview) && !statusReason) {
     throw new Error('Reason is required when moving status backward, blocking, pausing, or sending to review');
+  }
+
+  if (isCancelled && !statusReason) {
+    throw new Error('Reason is required when cancelling a task');
   }
 
   if (isDuplicate && !statusReason) {

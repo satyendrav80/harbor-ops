@@ -162,6 +162,7 @@ const isClosedStatus = task.status === 'completed' || task.status === 'duplicate
     selectedStatus === 'in_review' ||
     selectedStatus === 'proceed' ||
     selectedStatus === 'not_fixed' ||
+    selectedStatus === 'cancelled' ||
     selectedStatus === 'duplicate' ||
     dialogNeedsTestingSkip;
   const statusConfirmDisabled =
@@ -185,6 +186,7 @@ const isClosedStatus = task.status === 'completed' || task.status === 'duplicate
       newStatus === 'in_review' ||
       newStatus === 'proceed' ||
       newStatus === 'not_fixed' ||
+      newStatus === 'cancelled' ||
       newStatus === 'duplicate';
     const needsTestingSkipReason = newStatus === 'completed' && !task.testerId;
     const needsTesterSelection = newStatus === 'testing' && !task.testerId;
@@ -229,6 +231,7 @@ const isClosedStatus = task.status === 'completed' || task.status === 'duplicate
       selectedStatus === 'in_review' ||
       requiresProceed ||
       requiresNotFixed ||
+      selectedStatus === 'cancelled' ||
       selectedStatus === 'duplicate';
     const wantsReviewComment = selectedStatus === 'in_review';
     // Convert HTML to plain text for reason field
@@ -370,6 +373,7 @@ const isClosedStatus = task.status === 'completed' || task.status === 'duplicate
                       { value: 'testing', label: 'Testing' },
                       { value: 'not_fixed', label: 'Not Fixed', visible: canMarkNotFixed },
                       { value: 'completed', label: 'Completed' },
+                      { value: 'cancelled', label: 'Cancelled' },
                       { value: 'duplicate', label: 'Duplicate' },
                       { value: 'paused', label: 'Paused' },
                       { value: 'blocked', label: 'Blocked' },
@@ -392,6 +396,7 @@ const isClosedStatus = task.status === 'completed' || task.status === 'duplicate
                       'testing',
                       'not_fixed',
                       'completed',
+                      'cancelled',
                       'duplicate',
                       'paused',
                       'blocked',
@@ -666,6 +671,7 @@ const isClosedStatus = task.status === 'completed' || task.status === 'duplicate
                 if (selectedStatus === 'blocked') return 'Mark Blocked';
               if (selectedStatus === 'proceed') return 'Mark Proceed';
               if (selectedStatus === 'not_fixed') return 'Mark Not Fixed';
+                if (selectedStatus === 'cancelled') return 'Cancel Task';
                 if (selectedStatus === 'in_review') return 'Send to Review';
                 if (selectedStatus === 'duplicate') return 'Mark Duplicate';
                 if (dialogIsBackward) return 'Provide Reason for Rollback';
@@ -687,6 +693,7 @@ const isClosedStatus = task.status === 'completed' || task.status === 'duplicate
                       selectedStatus === 'in_review' ||
                       selectedStatus === 'proceed' ||
                       selectedStatus === 'not_fixed' ||
+                      selectedStatus === 'cancelled' ||
                       selectedStatus === 'duplicate') && (
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         Please add a brief note for this status change so the team has context.
@@ -732,6 +739,7 @@ const isClosedStatus = task.status === 'completed' || task.status === 'duplicate
                       selectedStatus === 'in_review' ||
                       selectedStatus === 'proceed' ||
                       selectedStatus === 'not_fixed' ||
+                      selectedStatus === 'cancelled' ||
                       selectedStatus === 'duplicate') && (
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-900 dark:text-white">Reason</label>

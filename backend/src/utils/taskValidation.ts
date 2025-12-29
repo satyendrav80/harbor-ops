@@ -154,6 +154,13 @@ export function validateStatusTransition(
     }
   }
 
+  if (newStatus === 'cancelled') {
+    const reason = (task.statusReason || '').trim();
+    if (!reason) {
+      return { valid: false, error: 'Provide a reason before cancelling the task' };
+    }
+  }
+
   // 4. Blocked/Paused/Cancelled/Proceed/Not Fixed/Duplicate are always allowed (field-level checks handled elsewhere)
   if (['blocked', 'paused', 'cancelled', 'proceed', 'not_fixed', 'duplicate'].includes(newStatus)) {
     return { valid: true };
