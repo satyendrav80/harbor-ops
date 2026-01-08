@@ -165,10 +165,11 @@ const isClosedStatus = task.status === 'completed' || task.status === 'duplicate
     selectedStatus === 'cancelled' ||
     selectedStatus === 'duplicate' ||
     dialogNeedsTestingSkip;
+  const statusReasonIsEmpty = isEmptyHtml(statusReason);
   const statusConfirmDisabled =
     updateStatus.isPending ||
     (dialogRequiresAttention && !statusAttentionId) ||
-    (dialogRequiresReason && !statusReason.trim());
+    (dialogRequiresReason && statusReasonIsEmpty);
 
   const handleStatusChange = async (newStatus: TaskStatus) => {
     const currentOrder = statusOrder[task.status];
@@ -234,24 +235,18 @@ const isClosedStatus = task.status === 'completed' || task.status === 'duplicate
       selectedStatus === 'cancelled' ||
       selectedStatus === 'duplicate';
     const wantsReviewComment = selectedStatus === 'in_review';
-    // Convert HTML to plain text for reason field
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = statusReason;
-    const plainTextReason = tempDiv.textContent || tempDiv.innerText || '';
-    const trimmedReason = plainTextReason.trim();
-
     if (requiresAttention && !statusAttentionId) return;
-    if ((requiresReason || needsTestingSkipReason) && !trimmedReason) return;
+    if ((requiresReason || needsTestingSkipReason) && statusReasonIsEmpty) return;
     if (needsTesterSelection && !statusTesterId) return;
 
     await updateStatus.mutateAsync({
       id: taskId,
       status: selectedStatus,
       attentionToId: requiresAttention ? statusAttentionId : undefined,
-      statusReason: (requiresReason || needsTestingSkipReason || wantsReviewComment || trimmedReason)
-        ? trimmedReason
+      statusReason: (requiresReason || needsTestingSkipReason || wantsReviewComment) && !statusReasonIsEmpty
+        ? statusReason
         : undefined,
-      testingSkipReason: needsTestingSkipReason ? trimmedReason : undefined,
+      testingSkipReason: needsTestingSkipReason ? statusReason : undefined,
       testerId: selectedStatus === 'testing' ? (statusTesterId || task.testerId || undefined) : undefined,
     });
 
@@ -263,14 +258,10 @@ const isClosedStatus = task.status === 'completed' || task.status === 'duplicate
   };
 
   const handleReopen = async () => {
-    // Convert HTML to plain text for reason field
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = reopenReason;
-    const plainTextReason = tempDiv.textContent || tempDiv.innerText || '';
-    if (!plainTextReason.trim()) return;
+    if (isEmptyHtml(reopenReason)) return;
     await reopenTask.mutateAsync({
       id: taskId,
-      reason: plainTextReason.trim(),
+      reason: reopenReason,
     });
     setShowReopenDialog(false);
     setReopenReason('');

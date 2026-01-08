@@ -5,6 +5,7 @@ import {
   hasUnresolvedDependencies,
   areAllSubtasksCompleted,
 } from '../../../utils/taskValidation';
+import { sanitizeRichTextHtml, htmlToPlainText } from '../../../utils/richText';
 import { createNotification } from '../../notifications';
 import { emitTaskUpdated } from '../../../socket/socket';
 import { prisma } from '../../../dataStore';
@@ -32,6 +33,10 @@ export async function updateStatus(context: RequestContext) {
 
   const data = extractParams(context);
 
+  const statusReasonHtml = sanitizeRichTextHtml(data.statusReason || '');
+  const statusReason = htmlToPlainText(statusReasonHtml);
+  const testingSkipReasonPlain = htmlToPlainText(sanitizeRichTextHtml(data.testingSkipReason || ''));
+
   const task = await prisma.task.findUnique({
     where: { id: data.taskId },
     include: { sprint: true },
@@ -53,10 +58,7 @@ export async function updateStatus(context: RequestContext) {
   const isCancelled = data.status === 'cancelled';
   const isResumingFromPause = task.status === 'paused' && data.status === 'in_progress';
   const requiresAttentionUser = isBlocked || isInReview;
-  const completionReason = isCompleting
-    ? (data.testingSkipReason || '').trim()
-    : '';
-  const statusReason = (data.statusReason || '').trim();
+  const completionReason = isCompleting ? testingSkipReasonPlain : '';
 
   const currentOrder = statusOrder[task.status];
   const targetOrder = statusOrder[data.status];
@@ -124,7 +126,7 @@ export async function updateStatus(context: RequestContext) {
     assignedTo: task.assignedTo,
     testerId: data.testerId || task.testerId,
     testingSkipped: data.testingSkipped || requireTestingReason,
-    testingSkipReason: completionReason || data.testingSkipReason || null,
+    testingSkipReason: completionReason || null,
     statusReason,
   });
 
@@ -163,7 +165,7 @@ export async function updateStatus(context: RequestContext) {
     updateData.completedAt = new Date();
     if (isCompleting && (requireTestingReason || data.testingSkipped)) {
       updateData.testingSkipped = true;
-      updateData.testingSkipReason = completionReason || data.testingSkipReason;
+      updateData.testingSkipReason = completionReason;
     }
     updateData.attentionToId = null;
   } else if (requiresAttentionUser) {
@@ -190,13 +192,19 @@ export async function updateStatus(context: RequestContext) {
     const attentionUserDisplay = (updatedTask as any).attentionToUser
       ? (updatedTask as any).attentionToUser.name || (updatedTask as any).attentionToUser.email
       : null;
-    const reasonComment = [
-      `Status changed from ${task.status} to ${data.status}.`,
-      statusReason ? `Reason: ${statusReason}` : '',
-      attentionUserDisplay ? `Attention: ${attentionUserDisplay}` : '',
-    ]
-      .filter(Boolean)
-      .join(' ');
+    const commentSections = [
+      `<p><strong>Status changed from ${task.status} to ${data.status}.</strong></p>`,
+    ];
+
+    if (statusReasonHtml) {
+      commentSections.push(`<p><strong>Reason:</strong></p>${statusReasonHtml}`);
+    }
+
+    if (attentionUserDisplay) {
+      commentSections.push(`<p><strong>Attention:</strong> ${attentionUserDisplay}</p>`);
+    }
+
+    const reasonComment = commentSections.join('<br/><br/>');
 
     await prisma.taskComment.create({
       data: {

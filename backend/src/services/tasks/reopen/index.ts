@@ -2,6 +2,7 @@ import type { RequestContext } from '../../../types/common';
 import { extractParams } from './extractParams';
 import { createSprintHistoryRecord } from '../../../utils/taskValidation';
 import { prisma } from '../../../dataStore';
+import { sanitizeRichTextHtml, htmlToPlainText } from '../../../utils/richText';
 
 export async function reopen(context: RequestContext) {
   const userId = context.headers?.['x-user-id'] as string;
@@ -10,6 +11,12 @@ export async function reopen(context: RequestContext) {
   }
 
   const data = extractParams(context);
+  const reasonHtml = sanitizeRichTextHtml(data.reason);
+  const reasonPlain = htmlToPlainText(reasonHtml);
+
+  if (!reasonPlain) {
+    throw new Error('Reason is required for reopening a task');
+  }
 
   const task = await prisma.task.findUnique({
     where: { id: data.taskId },
@@ -53,14 +60,19 @@ export async function reopen(context: RequestContext) {
 
   // Create sprint history if detached from sprint
   if (task.sprintId && !newSprintId) {
-    await createSprintHistoryRecord(data.taskId, null, userId, `Task reopened: ${data.reason}`);
+    await createSprintHistoryRecord(data.taskId, null, userId, `Task reopened: ${reasonPlain}`);
   }
 
   // Add comment with reopen reason
+  const reopenCommentSections = [
+    `<p><strong>Task Reopened</strong> (Count: ${reopenCount})</p>`,
+    `<p><strong>Reason:</strong></p>${reasonHtml}`,
+  ];
+
   await prisma.taskComment.create({
     data: {
       taskId: data.taskId,
-      content: `**Task Reopened** (Count: ${reopenCount})\n\nReason: ${data.reason}`,
+      content: reopenCommentSections.join('<br/><br/>'),
       createdBy: userId,
     },
   });
@@ -75,7 +87,7 @@ export async function reopen(context: RequestContext) {
       changes: {
         action: 'reopened',
         reopenCount,
-        reason: data.reason,
+        reason: reasonPlain,
       },
     },
   });
