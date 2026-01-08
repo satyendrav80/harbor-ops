@@ -7,6 +7,7 @@ import { LayoutDashboard, Server, Cloud, Lock, Tag, FileText, FolderTree, User, 
 import { GlobalApiError } from '../common/GlobalApiError';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { TaskDetailsSidePanel } from '../../features/tasks/components/TaskDetailsSidePanel';
+import { Toaster } from 'react-hot-toast';
 
 type AppLayoutProps = {
   children: React.ReactNode;
@@ -142,6 +143,15 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Page Content - Scrollable */}
         <div className="flex-1 overflow-y-auto p-4 lg:p-8">
+          <Toaster
+            position="top-right"
+            gutter={12}
+            containerStyle={{ zIndex: 500 }}
+            toastOptions={{
+              duration: 4000,
+              className: 'bg-white dark:bg-[#1C252E] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700/50 shadow-lg',
+            }}
+          />
           <GlobalApiError />
           {children}
         </div>

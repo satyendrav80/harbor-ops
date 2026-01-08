@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import {
   createTask,
   updateTask,
@@ -155,70 +156,88 @@ export function useCreateSubtask() {
   });
 }
 
-export function useCreateComment() {
+export function useCreateComment(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to add comment',
+    successMessage: 'Comment added',
+  });
   return useMutation<TaskComment, Error, { taskId: number; content: string; parentId?: number }>({
     mutationFn: ({ taskId, content, parentId }) => createComment(taskId, { content, parentId }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['task', variables.taskId] });
-      toast.success('Comment added');
+      handleSuccess();
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to add comment');
+      handleError(error);
     },
   });
 }
 
-export function useUpdateComment() {
+export function useUpdateComment(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to update comment',
+    successMessage: 'Comment updated',
+  });
   return useMutation<TaskComment, Error, { taskId: number; commentId: number; content: string }>({
     mutationFn: ({ taskId, commentId, content }) => updateComment(taskId, commentId, content),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['task', variables.taskId] });
-      toast.success('Comment updated');
+      handleSuccess();
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to update comment');
+      handleError(error);
     },
   });
 }
 
-export function useDeleteComment() {
+export function useDeleteComment(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError, handleSuccess } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to delete comment',
+    successMessage: 'Comment deleted',
+  });
   return useMutation<void, Error, { taskId: number; commentId: number }>({
     mutationFn: ({ taskId, commentId }) => deleteComment(taskId, commentId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['task', variables.taskId] });
-      toast.success('Comment deleted');
+      handleSuccess();
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to delete comment');
+      handleError(error);
     },
   });
 }
 
-export function useAddReaction() {
+export function useAddReaction(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to add reaction',
+  });
   return useMutation<any, Error, { taskId: number; commentId: number; emoji: string }>({
     mutationFn: ({ taskId, commentId, emoji }) => addReaction(taskId, commentId, emoji),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['task', variables.taskId] });
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to add reaction');
+      handleError(error);
     },
   });
 }
 
-export function useRemoveReaction() {
+export function useRemoveReaction(feedback?: MutationFeedbackConfig) {
   const queryClient = useQueryClient();
+  const { handleError } = useMutationFeedback(feedback, {
+    fallbackErrorMessage: 'Failed to remove reaction',
+  });
   return useMutation<void, Error, { taskId: number; commentId: number; emoji: string }>({
     mutationFn: ({ taskId, commentId, emoji }) => removeReaction(taskId, commentId, emoji),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['task', variables.taskId] });
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to remove reaction');
+      handleError(error);
     },
   });
 }

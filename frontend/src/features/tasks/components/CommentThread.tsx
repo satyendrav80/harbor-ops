@@ -151,7 +151,10 @@ function CommentForm({
   focusTrigger?: number
 }) {
   const [content, setContent] = useState('');
-  const createComment = useCreateComment();
+  const createComment = useCreateComment({
+    mode: 'toast',
+    suppressSuccessToast: true,
+  });
   const editorKey = useMemo(() => `comment-editor-${taskId}-${parentId ?? 'root'}`, [taskId, parentId]);
 
   // Determine if content is empty (strip HTML)
@@ -288,10 +291,22 @@ function CommentCard({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const updateComment = useUpdateComment();
-  const deleteComment = useDeleteComment();
-  const addReaction = useAddReaction();
-  const removeReaction = useRemoveReaction();
+  const updateComment = useUpdateComment({
+    mode: 'toast',
+    suppressSuccessToast: true,
+  });
+  const deleteComment = useDeleteComment({
+    mode: 'toast',
+    suppressSuccessToast: true,
+  });
+  const addReaction = useAddReaction({
+    mode: 'toast',
+    suppressSuccessToast: true,
+  });
+  const removeReaction = useRemoveReaction({
+    mode: 'toast',
+    suppressSuccessToast: true,
+  });
 
   const isOwner = user?.id === comment.createdBy;
   const canEdit = isOwner;
