@@ -286,7 +286,7 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
     <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit Release Note' : 'Create Release Note'} size="full">
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
         {/* Content */}
-        <div className="flex-1 flex flex-col overflow-hidden p-6">
+        <div className="flex-1 flex flex-col overflow-y-auto p-6 min-h-0">
           <div className="space-y-4 flex-shrink-0">
             {error && (
               <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
@@ -398,7 +398,7 @@ export function ReleaseNoteModal({ isOpen, onClose, releaseNote, services }: Rel
               placeholder="Enter release note description..."
               error={form.formState.errors.note?.message}
               disabled={isLoading}
-              maxHeight="100%"
+              maxHeight="480px"
               className="flex-1 flex flex-col min-h-0"
               submitShortcut="mod-enter"
               onSend={() => form.handleSubmit(onSubmit)()}

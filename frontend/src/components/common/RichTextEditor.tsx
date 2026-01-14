@@ -199,6 +199,12 @@ export function RichTextEditor({
     const updateHeight = () => {
       const editorElement = editor.view.dom as HTMLElement;
       if (editorElement) {
+        const previousScrollTop = editorElement.scrollTop;
+        const previousScrollableHeight = editorElement.scrollHeight - editorElement.clientHeight;
+        const wasAtBottom = previousScrollableHeight > 0
+          ? previousScrollTop >= previousScrollableHeight - 2
+          : true;
+        
         // Reset height to auto to get the correct scrollHeight
         editorElement.style.height = 'auto';
         const scrollHeight = editorElement.scrollHeight;
@@ -211,6 +217,11 @@ export function RichTextEditor({
           newHeight = Math.min(newHeight, maxHeightValue);
         }
         editorElement.style.height = `${newHeight}px`;
+        
+        const maxScrollTop = Math.max(editorElement.scrollHeight - editorElement.clientHeight, 0);
+        editorElement.scrollTop = wasAtBottom
+          ? maxScrollTop
+          : Math.min(previousScrollTop, maxScrollTop);
       }
     };
 
@@ -243,7 +254,7 @@ export function RichTextEditor({
         </label>
       )}
       <div 
-        className={`bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg overflow-hidden flex flex-col w-full`}
+        className={`bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-lg flex flex-col w-full`}
         style={{
           width: '100%',
           height: 'auto',
@@ -492,7 +503,8 @@ export function RichTextEditor({
           className="flex-1 min-h-0 w-full relative"
           style={{
             width: '100%',
-            overflow: 'hidden',
+            overflowX: 'hidden',
+            overflowY: 'auto',
           }}
         >
           <EditorContent 
