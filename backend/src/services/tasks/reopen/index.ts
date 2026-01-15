@@ -72,7 +72,7 @@ export async function reopen(context: RequestContext) {
   await prisma.taskComment.create({
     data: {
       taskId: data.taskId,
-      content: reopenCommentSections.join('<br/><br/>'),
+      content: reopenCommentSections.join('<br/>'),
       createdBy: userId,
     },
   });

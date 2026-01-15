@@ -204,7 +204,7 @@ export async function updateStatus(context: RequestContext) {
       commentSections.push(`<p><strong>Attention:</strong> ${attentionUserDisplay}</p>`);
     }
 
-    const reasonComment = commentSections.join('<br/><br/>');
+    const reasonComment = commentSections.join('<br/>');
 
     await prisma.taskComment.create({
       data: {
