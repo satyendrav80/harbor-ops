@@ -23,9 +23,14 @@ alwaysApply: true
 - No extra explanations unless explicitly asked.
 
 ## Naming Conventions
-- variables, keys: snake_case
-- functions, classes: camelCase
-- constants: SCREAMING_SNAKE_CASE
+- Naming conventions (priority order):
+  - Prefer existing repo/local conventions in the files you touch (match nearby code style).
+  - If conventions are ambiguous or mixed, ask the user before introducing new names/patterns.
+  - Fallback defaults (only if still unclear):
+    - variables, keys: snake_case
+    - functions, classes: camelCase
+    - constants: SCREAMING_SNAKE_CASE
+  - Do not perform broad renames solely to enforce style.
 
 ## Quality Bar
 - Provide clean, runnable, production-ready code only.
