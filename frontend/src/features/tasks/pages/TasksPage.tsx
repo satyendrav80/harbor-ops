@@ -124,8 +124,7 @@ export function TasksPage() {
                 condition: 'and',
                 childs: [
                   { key: 'assignedTo', type: 'STRING', operator: 'eq', value: user.id },
-                  { key: 'status', type: 'STRING', operator: 'ne', value: 'completed' },
-                  { key: 'status', type: 'STRING', operator: 'ne', value: 'duplicate' },
+                  { key: 'status', type: 'STRING', operator: 'notIn', value: ['completed', 'duplicate', 'cancelled'] },
                   // Hide if testing with tester assigned
                   {
                     condition: 'not',
@@ -146,14 +145,7 @@ export function TasksPage() {
                       {
                         condition: 'and',
                         childs: [
-                          {
-                            condition: 'or',
-                            childs: [
-                              { key: 'status', type: 'STRING', operator: 'eq', value: 'in_review' },
-                              { key: 'status', type: 'STRING', operator: 'eq', value: 'blocked' },
-                              { key: 'status', type: 'STRING', operator: 'eq', value: 'proceed' },
-                            ],
-                          },
+                          { key: 'status', type: 'STRING', operator: 'in', value: ['in_review', 'blocked', 'proceed'] },
                           { key: 'attentionToId', type: 'STRING', operator: 'isNotNull' },
                         ],
                       },
@@ -166,11 +158,7 @@ export function TasksPage() {
                 condition: 'and',
                 childs: [
                   { key: 'testerId', type: 'STRING', operator: 'eq', value: user.id },
-                  { key: 'status', type: 'STRING', operator: 'ne', value: 'completed' },
-                  { key: 'status', type: 'STRING', operator: 'ne', value: 'duplicate' },
-                  { key: 'status', type: 'STRING', operator: 'ne', value: 'reopened' },
-                  { key: 'status', type: 'STRING', operator: 'ne', value: 'not_fixed' },
-                  { key: 'status', type: 'STRING', operator: 'ne', value: 'proceed' },
+                  { key: 'status', type: 'STRING', operator: 'notIn', value: ['completed', 'duplicate', 'cancelled', 'reopened', 'not_fixed', 'proceed'] },
                 ],
               },
               // Attention: hide completed, reopened, not_fixed
@@ -178,10 +166,7 @@ export function TasksPage() {
                 condition: 'and',
                 childs: [
                   { key: 'attentionToId', type: 'STRING', operator: 'eq', value: user.id },
-                  { key: 'status', type: 'STRING', operator: 'ne', value: 'completed' },
-                  { key: 'status', type: 'STRING', operator: 'ne', value: 'duplicate' },
-                  { key: 'status', type: 'STRING', operator: 'ne', value: 'reopened' },
-                  { key: 'status', type: 'STRING', operator: 'ne', value: 'not_fixed' },
+                  { key: 'status', type: 'STRING', operator: 'notIn', value: ['completed', 'duplicate', 'cancelled', 'reopened', 'not_fixed'] },
                 ],
               },
             ],
