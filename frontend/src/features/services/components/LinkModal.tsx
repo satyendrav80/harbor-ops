@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'lucide-react';
+import { useOverlayStack } from '../../../components/common/overlay/OverlayStackProvider';
 
 type LinkModalProps = {
   isOpen: boolean;
@@ -12,6 +13,15 @@ type LinkModalProps = {
 export function LinkModal({ isOpen, onClose, onApply, initialText = '', initialUrl = '' }: LinkModalProps) {
   const [text, setText] = useState(initialText);
   const [url, setUrl] = useState(initialUrl);
+  const { register } = useOverlayStack();
+  const unregisterRef = useRef<(() => void) | null>(null);
+  const [zBackdrop, setZBackdrop] = useState<number | null>(null);
+  const [zContent, setZContent] = useState<number | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (isOpen) {
@@ -19,6 +29,33 @@ export function LinkModal({ isOpen, onClose, onApply, initialText = '', initialU
       setUrl(initialUrl);
     }
   }, [isOpen, initialText, initialUrl]);
+
+  // Register with overlay stack so Escape closes ONLY this modal (top-most overlay).
+  useEffect(() => {
+    if (!isOpen) {
+      unregisterRef.current?.();
+      unregisterRef.current = null;
+      setZBackdrop(null);
+      setZContent(null);
+      return;
+    }
+
+    const reg = register('overlay', {
+      closeOnEscape: true,
+      onClose: () => onCloseRef.current(),
+    });
+
+    unregisterRef.current = reg.unregister;
+    setZBackdrop(reg.zIndexBackdrop ?? null);
+    setZContent(reg.zIndexContent);
+
+    return () => {
+      reg.unregister();
+      unregisterRef.current = null;
+      setZBackdrop(null);
+      setZContent(null);
+    };
+  }, [isOpen, register]);
 
   if (!isOpen) return null;
 
@@ -37,9 +74,14 @@ export function LinkModal({ isOpen, onClose, onApply, initialText = '', initialU
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div
+      className="fixed inset-0 flex items-center justify-center bg-black/50"
+      style={{ zIndex: zBackdrop ?? 60 }}
+      onClick={onClose}
+    >
       <div
         className="bg-white dark:bg-[#1C252E] rounded-lg border border-gray-200 dark:border-gray-700/50 p-4 min-w-[320px] shadow-lg"
+        style={{ zIndex: zContent ?? 61 }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="space-y-3">

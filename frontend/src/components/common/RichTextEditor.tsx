@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
+import { BubbleMenu } from '@tiptap/react/menus';
+import { getMarkRange, type Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
@@ -52,6 +54,89 @@ const rgbToHex = (rgb: string): string => {
   return '#000000'; // Default fallback
 };
 
+const NonInclusiveLink = Link.extend({
+  inclusive: false,
+});
+
+const selectionHasAnyLink = (editor: Editor): boolean => {
+  const { from, to, empty } = editor.state.selection;
+
+  // Collapsed selection: TipTap can reliably tell us if the cursor is in a link.
+  if (empty) {
+    return editor.isActive('link');
+  }
+
+  // Range selection: show bubble if *any* part of selection contains a link mark.
+  let found = false;
+  editor.state.doc.nodesBetween(from, to, (node) => {
+    if (found) return false;
+    if (!node.isText) return;
+    if (node.marks.some((mark) => mark.type.name === 'link')) {
+      found = true;
+      return false;
+    }
+  });
+
+  return found || editor.isActive('link');
+};
+
+type LinkMarkContext = {
+  href: string;
+  text: string;
+  range: { from: number; to: number } | null;
+};
+
+const getLinkContextForSelection = (editor: Editor): LinkMarkContext => {
+  const { state } = editor;
+  const { selection } = state;
+  const linkType = state.schema.marks.link;
+
+  // Collapsed selection: try to resolve the full mark range (handles boundary cases).
+  if (selection.empty) {
+    const range = getMarkRange(selection.$from, linkType);
+    if (!range) {
+      return { href: '', text: '', range: null };
+    }
+
+    let href = '';
+    state.doc.nodesBetween(range.from, range.to, (node) => {
+      if (href) return false;
+      if (!node.isText) return;
+      const linkMark = node.marks.find((m) => m.type === linkType);
+      if (linkMark?.attrs?.href) {
+        href = linkMark.attrs.href as string;
+        return false;
+      }
+    });
+
+    const text = state.doc.textBetween(range.from, range.to);
+    return { href, text, range: { from: range.from, to: range.to } };
+  }
+
+  // Range selection: find the first link mark within the selection and use its href.
+  let href = '';
+  let foundRange: { from: number; to: number } | null = null;
+
+  state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+    if (href) return false;
+    if (!node.isText) return;
+
+    const linkMark = node.marks.find((m) => m.type === linkType);
+    if (!linkMark?.attrs?.href) return;
+
+    href = linkMark.attrs.href as string;
+    const $pos = state.doc.resolve(Math.min(pos + 1, state.doc.content.size));
+    const range = getMarkRange($pos, linkType, linkMark.attrs);
+    if (range) {
+      foundRange = { from: range.from, to: range.to };
+    }
+    return false;
+  });
+
+  const text = selection.empty ? '' : state.doc.textBetween(selection.from, selection.to);
+  return { href, text, range: foundRange };
+};
+
 export function RichTextEditor({
   value,
   onChange,
@@ -73,6 +158,10 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const { isDark } = useTheme();
   const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [linkModalInitialText, setLinkModalInitialText] = useState('');
+  const [linkModalInitialUrl, setLinkModalInitialUrl] = useState('');
+  const [linkModalRange, setLinkModalRange] = useState<{ from: number; to: number } | null>(null);
+  const [bubbleHref, setBubbleHref] = useState('');
   const [currentFontSize, setCurrentFontSize] = useState<string>('10');
   const [isToolbarExpanded, setIsToolbarExpanded] = useState(false);
   const colorInputRef = useRef<HTMLInputElement>(null);
@@ -96,7 +185,7 @@ export function RichTextEditor({
         // Disable link in StarterKit since we're using our own configured version
         link: false,
       }),
-      Link.configure({
+      NonInclusiveLink.configure({
         openOnClick: false,
         HTMLAttributes: {
           class: 'text-primary hover:underline cursor-pointer',
@@ -154,11 +243,19 @@ export function RichTextEditor({
     },
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
+
+      // Keep link bubble content in sync even when selection changes don’t trigger a render.
+      const nextHref = getLinkContextForSelection(editor).href;
+      setBubbleHref((prev) => (prev === nextHref ? prev : nextHref));
+
       // Update current font size state
       const fontSize = editor.getAttributes('textStyle').fontSize;
       setCurrentFontSize(fontSize || '10');
     },
     onSelectionUpdate: ({ editor }) => {
+      const nextHref = getLinkContextForSelection(editor).href;
+      setBubbleHref((prev) => (prev === nextHref ? prev : nextHref));
+
       // Update current font size when selection changes
       const fontSize = editor.getAttributes('textStyle').fontSize;
       setCurrentFontSize(fontSize || '10');
@@ -245,6 +342,14 @@ export function RichTextEditor({
   if (!editor) {
     return null;
   }
+
+  const openLinkModal = () => {
+    const ctx = getLinkContextForSelection(editor);
+    setLinkModalInitialUrl(ctx.href);
+    setLinkModalInitialText(ctx.text);
+    setLinkModalRange(ctx.range);
+    setLinkModalOpen(true);
+  };
 
   return (
     <div className={className}>
@@ -482,7 +587,7 @@ export function RichTextEditor({
               <button
                 type="button"
                 onClick={() => {
-                  setLinkModalOpen(true);
+                  openLinkModal();
                 }}
                 disabled={disabled}
                 className={`px-2 py-1 text-xs rounded border flex items-center justify-center ${
@@ -507,6 +612,36 @@ export function RichTextEditor({
             overflowY: 'auto',
           }}
         >
+          <BubbleMenu
+            editor={editor}
+            shouldShow={({ editor }) => selectionHasAnyLink(editor)}
+            options={{
+              placement: 'bottom-start',
+            }}
+          >
+            <div className="flex items-center gap-2 px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1C252E] shadow-md">
+              <span className="max-w-[220px] truncate text-xs text-gray-700 dark:text-gray-300">
+                {bubbleHref || 'Link'}
+              </span>
+              <div className="w-px h-4 bg-gray-200 dark:bg-gray-700/50" />
+              <button
+                type="button"
+                onClick={openLinkModal}
+                disabled={disabled}
+                className="text-xs font-medium text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().extendMarkRange('link').unsetLink().run()}
+                disabled={disabled}
+                className="text-xs font-medium text-gray-700 dark:text-gray-300 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Remove
+              </button>
+            </div>
+          </BubbleMenu>
           <EditorContent 
             editor={editor} 
             style={{
@@ -536,23 +671,60 @@ export function RichTextEditor({
       )}
       <LinkModal
         isOpen={linkModalOpen}
-        onClose={() => setLinkModalOpen(false)}
+        onClose={() => {
+          setLinkModalOpen(false);
+          setLinkModalRange(null);
+        }}
         onApply={(text, url) => {
-          const attrs = editor.getAttributes('link');
-          if (attrs.href) {
-            // Update existing link
-            editor.chain().focus().setLink({ href: url }).run();
+          const trimmedUrl = url.trim();
+          const trimmedText = (text.trim() || trimmedUrl);
+
+          if (linkModalRange) {
+            // Edit the link we captured when opening the modal (selection may have moved while modal is open).
+            if (trimmedText !== linkModalInitialText) {
+              editor
+                .chain()
+                .focus()
+                .setTextSelection(linkModalRange)
+                .insertContent([
+                  {
+                    type: 'text',
+                    text: trimmedText,
+                    marks: [{ type: 'link', attrs: { href: trimmedUrl } }],
+                  },
+                ])
+                .run();
+            } else {
+              editor
+                .chain()
+                .focus()
+                .setTextSelection(linkModalRange)
+                .setLink({ href: trimmedUrl })
+                .run();
+            }
           } else if (editor.state.selection.empty) {
-            // Insert link with text
-            editor.chain().focus().insertContent(`<a href="${url}">${text}</a>`).run();
+            // Insert a new link, then a trailing space so typing continues as plain text.
+            editor
+              .chain()
+              .focus()
+              .insertContent([
+                {
+                  type: 'text',
+                  text: trimmedText,
+                  marks: [{ type: 'link', attrs: { href: trimmedUrl } }],
+                },
+                { type: 'text', text: ' ' },
+              ])
+              .run();
           } else {
-            // Wrap selected text in link
-            editor.chain().focus().setLink({ href: url }).run();
+            // Wrap selected text in link.
+            editor.chain().focus().setLink({ href: trimmedUrl }).run();
           }
           setLinkModalOpen(false);
+          setLinkModalRange(null);
         }}
-        initialText={editor.state.selection.empty ? '' : editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to)}
-        initialUrl={editor.getAttributes('link').href || ''}
+        initialText={linkModalInitialText}
+        initialUrl={linkModalInitialUrl}
       />
     </div>
   );
