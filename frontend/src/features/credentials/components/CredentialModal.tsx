@@ -26,7 +26,7 @@ type CredentialModalProps = {
 const credentialSchema = z.object({
   name: z.string().min(1, 'Credential name is required').max(100, 'Credential name must be 100 characters or less'),
   type: z.string().min(1, 'Credential type is required').max(50, 'Credential type must be 50 characters or less'),
-  data: z.record(z.any()), // Validation will be done in onSubmit based on isEditing
+  data: z.record(z.any(), z.any()), // Validation will be done in onSubmit based on isEditing
   tagIds: z.array(z.number()).optional(),
   groupIds: z.array(z.number()).optional(),
 });
