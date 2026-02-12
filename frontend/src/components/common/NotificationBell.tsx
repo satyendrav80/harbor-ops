@@ -160,7 +160,7 @@ export function NotificationBell({ onTaskClick, onReleaseNoteClick }: Notificati
     if (alreadyPrompted) return;
     if (Notification.permission === 'default') {
       const tId = toast((t) => (
-        <div className="text-sm text-gray-900 dark:text-gray-100">
+        <div className="text-sm text-gray-900">
           Enable desktop notifications?
           <div className="mt-2 flex gap-2">
             <button

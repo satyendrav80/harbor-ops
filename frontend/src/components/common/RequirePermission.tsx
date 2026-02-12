@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../features/auth/context/AuthContext';
 
 /**
@@ -6,10 +6,11 @@ import { useAuth } from '../../features/auth/context/AuthContext';
  */
 export function RequirePermission({ permission, children, redirectTo }: { permission: string; children: React.ReactNode; redirectTo?: string }) {
   const { hasPermission, token } = useAuth();
-  
+  const location = useLocation();
+
   // If not authenticated, redirect to login
   if (!token) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
   
   // If no permission, redirect to profile (always accessible) or specified route

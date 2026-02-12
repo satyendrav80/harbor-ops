@@ -47,8 +47,9 @@ export async function apiFetch<T>(path: string, init?: ApiRequestInit): Promise<
       if (typeof window !== 'undefined') {
         // Only redirect if not already on login page so error messages are visible on login
         if (window.location.pathname !== '/login') {
+          const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
           setTimeout(() => {
-            window.location.href = '/login';
+            window.location.href = returnTo ? `/login?returnTo=${returnTo}` : '/login';
           }, 0);
         }
       }

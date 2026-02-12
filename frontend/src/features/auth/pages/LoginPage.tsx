@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import { useLogin } from '../hooks/useLogin';
 import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from '../../../components/ui/ThemeToggle';
@@ -14,13 +14,32 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
+/** Allowed redirect targets after login; avoids open redirect and auth loops. */
+function getSafeRedirectTo(
+  returnTo: string | null,
+  from: { pathname: string; search?: string; hash?: string } | undefined
+): string {
+  const raw = returnTo ?? (from ? from.pathname + (from.search ?? '') + (from.hash ?? '') : null);
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/dashboard';
+  const path = raw.split('?')[0].split('#')[0];
+  if (path === '/login' || path === '/signup' || path === '/forgot') return '/dashboard';
+  return raw;
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { token } = useAuth();
   const { mutate, isPending } = useLogin();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
+  const redirectTo = useMemo(
+    () => getSafeRedirectTo(searchParams.get('returnTo'), location.state?.from),
+    [searchParams, location.state?.from]
+  );
+
   usePageTitle('Sign In');
 
   const form = useForm<FormValues>({
@@ -29,13 +48,13 @@ export function LoginPage() {
   });
 
   useEffect(() => {
-    if (token) navigate('/dashboard', { replace: true });
-  }, [token, navigate]);
+    if (token) navigate(redirectTo, { replace: true });
+  }, [token, navigate, redirectTo]);
 
   const onSubmit = (values: FormValues) => {
     setError(null);
-    mutate(values, { 
-      onSuccess: () => navigate('/dashboard', { replace: true }),
+    mutate(values, {
+      onSuccess: () => navigate(redirectTo, { replace: true }),
       onError: (err: any) => {
         setError(err?.message || 'Login failed. Please check your credentials.');
       },
@@ -85,6 +104,7 @@ export function LoginPage() {
                     placeholder="username or email@example.com"
                     type="text"
                     autoComplete="username"
+                    autoFocus
                     {...form.register('usernameOrEmail')}
                   />
                 </label>

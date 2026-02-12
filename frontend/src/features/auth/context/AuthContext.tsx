@@ -52,14 +52,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (me.status && me.status !== 'approved') {
         logout();
         if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-          window.location.href = '/login';
+          const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+          window.location.href = returnTo ? `/login?returnTo=${returnTo}` : '/login';
         }
         return;
       }
       if (!me.permissions || me.permissions.length === 0) {
         logout();
         if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-          window.location.href = '/login';
+          const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+          window.location.href = returnTo ? `/login?returnTo=${returnTo}` : '/login';
         }
         return;
       }
