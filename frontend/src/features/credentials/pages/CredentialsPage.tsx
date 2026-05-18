@@ -13,7 +13,8 @@ import { CredentialDetailsSidePanel } from '../components/CredentialDetailsSideP
 import { ServerDetailsSidePanel } from '../../servers/components/ServerDetailsSidePanel';
 import { ServiceDetailsSidePanel } from '../../services/components/ServiceDetailsSidePanel';
 import { AdvancedFiltersPanel } from '../../release-notes/components/AdvancedFiltersPanel';
-import { Search, Plus, Edit, Trash2, Key, X, Server, Cloud, Filter as FilterIcon } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Key, X, Server, Cloud, Filter as FilterIcon, Copy, Download } from 'lucide-react';
+import { exportToJSON, exportToProperties, downloadFile, type BulkDataFormat } from '../../../utils/bulkDataUtils';
 import { ExpandCollapseButton } from '../../../components/common/ExpandCollapseButton';
 import { RevealButton } from '../../../components/common/RevealButton';
 import type { Credential } from '../../../services/credentials';
@@ -65,6 +66,8 @@ export function CredentialsPage() {
   const [revealedData, setRevealedData] = useState<Record<number, any>>({});
   const [revealingData, setRevealingData] = useState<Record<number, boolean>>({});
   const [expandedCredentialIds, setExpandedCredentialIds] = useState<Set<number>>(new Set());
+  const [copySuccessIds, setCopySuccessIds] = useState<Set<number>>(new Set());
+  const [listingExportFormats, setListingExportFormats] = useState<Record<number, BulkDataFormat>>({});
   const [sidePanelCredentialId, setSidePanelCredentialId] = useState<number | null>(null);
   const [sidePanelServerId, setSidePanelServerId] = useState<number | null>(null);
   const [sidePanelServiceId, setSidePanelServiceId] = useState<number | null>(null);
@@ -285,6 +288,7 @@ export function CredentialsPage() {
   const handleEditCredential = (credential: Credential) => {
     setSelectedCredentialForEdit(credential);
     setCredentialModalOpen(true);
+    setSidePanelCredentialId(null);
   };
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -336,6 +340,47 @@ export function CredentialsPage() {
         return newState;
       });
     }
+  };
+
+  const getListingData = async (credentialId: number): Promise<Record<string, any> | null> => {
+    try {
+      let data = revealedData[credentialId];
+      if (!data) {
+        const response = await revealCredentialData(credentialId);
+        data = response.data;
+      }
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleCopyData = async (credentialId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const data = await getListingData(credentialId);
+    if (!data) return;
+    const fmt = listingExportFormats[credentialId] ?? 'json';
+    const content = fmt === 'json' ? exportToJSON(data) : exportToProperties(data);
+    await navigator.clipboard.writeText(content);
+    setCopySuccessIds((prev) => new Set(prev).add(credentialId));
+    setTimeout(() => {
+      setCopySuccessIds((prev) => {
+        const next = new Set(prev);
+        next.delete(credentialId);
+        return next;
+      });
+    }, 2000);
+  };
+
+  const handleDownloadData = async (credentialId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const data = await getListingData(credentialId);
+    if (!data) return;
+    const fmt = listingExportFormats[credentialId] ?? 'json';
+    const content = fmt === 'json' ? exportToJSON(data) : exportToProperties(data);
+    const extension = fmt === 'json' ? 'json' : 'properties';
+    const mimeType = fmt === 'json' ? 'application/json' : 'text/plain';
+    downloadFile(content, `credentials.${extension}`, mimeType);
   };
 
   const handleToggleExpand = (credentialId: number, e: React.MouseEvent) => {
@@ -515,6 +560,32 @@ export function CredentialsPage() {
                           title="Reveal credential data (requires credentials:reveal permission)"
                         />
                       )}
+                      {hasPermission('credentials:reveal') && keyCount > 0 && (
+                        <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={listingExportFormats[credential.id] ?? 'json'}
+                            onChange={(e) => setListingExportFormats((prev) => ({ ...prev, [credential.id]: e.target.value as BulkDataFormat }))}
+                            className="appearance-none px-2 py-1.5 pr-6 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-l-lg focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                          >
+                            <option value="json">JSON</option>
+                            <option value="properties">Properties</option>
+                          </select>
+                          <button
+                            onClick={(e) => handleDownloadData(credential.id, e)}
+                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border border-l-0 border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                            title="Download as file"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleCopyData(credential.id, e)}
+                            className={`inline-flex items-center px-3 py-1.5 text-xs font-medium border border-l-0 rounded-r-lg transition-colors ${copySuccessIds.has(credential.id) ? 'text-green-600 dark:text-green-400 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20' : 'text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                            title={copySuccessIds.has(credential.id) ? 'Copied!' : 'Copy to clipboard'}
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Expanded credential data (only shown when expanded) */}
@@ -652,7 +723,7 @@ export function CredentialsPage() {
                   <div className="flex items-center gap-2 ml-4">
                     {hasPermission('credentials:update') && (
                       <button
-                        onClick={() => handleEditCredential(credential)}
+                        onClick={(e) => { e.stopPropagation(); handleEditCredential(credential); }}
                         className="text-gray-400 dark:text-gray-500 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 rounded p-1"
                         aria-label="Edit credential"
                       >
@@ -661,7 +732,7 @@ export function CredentialsPage() {
                     )}
                     {hasPermission('credentials:delete') && (
                       <button
-                        onClick={() => handleDeleteCredential(credential.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteCredential(credential.id); }}
                         disabled={deleteCredential.isPending}
                         className="text-gray-400 dark:text-gray-500 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 rounded p-1 disabled:opacity-50"
                         aria-label="Delete credential"

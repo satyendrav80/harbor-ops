@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useCredential } from '../hooks/useCredentials';
 import { revealCredentialData } from '../../../services/credentials';
 import { CredentialModal } from './CredentialModal';
-import { Key, Edit, Server, Cloud, Tag as TagIcon } from 'lucide-react';
+import { Key, Edit, Server, Cloud, Tag as TagIcon, Copy, Download } from 'lucide-react';
+import { exportToJSON, exportToProperties, downloadFile, type BulkDataFormat } from '../../../utils/bulkDataUtils';
 import { useAuth } from '../../auth/context/AuthContext';
 import { Loading } from '../../../components/common/Loading';
 import { useQueryClient } from '@tanstack/react-query';
@@ -27,8 +28,40 @@ export function CredentialDetailsContent({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [revealedData, setRevealedData] = useState<any>(null);
   const [revealingData, setRevealingData] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [exportFormat, setExportFormat] = useState<BulkDataFormat>('json');
 
   const { data: credential, isLoading } = useCredential(credentialId);
+
+  const getExportData = async (): Promise<Record<string, string> | null> => {
+    try {
+      let data = revealedData;
+      if (!data) {
+        const response = await revealCredentialData(credentialId);
+        data = response.data;
+      }
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleExport = async (method: 'download' | 'copy') => {
+    const data = await getExportData();
+    if (!data) return;
+
+    const content = exportFormat === 'json' ? exportToJSON(data) : exportToProperties(data);
+    const extension = exportFormat === 'json' ? 'json' : 'properties';
+    const mimeType = exportFormat === 'json' ? 'application/json' : 'text/plain';
+
+    if (method === 'download') {
+      downloadFile(content, `credentials.${extension}`, mimeType);
+    } else {
+      await navigator.clipboard.writeText(content);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    }
+  };
 
   const handleRevealData = async () => {
     if (revealedData !== null) {
@@ -113,12 +146,38 @@ export function CredentialDetailsContent({
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Credential Data</h2>
             {hasPermission('credentials:reveal') && (
-              <RevealButton
-                isRevealed={revealedData !== null}
-                isLoading={revealingData}
-                onToggle={handleRevealData}
-                title="Reveal data (requires credentials:reveal permission)"
-              />
+              <div className="flex items-center gap-2">
+                <div className="flex items-center">
+                  <select
+                    value={exportFormat}
+                    onChange={(e) => setExportFormat(e.target.value as BulkDataFormat)}
+                    className="appearance-none px-2 py-1.5 pr-6 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border border-gray-200 dark:border-gray-700/50 rounded-l-lg focus:outline-0 focus:ring-2 focus:ring-primary/50"
+                  >
+                    <option value="json">JSON</option>
+                    <option value="properties">Properties</option>
+                  </select>
+                  <button
+                    onClick={() => handleExport('download')}
+                    className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border border-l-0 border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                    title="Download as file"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleExport('copy')}
+                    className={`inline-flex items-center px-3 py-1.5 text-xs font-medium border border-l-0 rounded-r-lg transition-colors ${copySuccess ? 'text-green-600 dark:text-green-400 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20' : 'text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1C252E] border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                    title={copySuccess ? 'Copied!' : 'Copy to clipboard'}
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <RevealButton
+                  isRevealed={revealedData !== null}
+                  isLoading={revealingData}
+                  onToggle={handleRevealData}
+                  title="Reveal data (requires credentials:reveal permission)"
+                />
+              </div>
             )}
           </div>
           <div className="space-y-3">

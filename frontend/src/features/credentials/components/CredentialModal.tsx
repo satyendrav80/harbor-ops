@@ -13,6 +13,7 @@ import { SearchableMultiSelect } from '../../../components/common/SearchableMult
 import { useAuth } from '../../../features/auth/context/AuthContext';
 import { Trash2, Upload, Download, Copy, FileJson, FileText } from 'lucide-react';
 import type { Credential } from '../../../services/credentials';
+import { revealCredentialData } from '../../../services/credentials';
 import { parseJSON, parseProperties, exportToJSON, exportToProperties, downloadFile, copyToClipboard, type BulkDataFormat } from '../../../utils/bulkDataUtils';
 import { useModalError } from '../../../hooks/useModalError';
 
@@ -233,14 +234,25 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
   };
 
   const handleExport = async (method: 'download' | 'copy') => {
-    // Build data object from current keys and values
+    let revealedValues: Record<string, string> = {};
+
+    if (isEditing && credential) {
+      try {
+        const response = await revealCredentialData(credential.id);
+        revealedValues = response.data || {};
+      } catch {
+        showError('Failed to reveal credential values for export.');
+        return;
+      }
+    }
+
+    // Build data object: prefer user-typed values, fall back to revealed values
     const dataObject: Record<string, string> = {};
     dataKeys.forEach((key) => {
       const keyTrimmed = key.trim();
-      const value = dataValues[key];
-      if (keyTrimmed !== '' && value !== undefined) {
-        dataObject[keyTrimmed] = value;
-      }
+      if (!keyTrimmed) return;
+      const formValue = dataValues[key];
+      dataObject[keyTrimmed] = formValue && formValue.trim() !== '' ? formValue : (revealedValues[keyTrimmed] ?? '');
     });
 
     if (Object.keys(dataObject).length === 0) {
@@ -274,7 +286,7 @@ export function CredentialModal({ isOpen, onClose, credential, onDelete }: Crede
     // Build data object from keys and values
     const dataObject: Record<string, any> = {};
 
-    if (isEditing && dataStructureModified) {
+    if (isEditing) {
       // When editing and structure was modified, include ALL keys (even with empty values)
       // This tells the backend which keys to keep and which to delete
       dataKeys.forEach((key) => {
