@@ -31,7 +31,7 @@ export async function getUnreadCount(req: Request, res: Response) {
   }
 }
 
-export async function markAsRead(req: Request, res: Response) {
+export async function markAsRead(req: Request<{ id: string }>, res: Response) {
   try {
     const userId = (req as any).user.id;
     const notificationId = parseInt(req.params.id);
